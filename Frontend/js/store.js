@@ -1,0 +1,206 @@
+/* ============================================================
+   store.js — Estado global (cache local) + sincronização com o backend
+   Estratégia local-first:
+     - O estado local (localStorage) mantém a UI instantânea.
+     - Quando o backend está online e o usuário logado, as mutações
+       sincronizam (create aguarda o id real; toggle/delete em background).
+     - Offline: opera 100% local (PWA resiliente).
+   ============================================================ */
+
+import * as api from './api.js';
+
+const STORAGE_KEY = 'menteleve.state.v1';
+
+export const CATEGORIES = [
+  { id: 'casa',           label: 'Casa',           dot: '#ff758f' },
+  { id: 'filhos',         label: 'Filhos',         dot: '#c9184a' },
+  { id: 'trabalho',       label: 'Trabalho',       dot: '#a4133c' },
+  { id: 'saude',          label: 'Saúde',          dot: '#ff4d6d' },
+  { id: 'financas',       label: 'Finanças',       dot: '#800f2f' },
+  { id: 'relacionamento', label: 'Relacionamento', dot: '#ff8fa3' },
+];
+
+export const FREE_TASK_LIMIT = 50;
+
+const defaultState = () => ({
+  onboardingSeen: false,
+  user: null,        // { name, email }
+  userId: null,      // id numérico do backend (null = só local)
+  isPremium: false,
+  tasks: [],
+});
+
+function seedTasks() {
+  return [
+    { id: uid(), title: 'Encomendar bolo p/ Leo',  category: 'filhos',   due: '14:00',           done: false, important: false, createdAt: Date.now() - 5000 },
+    { id: uid(), title: 'Mandar convites p/ Leo',   category: 'filhos',   due: 'Hoje',            done: false, important: true,  createdAt: Date.now() - 4000 },
+    { id: uid(), title: 'Reunião de Equipe',        category: 'trabalho', due: 'Amanhã • 10:00',  done: true,  important: false, createdAt: Date.now() - 3000 },
+    { id: uid(), title: 'Lanche c/ Família',        category: 'casa',     due: '12:00',           done: false, important: false, createdAt: Date.now() - 2000 },
+  ];
+}
+
+let state = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { ...defaultState(), ...JSON.parse(raw) };
+  } catch (_) { /* ignore */ }
+  return defaultState();
+}
+
+function persist() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (_) { /* ignore */ }
+}
+
+export function uid() {
+  return 'id-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+// IDs locais (ainda não persistidos no backend) começam com "id-".
+const isLocalId = (id) => typeof id === 'string' && id.startsWith('id-');
+
+// ------- Getters -------
+export const getState = () => state;
+export const getUser = () => state.user;
+export const getUserId = () => state.userId;
+export const isOnboardingSeen = () => state.onboardingSeen;
+export const isPremium = () => state.isPremium;
+export const getTasks = () => state.tasks;
+export const getCategory = (id) => CATEGORIES.find((c) => c.id === id) || null;
+
+// ------- Onboarding -------
+export function markOnboardingSeen() {
+  state.onboardingSeen = true;
+  persist();
+}
+
+// ------- Sessão / Auth -------
+/**
+ * Login: registra localmente e tenta autenticar no backend.
+ * Se online, hidrata as tarefas a partir do servidor (fonte de verdade).
+ * Se offline, mantém/inicia o estado local (com seed de demonstração).
+ */
+export async function login({ name, email }) {
+  state.user = { name: name || nameFromEmail(email), email };
+  persist();
+
+  const user = await api.apiLogin(email, state.user.name);
+  if (user) {
+    state.userId = user.id;
+    state.isPremium = !!user.is_premium;
+    state.user.name = user.name || state.user.name;
+    persist();
+
+    const remote = await api.apiListTasks();
+    if (remote) {
+      state.tasks = remote; // backend é a fonte de verdade
+      persist();
+    }
+  } else {
+    // offline: experiência local com dados de demonstração
+    state.userId = null;
+    if (state.tasks.length === 0) state.tasks = seedTasks();
+    persist();
+  }
+  return state.user;
+}
+
+/** Restaura a sessão no boot: reativa o header e re-hidrata se online. */
+export async function restoreSession() {
+  if (!state.user) return;
+  if (state.userId != null) {
+    api.setAuthUserId(state.userId);
+    const remote = await api.apiListTasks();
+    if (remote) {
+      state.tasks = remote;
+      persist();
+      return true; // houve atualização → caller pode re-renderizar
+    }
+  }
+  return false;
+}
+
+export function logout() {
+  state = defaultState();
+  api.setAuthUserId(null);
+  persist();
+}
+
+// ------- Tarefas -------
+/**
+ * Cria uma tarefa. Otimista localmente; se online, troca pelo registro
+ * persistido (com id real) antes de retornar.
+ */
+export async function addTask(task) {
+  const local = {
+    id: uid(),
+    title: task.title,
+    category: task.category || 'casa',
+    due: task.due || '',
+    done: false,
+    important: !!task.important,
+    createdAt: Date.now(),
+  };
+  state.tasks.unshift(local);
+  persist();
+
+  if (state.userId != null) {
+    const saved = await api.apiCreateTask(local);
+    if (saved) {
+      const idx = state.tasks.findIndex((x) => x.id === local.id);
+      if (idx >= 0) {
+        state.tasks[idx] = saved; // reconcilia com o id do backend
+        persist();
+        return state.tasks[idx];
+      }
+    }
+  }
+  return local;
+}
+
+export async function addTasks(list) {
+  const out = [];
+  for (const t of list) out.push(await addTask(t));
+  return out;
+}
+
+export function toggleTask(id) {
+  const t = state.tasks.find((x) => x.id === id);
+  if (t) {
+    t.done = !t.done;
+    persist();
+    if (state.userId != null && !isLocalId(id)) {
+      api.apiSetDone(id, t.done).catch(() => {});
+    }
+  }
+  return t;
+}
+
+export function removeTask(id) {
+  state.tasks = state.tasks.filter((x) => x.id !== id);
+  persist();
+  if (state.userId != null && !isLocalId(id)) {
+    api.apiDeleteTask(id).catch(() => {});
+  }
+}
+
+export function reachedFreeLimit() {
+  return !state.isPremium && state.tasks.length >= FREE_TASK_LIMIT;
+}
+
+export function setPremium(v) {
+  state.isPremium = v;
+  persist();
+  if (state.userId != null) {
+    api.apiSetPremium(v).catch(() => {});
+  }
+}
+
+function nameFromEmail(email) {
+  if (!email) return 'Você';
+  const local = email.split('@')[0].replace(/[._-]+/g, ' ');
+  return local.charAt(0).toUpperCase() + local.slice(1);
+}

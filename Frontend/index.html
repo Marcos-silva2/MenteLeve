@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#fff0f3" />
+  <meta name="description" content="MenteLeve — a sua mente mais leve. Gestão de carga mental com inteligência artificial." />
+  <title>MenteLeve</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: '#fff0f3',
+            bordeaux: { 900: '#590d22', 800: '#800f2f', 700: '#a4133c', 600: '#c9184a' },
+            accent: { DEFAULT: '#ff4d6d', hover: '#ff758f' },
+            soft: { 300: '#ff8fa3', 200: '#ffb3c1', 100: '#ffccd5' },
+            surface: '#ffffff',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+          },
+          boxShadow: {
+            card: '0 8px 24px rgba(89,13,34,.08)',
+            sheet: '0 -8px 40px rgba(89,13,34,.18)',
+            fab: '0 8px 24px rgba(255,77,109,.45)',
+          },
+          borderRadius: {
+            xl2: '1.5rem',
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Shell adaptativo:
+       Mobile  → conteúdo full-screen + bottom bar
+       Desktop → sidebar lateral fixa (Night Bordeaux) + área de conteúdo -->
+  <div id="root" class="root">
+    <!-- Navegação lateral (desktop) -->
+    <aside id="sidenav" class="sidenav"></aside>
+
+    <!-- Área principal (recebe overlays: sheet/modal/toast/FAB) -->
+    <div id="device" class="frame">
+      <main id="app" class="app-screen"></main>
+      <!-- Navegação inferior (mobile) -->
+      <nav id="bottomnav" class="bottomnav"></nav>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

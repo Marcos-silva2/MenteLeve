@@ -1,0 +1,27 @@
+{
+  "name": "MenteLeve",
+  "short_name": "MenteLeve",
+  "description": "A sua mente mais leve. Gestão de carga mental com inteligência artificial.",
+  "lang": "pt-BR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff0f3",
+  "theme_color": "#fff0f3",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
