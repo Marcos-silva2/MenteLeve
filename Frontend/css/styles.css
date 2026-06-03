@@ -211,6 +211,125 @@ body {
   50%      { box-shadow: 0 8px 32px rgba(255, 77, 109, 0.65); }
 }
 
+/* ============================================================
+   Splash "O Despertar da MenteLeve" — roteiro de docs/entrada.md
+   3.5s: (1) respiro Lavender Blush, (2) partículas convergem e
+   formam o isotipo, (3) marca + faísca IA, (4) fade-out p/ onboarding.
+   ============================================================ */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #fff0f3;                 /* Lavender Blush (60%) */
+  animation: splashBreath 0.6s ease both;   /* respiro inicial */
+  transition: opacity 0.6s ease;
+}
+.splash.hide { opacity: 0; pointer-events: none; }
+@keyframes splashBreath {
+  from { background: #ffe3e8; }
+  to   { background: #fff0f3; }
+}
+
+/* ---- Partículas (carga mental dispersa) que convergem ao centro ---- */
+.splash-particles {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  /* --dx/--dy definidos inline (posição inicial nas bordas) */
+  animation: particleConverge 1s ease-in both;
+  animation-delay: 0.5s;
+  will-change: transform, opacity;
+}
+@keyframes particleConverge {
+  0%   { opacity: 0;   transform: translate(var(--dx), var(--dy)) scale(0.5); }
+  25%  { opacity: 0.95; }
+  100% { opacity: 0;   transform: translate(0, 0) scale(0.15); }
+}
+
+/* ---- Palco central (isotipo + texto + faísca) ---- */
+.splash-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* fase 4: reduz e some, revelando o onboarding */
+  animation: splashOut 0.8s ease 2.95s both;
+}
+@keyframes splashOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.92); }
+}
+
+.splash-iso {
+  width: 150px;
+  height: auto;
+  /* formação (morphing das partículas) + leve subida para abrir espaço */
+  animation: isoForm 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.0s both,
+             isoRise 0.6s ease 1.6s both;
+}
+@keyframes isoForm {
+  from { opacity: 0; transform: scale(0.7) rotate(-4deg); filter: blur(6px); }
+  to   { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); }
+}
+@keyframes isoRise {
+  from { margin-bottom: 0; }
+  to   { margin-bottom: 10px; }
+}
+
+.splash-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 800;
+  font-size: 36px;
+  color: #590d22;                       /* Night Bordeaux */
+  letter-spacing: 0.5px;
+  opacity: 0;
+  animation: splashFadeUp 0.6s ease 1.5s both;
+}
+.splash-tagline {
+  font-size: 13px;
+  color: #a4133c;                       /* Cherry Rose */
+  letter-spacing: 1px;
+  margin-top: 4px;
+  opacity: 0;
+  animation: splashFadeUp 0.55s ease 1.85s both;
+}
+@keyframes splashFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Faísca da IA (10% Bubblegum Pink), pisca sutil ---- */
+.splash-spark {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 92px);
+  color: #ff4d6d;                       /* Bubblegum Pink */
+  opacity: 0;
+  animation: sparkBlink 1.4s ease 1.7s both;
+}
+.splash-spark svg { width: 26px; height: 26px; filter: drop-shadow(0 0 6px rgba(255,77,109,.6)); }
+@keyframes sparkBlink {
+  0%   { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  20%  { opacity: 1; transform: scale(1.1) rotate(0); }
+  35%  { opacity: 0.5; transform: scale(0.95); }
+  55%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0.85; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle, .splash-iso, .splash-name, .splash-tagline, .splash-spark, .splash { animation-duration: 0.01s; }
+}
+
 /* ---------- Ilustração do onboarding: float suave ---------- */
 .onboard-float {
   animation: onboardFloat 5.5s ease-in-out infinite;

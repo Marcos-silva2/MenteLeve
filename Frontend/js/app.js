@@ -95,6 +95,47 @@ function start() {
   }
 }
 
+// ---- Splash de abertura ----
+function hideSplash() {
+  const s = document.getElementById('splash');
+  if (!s || s.classList.contains('hide')) return;
+  s.classList.add('hide');
+  setTimeout(() => s.remove(), 700);
+}
+(function setupSplash() {
+  const s = document.getElementById('splash');
+  if (!s) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Gera as partículas (carga mental dispersa) que convergem ao centro.
+  const host = document.getElementById('splash-particles');
+  if (host && !reduce) {
+    const colors = ['#ff8fa3', '#ffccd5', '#ffb3c1']; // Cotton Candy / Pastel Petal / Cherry Blossom
+    const N = 14;
+    for (let i = 0; i < N; i++) {
+      const angle = (i / N) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = 32 + Math.random() * 16;           // vmin a partir do centro
+      const dx = (Math.cos(angle) * dist).toFixed(1) + 'vmin';
+      const dy = (Math.sin(angle) * dist).toFixed(1) + 'vmin';
+      const size = (6 + Math.random() * 7).toFixed(0);
+      const p = document.createElement('span');
+      p.className = 'particle';
+      p.style.setProperty('--dx', dx);
+      p.style.setProperty('--dy', dy);
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = (0.5 + Math.random() * 0.35).toFixed(2) + 's';
+      host.appendChild(p);
+    }
+  }
+
+  // Duração total do roteiro (~3.5s + fade); curtíssima se prefere menos movimento.
+  setTimeout(hideSplash, reduce ? 400 : 3800);
+  // permite pular tocando na tela
+  s.addEventListener('click', hideSplash);
+})();
+
 // Registra o service worker (PWA) — só funciona via http(s).
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
