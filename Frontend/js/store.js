@@ -79,6 +79,9 @@ export const getUserId = () => state.userId;
 export const isOnboardingSeen = () => state.onboardingSeen;
 export const isPremium = () => state.isPremium;
 export const getTasks = () => state.tasks;
+// Tarefas principais (sem mãe) e subtarefas (filhos de uma tarefa).
+export const getTopTasks = () => state.tasks.filter((t) => !t.parentId);
+export const getSubtasks = (parentId) => state.tasks.filter((t) => t.parentId === parentId);
 export const getCategory = (id) => CATEGORIES.find((c) => c.id === id) || null;
 
 // ------- Onboarding -------
@@ -154,6 +157,7 @@ export async function addTask(task) {
     done: false,
     priority,
     important: task.important != null ? !!task.important : priority === 'alta',
+    parentId: task.parentId != null ? String(task.parentId) : null,
     createdAt: Date.now(),
   };
   state.tasks.unshift(local);

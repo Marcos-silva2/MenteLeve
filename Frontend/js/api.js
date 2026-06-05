@@ -68,6 +68,7 @@ function fromServer(t) {
     important: !!t.important,
     // Backend ainda não tem coluna de prioridade: deriva de `important`.
     priority: t.important ? 'alta' : 'media',
+    parentId: t.parent_id != null ? String(t.parent_id) : null,
     createdAt: t.created_at ? Date.parse(t.created_at) : Date.now(),
   };
 }
@@ -114,13 +115,19 @@ export async function apiListTasks() {
 }
 
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
-export async function apiCreateTask({ title, category, due, important }) {
+export async function apiCreateTask({ title, category, due, important, parentId }) {
   if (!_userId || !(await ensureOnline())) return null;
   try {
     const t = await request('/tasks', {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ title, category, due: due || '', important: !!important }),
+      body: JSON.stringify({
+        title,
+        category,
+        due: due || '',
+        important: !!important,
+        parent_id: parentId != null ? Number(parentId) : null,
+      }),
     });
     return fromServer(t);
   } catch (_) {
@@ -149,6 +156,24 @@ export async function apiSmartTask(text) {
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
       suggestion: r.suggestion || null,
     };
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Conversa com a Bruna (IA). Recebe o histórico [{role, content}] e retorna
+ * a resposta (string) ou null se offline/erro.
+ */
+export async function apiChat(messages) {
+  if (!_userId || !(await ensureOnline())) return null;
+  try {
+    const r = await request('/ai/chat', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ messages }),
+    });
+    return r && r.reply ? r.reply : null;
   } catch (_) {
     return null;
   }

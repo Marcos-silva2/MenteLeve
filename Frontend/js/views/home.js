@@ -5,7 +5,7 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast } from '../ui.js';
-import { getUser, getTasks, getCategory, getPriority, toggleTask, removeTask, CATEGORIES } from '../store.js';
+import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, CATEGORIES } from '../store.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 
 export function renderHome(app) {
@@ -77,7 +77,8 @@ export function renderHome(app) {
   }
 
   function renderList() {
-    const tasks = getTasks().filter((t) => filter === 'tudo' || t.category === filter);
+    // Apenas tarefas principais na lista; as subtarefas vêm aninhadas.
+    const tasks = getTopTasks().filter((t) => filter === 'tudo' || t.category === filter);
 
     if (tasks.length === 0) {
       listEl.innerHTML = emptyState(filter);
@@ -85,7 +86,12 @@ export function renderHome(app) {
     }
 
     const ordered = [...tasks].sort((a, b) => Number(a.done) - Number(b.done));
-    listEl.innerHTML = ordered.map(taskCard).join('');
+    listEl.innerHTML = ordered.map((t) => {
+      const subs = getSubtasks(t.id).sort((a, b) => Number(a.done) - Number(b.done));
+      const doneCount = subs.filter((s) => s.done).length;
+      return taskCard(t, { total: subs.length, done: doneCount }) +
+        (subs.length ? subtaskGroup(subs) : '');
+    }).join('');
 
     $$('[data-check]', listEl).forEach((btn) =>
       btn.addEventListener('click', () => handleToggle(btn.dataset.check))
@@ -181,14 +187,15 @@ export function renderHome(app) {
 }
 
 /* ---------------- helpers de render ---------------- */
-function taskCard(t) {
+function taskCard(t, sub = { total: 0, done: 0 }) {
   const cat = getCategory(t.category);
   const done = t.done;
   // Prioridade: deriva de `priority` (fallback p/ tarefas antigas via `important`).
   const prio = getPriority(t.priority || (t.important ? 'alta' : 'media'));
+  const hasSubs = sub.total > 0;
   return `
   <div data-card="${t.id}"
-    class="group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 mb-3 flex items-center gap-3 select-none hover:border-soft-200 transition">
+    class="group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 ${hasSubs ? 'mb-1' : 'mb-3'} flex items-center gap-3 select-none hover:border-soft-200 transition">
     <button data-check="${t.id}"
       class="shrink-0 w-7 h-7 rounded-full border-2 grid place-items-center transition
              ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent hover:border-accent'}">
@@ -196,10 +203,11 @@ function taskCard(t) {
     </button>
     <div class="min-w-0 flex-1">
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-soft-300' : 'text-bordeaux-900'}">${t.title}</p>
-      <div class="flex items-center gap-2 mt-1">
+      <div class="flex items-center gap-2 mt-1 flex-wrap">
         ${t.due ? `<span class="text-xs ${done ? 'text-soft-300' : 'text-bordeaux-700'}">${t.due}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
           <span class="w-1.5 h-1.5 rounded-full" style="background:${prio.dot}"></span>${prio.label}</span>` : ''}
+        ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-accent">✨ ${sub.done}/${sub.total} passos</span>` : ''}
       </div>
     </div>
     <!-- ação no hover (desktop): excluir, em tom Cherry Rose discreto -->
@@ -208,6 +216,32 @@ function taskCard(t) {
       ${icons.trash}
     </button>
     <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : '#ffb3c1'}" title="${cat ? cat.label : ''}"></span>
+  </div>`;
+}
+
+/* Grupo de subtarefas (sugeridas pela IA), aninhadas sob a tarefa-mãe. */
+function subtaskGroup(subs) {
+  return `<div class="ml-6 pl-3 border-l-2 border-soft-100 mb-3 flex flex-col gap-2">
+    ${subs.map(subtaskRow).join('')}
+  </div>`;
+}
+
+function subtaskRow(t) {
+  const done = t.done;
+  return `
+  <div data-card="${t.id}"
+    class="group relative flex items-center gap-2.5 bg-white/70 rounded-xl border border-soft-100 px-3 py-2 select-none hover:border-soft-200 transition">
+    <button data-check="${t.id}"
+      class="shrink-0 w-5 h-5 rounded-full border-2 grid place-items-center transition
+             ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent hover:border-accent'}">
+      <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
+    </button>
+    <p class="flex-1 min-w-0 text-[13px] leading-tight ${done ? 'line-through text-soft-300' : 'text-bordeaux-800'}">${t.title}</p>
+    ${t.due && !done ? `<span class="text-[11px] text-bordeaux-700 shrink-0">${t.due}</span>` : ''}
+    <button data-del="${t.id}" title="Excluir"
+      class="hidden lg:grid place-items-center shrink-0 w-7 h-7 rounded-full text-bordeaux-700/0 group-hover:text-bordeaux-600 hover:bg-soft-100 transition">
+      ${icons.trash}
+    </button>
   </div>`;
 }
 

@@ -85,5 +85,11 @@ def set_task_done(db: Session, task: models.Task, done: bool) -> models.Task:
 
 
 def delete_task(db: Session, task: models.Task) -> None:
+    # Remove também as subtarefas (filhos) — cascade explícito (SQLite confiável).
+    children = db.scalars(
+        select(models.Task).where(models.Task.parent_id == task.id)
+    ).all()
+    for child in children:
+        db.delete(child)
     db.delete(task)
     db.commit()

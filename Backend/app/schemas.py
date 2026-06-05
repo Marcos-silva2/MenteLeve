@@ -37,6 +37,8 @@ class TaskBase(BaseModel):
     category: Category = "casa"
     due: str = Field("", max_length=120)
     important: bool = False
+    # Subtarefa: id da tarefa-mãe (None = tarefa principal).
+    parent_id: int | None = None
 
 
 class TaskCreate(TaskBase):
@@ -58,6 +60,20 @@ class TaskOut(TaskBase):
     user_id: int
     done: bool
     created_at: datetime
+
+
+# ------------------- Chat com a IA (Bruna) -------------------
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
+class ChatIn(BaseModel):
+    messages: list[ChatMessage] = Field(..., min_length=1, max_length=40)
+
+
+class ChatOut(BaseModel):
+    reply: str
 
 
 # ------------------- Tarefa Inteligente (IA) -------------------

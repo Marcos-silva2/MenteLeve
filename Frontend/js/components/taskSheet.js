@@ -180,14 +180,15 @@ export function openTaskSheet(app, onDone) {
     const finalDue = pickedDate || due || result.due || '';
 
     // Cria e persiste a tarefa principal (aguarda para reconciliar o id real).
-    await addTask({ title: result.title || text, category, due: finalDue, priority: selectedPriority });
+    // Guardamos a tarefa-mãe para fixar as sugestões da IA como subtarefas.
+    const parent = await addTask({ title: result.title || text, category, due: finalDue, priority: selectedPriority });
 
     close();
     onDone && onDone();
 
     // Aha Moment: se houver subtarefas/lembrete sugeridos, mostra o modal
     if ((result.subtasks && result.subtasks.length) || result.suggestion) {
-      setTimeout(() => openAiModal(app, { ...result, category }, onDone), 300);
+      setTimeout(() => openAiModal(app, { ...result, category, parentId: parent.id }, onDone), 300);
     } else {
       toast('Tarefa adicionada ✨');
     }
@@ -258,13 +259,13 @@ function openAiModal(app, result, onDone) {
     btn.disabled = true;
     btn.classList.add('opacity-80');
 
-    // adiciona as subtarefas marcadas (persistidas)
+    // adiciona as subtarefas marcadas, FIXADAS como filhas da tarefa-mãe
     for (const cb of $$('[data-sub]:checked', card)) {
-      await addTask({ title: decodeURIComponent(cb.dataset.sub), category: result.category, due: result.due || '' });
+      await addTask({ title: decodeURIComponent(cb.dataset.sub), category: result.category, due: result.due || '', parentId: result.parentId });
     }
-    // adiciona a sugestão preventiva, se houver
+    // adiciona a sugestão preventiva (também como subtarefa da tarefa-mãe)
     if (sug && sug.action) {
-      await addTask({ title: sug.action.title, category: sug.action.category || result.category, due: sug.action.due || '' });
+      await addTask({ title: sug.action.title, category: sug.action.category || result.category, due: sug.action.due || '', parentId: result.parentId });
     }
     close();
     onDone && onDone();

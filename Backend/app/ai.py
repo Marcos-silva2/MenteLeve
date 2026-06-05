@@ -49,6 +49,61 @@ _SYSTEM = (
 )
 
 
+_CHAT_SYSTEM = (
+    "Você é a Bruna, a assistente do MenteLeve — um app que ajuda mães e "
+    "mulheres a aliviar a carga mental. Sua personalidade é acolhedora, "
+    "empática, calma e prática, como uma amiga que organiza as coisas com "
+    "você. Fale sempre em português do Brasil, em tom gentil e próximo. "
+    "Respostas curtas e diretas (no máximo ~4 frases), sem jargão. "
+    "Ajude a organizar a rotina, sugira como dividir tarefas, dê dicas para "
+    "reduzir a sobrecarga e ofereça apoio emocional leve quando perceber "
+    "cansaço. Quando fizer sentido, sugira que a usuária registre a tarefa no "
+    "app (ela pode tocar no + para adicionar). Não invente dados pessoais."
+)
+
+
+def chat(messages: list[dict]) -> str | None:
+    """Conversa da Bruna. Recebe o histórico [{role, content}] e devolve a
+    resposta (texto) ou ``None`` em caso de falha/sem chave.
+    """
+    if not settings.ai_enabled:
+        return None
+
+    # Gemini usa role "user"/"model"; mapeamos "assistant" -> "model".
+    contents = []
+    for m in messages[-20:]:
+        role = "model" if m.get("role") == "assistant" else "user"
+        text = str(m.get("content") or "").strip()
+        if text:
+            contents.append({"role": role, "parts": [{"text": text}]})
+    if not contents:
+        return None
+
+    body = json.dumps(
+        {
+            "system_instruction": {"parts": [{"text": _CHAT_SYSTEM}]},
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 600,
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+    ).encode("utf-8")
+
+    url = _ENDPOINT.format(model=settings.AI_MODEL, key=settings.GOOGLE_AI_API_KEY)
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=settings.AI_TIMEOUT) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        reply = payload["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError):
+        return None
+    return reply or None
+
+
 def analyze(text: str) -> dict | None:
     """Analisa o texto livre e devolve a estrutura do 'Aha Moment'.
 

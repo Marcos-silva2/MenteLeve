@@ -30,8 +30,26 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Cria as tabelas (MVP: sem migrações; Alembic pode entrar depois)."""
+    """Cria as tabelas e aplica micro-migrações aditivas (sem perder dados)."""
     # importa os models para registrá-los no metadata antes do create_all
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """Adiciona colunas novas em tabelas já existentes (SQLite), de forma
+    idempotente. Mantém o banco atual sem precisar recriá-lo.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    try:
+        cols = {c["name"] for c in inspector.get_columns("tasks")}
+    except Exception:
+        return  # tabela ainda não existe (create_all cuidou) — nada a fazer
+
+    if "parent_id" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tasks ADD COLUMN parent_id INTEGER"))

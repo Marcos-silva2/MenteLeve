@@ -9,6 +9,7 @@ import { renderOnboarding } from './views/onboarding.js';
 import { renderLogin } from './views/login.js';
 import { renderHome } from './views/home.js';
 import { renderAgenda } from './views/agenda.js';
+import { renderChat } from './views/chat.js';
 import { renderConnections } from './views/connections.js';
 import { renderPaywall } from './views/paywall.js';
 import { renderProfile } from './views/profile.js';
@@ -18,6 +19,7 @@ const routes = {
   login: renderLogin,
   home: renderHome,
   agenda: renderAgenda,
+  bruna: renderChat,
   connections: renderConnections,
   paywall: renderPaywall,
   profile: renderProfile,
@@ -60,7 +62,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Abas que podem ser refletidas na URL (deep-link / restaurar ao recarregar).
-const TAB_ROUTES = ['home', 'agenda', 'connections', 'profile'];
+const TAB_ROUTES = ['home', 'agenda', 'bruna', 'connections', 'profile'];
 
 function navigate(route, params = {}) {
   const render = routes[route];

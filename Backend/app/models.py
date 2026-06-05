@@ -35,6 +35,12 @@ class Task(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
 
+    # Subtarefa: aponta para a tarefa-mãe (NULL = tarefa principal).
+    # As sugestões da IA são fixadas como subtarefas da tarefa do usuário.
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     # Categoria do design system: casa | filhos | trabalho | saude | financas | relacionamento
     category: Mapped[str] = mapped_column(String(40), default="casa", nullable=False)

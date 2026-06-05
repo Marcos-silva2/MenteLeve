@@ -49,7 +49,7 @@ class Settings:
 
     # Metadados
     APP_NAME: str = "MenteLeve API"
-    APP_VERSION: str = "0.2.0"
+    APP_VERSION: str = "0.3.0"
 
     @property
     def ai_enabled(self) -> bool:

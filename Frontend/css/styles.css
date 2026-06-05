@@ -330,6 +330,19 @@ body {
   .particle, .splash-iso, .splash-name, .splash-tagline, .splash-spark, .splash { animation-duration: 0.01s; }
 }
 
+/* ---------- Chat da Bruna: indicador "digitando…" ---------- */
+.typing-dot {
+  width: 7px; height: 7px; border-radius: 9999px;
+  background: #ff8fa3;
+  animation: typingBlink 1.2s infinite ease-in-out both;
+}
+.typing-dot:nth-child(2) { animation-delay: .15s; }
+.typing-dot:nth-child(3) { animation-delay: .3s; }
+@keyframes typingBlink {
+  0%, 80%, 100% { opacity: .3; transform: translateY(0); }
+  40%           { opacity: 1;  transform: translateY(-3px); }
+}
+
 /* ---------- Ilustração do onboarding: float suave ---------- */
 .onboard-float {
   animation: onboardFloat 5.5s ease-in-out infinite;
