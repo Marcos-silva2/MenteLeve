@@ -32,8 +32,8 @@ export function renderAgenda(app) {
 
   const view = h(`
     <div class="h-full flex flex-col relative">
-      <div class="content-wrap lg:max-w-2xl flex-1 flex flex-col overflow-hidden">
-        <header class="px-6 lg:px-0 pt-12 lg:pt-8 pb-2 flex items-center justify-between gap-2">
+      <div class="content-wrap lg:max-w-2xl flex-1 overflow-y-auto">
+        <header class="sticky top-0 z-20 bg-bg px-6 lg:px-0 pt-12 lg:pt-8 pb-2 flex items-center justify-between gap-2">
           <h1 id="month-label" class="font-serif font-bold text-bordeaux-900 text-[22px] lg:text-3xl truncate"></h1>
           <div class="flex items-center gap-1.5 shrink-0">
             <button id="cycle-toggle" class="text-xs font-semibold px-3 py-1.5 rounded-full border transition">🌸 Ciclo</button>
@@ -53,7 +53,7 @@ export function renderAgenda(app) {
         </div>
 
         <div id="cyclepanel" class="px-5 lg:px-0 pt-3"></div>
-        <div id="day" class="flex-1 overflow-y-auto px-5 lg:px-0 pt-3 safe-bottom"></div>
+        <div id="day" class="px-5 lg:px-0 pt-3 pb-2 safe-bottom"></div>
       </div>
 
       <button id="fab"

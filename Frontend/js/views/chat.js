@@ -18,6 +18,17 @@ const SUGGESTIONS = [
   'Como dividir uma tarefa grande?',
 ];
 
+// Respostas padrão (offline) para as perguntas prontas — usadas na hora se a
+// conexão com a IA demorar (cold start do Render). A IA real é acordada em 2º plano.
+const CANNED = {
+  'Me ajuda a organizar a semana':
+    'Claro! Vamos por partes 💗: toque no + e despeje tudo que está na sua cabeça, sem filtrar. Depois marque só o que é desta semana e escolha no máximo 3 prioridades por dia — o resto pode esperar. Quando eu me conectar, te ajudo a quebrar cada tarefa em passos. 🌸',
+  'Tô me sentindo sobrecarregada':
+    'Respira fundo, eu tô aqui com você 💗. Que tal escolher UMA coisa pequena pra resolver agora e registrar o resto no app, pra tirar da mente? Você não precisa dar conta de tudo de uma vez. Daqui a pouco a gente organiza o restante juntas. 🌸',
+  'Como dividir uma tarefa grande?':
+    'Ótima pergunta! Pergunte a si mesma: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → comprar → agendar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos automaticamente. ✨',
+};
+
 export function renderChat(app) {
   const user = getUser() || { name: 'Você' };
   const firstName = (user.name || 'Você').split(' ')[0];
@@ -109,21 +120,20 @@ export function renderChat(app) {
     typing = true;
     renderMessages();
 
-    let reply = await apiChat(conversation);
-    // Falhou? Pode ser cold start do Render e/ou sessão offline (userId nulo).
-    // Acorda o backend, RE-AUTENTICA (restoreSession) e reenvia uma vez.
+    // Tenta a IA real, com um teto de espera para a conversa não travar.
+    let reply = await withTimeout(apiChat(conversation), 7000);
+
     if (!reply) {
-      const woke = await wakeBackend({ attempts: 6, intervalMs: 2500 });
-      if (woke) {
-        await restoreSession().catch(() => {});
-        reply = await apiChat(conversation);
-      }
+      // Sem conexão (ou lenta): a "Bruna local" responde de forma natural,
+      // enquanto acordamos o backend em 2º plano para as próximas mensagens.
+      wakeBackend().then((ok) => ok && restoreSession().catch(() => {}));
+      reply = CANNED[msg] || localReply(msg);
+      // pausa proporcional ao tamanho — dá a sensação de que ela "digitou".
+      await new Promise((r) => setTimeout(r, 650 + Math.min(1400, reply.length * 10)));
     }
+
     typing = false;
-    conversation.push({
-      role: 'assistant',
-      content: reply || 'Não consegui falar com a IA agora 💗. Confere a conexão e tenta de novo daqui a pouco.',
-    });
+    conversation.push({ role: 'assistant', content: reply });
     renderMessages();
   }
 
@@ -147,4 +157,81 @@ function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/** Espera `p` resolver, mas desiste após `ms` (resolve null) — mantém a conversa fluida. */
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((res) => setTimeout(() => res(null), ms))]);
+}
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+/**
+ * "Bruna local" — respostas heurísticas e acolhedoras usadas quando a IA real
+ * está indisponível/lenta. Mantém a sensação de conversa contínua (o backend é
+ * acordado em 2º plano para as próximas mensagens irem ao Gemini de verdade).
+ */
+function localReply(text) {
+  const t = (text || '').toLowerCase().trim();
+  const has = (...w) => w.some((x) => t.includes(x));
+
+  if (has('oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e aí', 'eai', 'opa'))
+    return pick([
+      'Oi! Que bom te ver por aqui 💗 Como você está se sentindo hoje?',
+      'Olá! Tô aqui com você 🌸 Me conta, como posso te ajudar agora?',
+    ]);
+
+  if (has('obrigad', 'valeu', 'brigad', 'agradeç', 'gratidão'))
+    return pick([
+      'Imagina, é sempre um prazer 💗 Conte comigo sempre que precisar.',
+      'De nada! Tô aqui pra deixar a sua mente mais leve 🌸',
+    ]);
+
+  if (has('tchau', 'até logo', 'ate logo', 'falou', 'até mais', 'ate mais'))
+    return 'Até já! Descanse a mente, você merece 💗';
+
+  if (has('sobrecarreg', 'cansad', 'exaust', 'estressad', 'não aguento', 'nao aguento', 'demais', 'no limite', 'esgotad'))
+    return pick([
+      'Respira fundo, eu tô aqui com você 💗. Que tal escolher só UMA coisa pequena pra resolver agora e registrar o resto no + pra tirar da cabeça? Você não precisa dar conta de tudo de uma vez.',
+      'Sinto muito que esteja pesado assim 🌸. Vamos aliviar juntas: me diz a única tarefa que mais te incomoda agora, e começamos só por ela.',
+    ]);
+
+  if (has('triste', 'ansios', 'sozinha', 'chorar', 'angúst', 'angust', 'medo', 'desanim', 'pra baixo'))
+    return pick([
+      'Eu tô aqui com você, viu? 💗 Tá tudo bem não estar bem. Respira fundo comigo: inspira… e solta devagar. Quer me contar o que está pesando?',
+      'Você não está sozinha 🌸. Vamos com calma, uma coisinha de cada vez, pra a sua mente respirar.',
+    ]);
+
+  if (has('organiz', 'semana', 'rotina', 'planej', 'agenda', 'dia a dia', 'prioridade'))
+    return pick([
+      'Vamos por partes 💗: toque no + e despeje tudo que está na sua cabeça, sem filtrar. Depois marque só o que é desta semana e escolha no máximo 3 prioridades por dia — o resto pode esperar. 🌸',
+      'Adoro organizar com você! Comece anotando tudo no +, sem se cobrar. Aí a gente separa por dia e por prioridade. Quer começar listando o de hoje?',
+    ]);
+
+  if (has('dividir', 'divido', 'grande', 'passo', 'começar', 'comecar', 'por onde', 'quebrar'))
+    return 'Ótima pergunta! Pergunte a si mesma: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → comprar → agendar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos. ✨';
+
+  if (has('filho', 'filha', 'bebê', 'bebe', 'criança', 'crianca', 'escola', 'pediatra', 'vacina'))
+    return 'Cuidar dos filhos já é um trabalho enorme 💗. Registra essas tarefas no + que eu te ajudo a encaixá-las na semana — e, se quiser, dá pra dividir algumas com a sua rede de apoio na aba Conexões. Você não precisa carregar tudo sozinha. 🌸';
+  if (has('marido', 'esposo', 'parceir', 'companheir', 'delegar'))
+    return 'Dividir a carga faz toda a diferença 🌸. Na aba Conexões você pode convidar o seu parceiro pra compartilhar tarefas. Quer que eu te ajude a separar o que dá pra delegar?';
+  if (has('casa', 'limpe', 'mercado', 'comida', 'janta', 'almoç', 'roupa', 'louça'))
+    return 'As tarefas de casa nunca acabam, né? 💗 Registra elas no + que eu te ajudo a distribuir na semana sem sobrecarregar nenhum dia.';
+
+  if (/^(sim|isso|ok|ta|tá|claro|pode ser|aham|uhum|certo|beleza|com certeza)\b/.test(t))
+    return pick([
+      'Perfeito! Me conta um pouco mais pra eu te ajudar melhor 💗',
+      'Que bom! Então vamos lá — qual é o próximo passo que você quer dar? 🌸',
+    ]);
+  if (/^(não|nao|nem|jamais)\b/.test(t))
+    return 'Tudo bem 💗. Me diz então o que faria mais sentido pra você agora?';
+
+  if (has('quem é você', 'quem e voce', 'seu nome', 'você é', 'voce e', 'o que voce faz', 'o que você faz'))
+    return 'Eu sou a Bruna, sua parceira aqui no MenteLeve 💗 Tô aqui pra te ajudar a organizar a rotina e aliviar a carga mental. Como posso te ajudar?';
+
+  return pick([
+    'Entendi 💗. Me conta um pouco mais? Se quiser, posso te ajudar a transformar isso em tarefas — é só tocar no +.',
+    'Tô aqui com você 🌸. Que tal a gente registrar isso no app pra tirar da sua mente? Toque no + e me conta o que precisa ser feito.',
+    'Faz sentido. Vamos deixar a sua mente mais leve: quer que eu te ajude a quebrar isso em pequenos passos?',
+  ]);
 }
