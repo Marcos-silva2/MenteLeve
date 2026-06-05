@@ -39,7 +39,7 @@ export function renderPaywall(app, params = {}) {
             <p class="text-sm text-bordeaux-700 max-w-[300px] lg:max-w-none mx-auto lg:mx-0 mb-7">
               Você conheceu a leveza. Agora, desbloqueie o poder completo do seu Segundo Cérebro Inteligente.
             </p>
-            <div class="text-left max-w-[320px] lg:max-w-none mx-auto flex flex-col gap-3 mb-8 lg:mb-0">
+            <div class="stagger text-left max-w-[320px] lg:max-w-none mx-auto flex flex-col gap-3 mb-8 lg:mb-0">
               ${BENEFITS.map((b) => `
                 <div class="flex items-start gap-3">
                   <span class="shrink-0 w-6 h-6 rounded-full bg-accent text-white grid place-items-center mt-0.5">${icons.check}</span>
@@ -66,7 +66,7 @@ export function renderPaywall(app, params = {}) {
             </div>
 
             <button id="subscribe"
-              class="hidden lg:block w-full mt-6 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+              class="cta-lift hidden lg:block w-full mt-6 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
               Desbloquear MenteLeve Premium
             </button>
             <p class="hidden lg:block text-center text-[11px] text-soft-300 mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
@@ -77,7 +77,7 @@ export function renderPaywall(app, params = {}) {
       <!-- CTA fixo (mobile) -->
       <div class="lg:hidden px-7 pb-10 pt-3">
         <button id="subscribe-m"
-          class="w-full py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+          class="cta-lift w-full py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
           Desbloquear MenteLeve Premium
         </button>
         <p class="text-center text-[11px] text-soft-300 mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>

@@ -77,6 +77,9 @@ function navigate(route, params = {}) {
   view.classList.add('view-enter');
   appEl.appendChild(view);
   appEl.scrollTop = 0;
+  // A entrada escalonada (.stagger) só deve tocar no mount; depois removemos
+  // a classe para que re-renders internos (toggle, etc.) não re-animem.
+  setTimeout(() => view.classList.remove('view-enter'), 650);
 
   // Navegação persistente do shell (sidebar desktop / bottom bar mobile).
   // Telas de fluxo (onboarding/login/paywall) não exibem navegação.
@@ -171,8 +174,19 @@ function hideSplash() {
 
 // Registra o service worker (PWA) — só funciona via http(s).
 if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  let refreshing = false;
+  // Quando um SW novo assume o controle (após um update), recarrega 1x para
+  // pegar o código mais recente. Não recarrega na 1ª instalação.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing || !hadController) return;
+    refreshing = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js')
+      .then((reg) => reg.update())
+      .catch(() => {});
   });
 }
 

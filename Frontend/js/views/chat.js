@@ -5,7 +5,7 @@
    ============================================================ */
 
 import { h, $, $$, icons } from '../ui.js';
-import { getUser } from '../store.js';
+import { getUser, restoreSession } from '../store.js';
 import { apiChat, wakeBackend } from '../api.js';
 
 // Histórico mantido em memória durante a sessão (sobrevive à troca de abas).
@@ -27,7 +27,7 @@ export function renderChat(app) {
     <div class="h-full flex flex-col">
       <div class="content-wrap lg:max-w-2xl flex flex-col h-full">
         <header class="shrink-0 px-5 lg:px-0 pt-12 lg:pt-8 pb-3 flex items-center gap-3 border-b border-soft-100">
-          <span class="w-11 h-11 rounded-full bg-accent text-white grid place-items-center shadow-fab">${icons.spark}</span>
+          <span class="bruna-glow w-11 h-11 rounded-full bg-accent text-white grid place-items-center">${icons.spark}</span>
           <div class="min-w-0">
             <h1 class="font-serif font-bold text-bordeaux-900 text-xl leading-none">Bruna</h1>
             <p class="text-xs text-bordeaux-700 mt-1">Sua parceira de rotina • IA do MenteLeve</p>
@@ -86,6 +86,8 @@ export function renderChat(app) {
     for (const m of conversation) items.push(bubble(m.role, m.content));
     if (typing) items.push(typingBubble());
     messagesEl.innerHTML = items.join('');
+    // Anima apenas a bolha mais recente (evita re-animar o histórico todo).
+    if (messagesEl.lastElementChild) messagesEl.lastElementChild.classList.add('msg-in');
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
     // sugestões só enquanto a conversa não começou
@@ -108,10 +110,14 @@ export function renderChat(app) {
     renderMessages();
 
     let reply = await apiChat(conversation);
-    // Pode ser cold start do Render: tenta acordar o backend e reenviar 1x.
+    // Falhou? Pode ser cold start do Render e/ou sessão offline (userId nulo).
+    // Acorda o backend, RE-AUTENTICA (restoreSession) e reenvia uma vez.
     if (!reply) {
-      const woke = await wakeBackend({ attempts: 5, intervalMs: 2500 });
-      if (woke) reply = await apiChat(conversation);
+      const woke = await wakeBackend({ attempts: 6, intervalMs: 2500 });
+      if (woke) {
+        await restoreSession().catch(() => {});
+        reply = await apiChat(conversation);
+      }
     }
     typing = false;
     conversation.push({

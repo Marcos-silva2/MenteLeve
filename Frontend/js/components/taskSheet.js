@@ -32,8 +32,13 @@ export function openTaskSheet(app, onDone) {
   const sheet = h(`
     <div class="${desktop ? 'modal-card w-full max-w-[440px] rounded-xl2 bg-white px-6 pt-6 pb-6' : 'sheet px-5 pt-3 pb-6'}">
       ${desktop ? '' : '<div class="w-10 h-1.5 rounded-full bg-soft-100 mx-auto mb-4"></div>'}
-      <h2 class="font-serif font-bold text-bordeaux-900 text-xl mb-1">Nova tarefa</h2>
-      <p class="text-sm text-bordeaux-700 mb-4">Escreva do seu jeito — a IA cuida dos detalhes.</p>
+      <div class="flex items-center gap-2.5 mb-4">
+        <span class="w-9 h-9 rounded-full bg-accent/15 text-accent grid place-items-center shrink-0">${icons.spark}</span>
+        <div class="min-w-0">
+          <h2 class="font-serif font-bold text-bordeaux-900 text-xl leading-none">Nova tarefa</h2>
+          <p class="text-xs text-bordeaux-700 mt-1">Escreva do seu jeito — a IA cuida dos detalhes ✨</p>
+        </div>
+      </div>
 
       <textarea id="task-input" rows="2"
         class="w-full px-4 py-3 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-soft-300
@@ -45,9 +50,9 @@ export function openTaskSheet(app, onDone) {
       <div class="flex flex-wrap gap-2">
         ${CATEGORIES.map((c) => `
           <button data-cat="${c.id}"
-            class="px-3 py-1.5 rounded-full text-sm font-medium border transition
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition
                    ${c.id === selectedCat ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}">
-            ${c.label}
+            <span class="w-2 h-2 rounded-full" style="background:${c.dot}"></span>${c.label}
           </button>`).join('')}
       </div>
 
@@ -101,7 +106,7 @@ export function openTaskSheet(app, onDone) {
       selectedCat = b.dataset.cat;
       $$('[data-cat]', sheet).forEach((x) => {
         const on = x.dataset.cat === selectedCat;
-        x.className = `px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
+        x.className = `flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
       });
     })
   );

@@ -32,12 +32,20 @@ export const getPriority = (id) => PRIORITIES.find((p) => p.id === id) || PRIORI
 
 export const FREE_TASK_LIMIT = 50;
 
+const defaultCycle = () => ({
+  enabled: false,
+  lastStart: null,   // 'AAAA-MM-DD' do início da última menstruação
+  cycleLength: 28,   // duração média do ciclo (dias)
+  periodLength: 5,   // duração média da menstruação (dias)
+});
+
 const defaultState = () => ({
   onboardingSeen: false,
   user: null,        // { name, email }
   userId: null,      // id numérico do backend (null = só local)
   isPremium: false,
   tasks: [],
+  cycle: defaultCycle(),
 });
 
 function seedTasks() {
@@ -117,6 +125,9 @@ export async function login({ name, email }) {
     state.userId = null;
     if (state.tasks.length === 0) state.tasks = seedTasks();
     persist();
+    // Pode ser cold start do Render: acorda e re-autentica em 2º plano, para
+    // a IA/Bruna e o sync voltarem a funcionar sem o usuário recarregar.
+    api.wakeBackend().then((ok) => { if (ok) restoreSession().catch(() => {}); }).catch(() => {});
   }
   return state.user;
 }
@@ -229,6 +240,66 @@ export function setPremium(v) {
   if (state.userId != null) {
     api.apiSetPremium(v).catch(() => {});
   }
+}
+
+// ------- Ciclo menstrual (100% local/privado) -------
+function _ckey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _cparse(k) {
+  const [y, m, d] = k.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function _cdays(aKey, bKey) {
+  return Math.round((_cparse(bKey) - _cparse(aKey)) / 86400000);
+}
+
+export const getCycle = () => ({ ...defaultCycle(), ...(state.cycle || {}) });
+
+export function setCycle(patch) {
+  state.cycle = { ...defaultCycle(), ...(state.cycle || {}), ...patch };
+  persist();
+  return state.cycle;
+}
+
+export function logPeriodToday() {
+  return setCycle({ enabled: true, lastStart: _ckey(new Date()) });
+}
+
+/** Fase do ciclo para uma data ('AAAA-MM-DD'): period | fertile | ovulation | null. */
+export function cyclePhase(dateKey) {
+  const c = getCycle();
+  if (!c.enabled || !c.lastStart) return null;
+  const len = c.cycleLength || 28;
+  const plen = c.periodLength || 5;
+  const diff = _cdays(c.lastStart, dateKey);
+  const d = ((diff % len) + len) % len;          // dia do ciclo (0-based)
+  const ov = Math.max(0, len - 14);              // ovulação ≈ 14 dias antes da próxima
+  if (d < plen) return 'period';
+  if (d === ov) return 'ovulation';
+  if (d >= ov - 4 && d <= ov + 1) return 'fertile';
+  return null;
+}
+
+/** Resumo do ciclo para hoje (fase, dia do ciclo, dias até a próxima menstruação). */
+export function cycleSummary() {
+  const c = getCycle();
+  if (!c.enabled || !c.lastStart) return { configured: false };
+  const len = c.cycleLength || 28;
+  const today = _ckey(new Date());
+  const diff = _cdays(c.lastStart, today);
+  const d = ((diff % len) + len) % len;
+  const daysUntilNext = (len - d) % len;
+  const nextStartKey = _ckey(new Date(_cparse(today).getTime() + daysUntilNext * 86400000));
+  return {
+    configured: true,
+    phaseToday: cyclePhase(today),
+    dayInCycle: d + 1,
+    cycleLength: len,
+    periodLength: c.periodLength || 5,
+    daysUntilNext,
+    nextStartKey,
+  };
 }
 
 function nameFromEmail(email) {

@@ -27,6 +27,7 @@ export function renderHome(app) {
                 ${initials(user.name)}
               </button>
             </div>
+            <div id="progress" class="mt-3.5"></div>
           </header>
 
           <!-- filtros -->
@@ -35,7 +36,7 @@ export function renderHome(app) {
           </div>
 
           <!-- lista -->
-          <div id="list" class="flex-1 overflow-y-auto px-5 lg:px-0 pt-2 safe-bottom"></div>
+          <div id="list" class="stagger flex-1 overflow-y-auto px-5 lg:px-0 pt-2 safe-bottom"></div>
         </section>
 
         <!-- painel de agenda semanal (somente desktop) -->
@@ -62,21 +63,59 @@ export function renderHome(app) {
   const filtersEl = $('#filters', view);
   const listEl = $('#list', view);
 
+  // Delegação de eventos (anexada UMA vez) — evita re-anexar listeners a cada
+  // render da lista (mais performático e sem vazamento de handlers).
+  listEl.addEventListener('click', (e) => {
+    const check = e.target.closest('[data-check]');
+    if (check) { handleToggle(check.dataset.check); return; }
+    const del = e.target.closest('[data-del]');
+    if (del) { e.stopPropagation(); confirmDelete(del.dataset.del); }
+  });
+  let lpTimer;
+  listEl.addEventListener('touchstart', (e) => {
+    const card = e.target.closest('[data-card]');
+    if (card) lpTimer = setTimeout(() => openQuickActions(card.dataset.card), 500);
+  }, { passive: true });
+  const cancelLp = () => clearTimeout(lpTimer);
+  listEl.addEventListener('touchend', cancelLp);
+  listEl.addEventListener('touchmove', cancelLp, { passive: true });
+
   function renderFilters() {
     const all = [{ id: 'tudo', label: 'Tudo' }, ...CATEGORIES];
     filtersEl.innerHTML = all.map((c) => {
       const on = c.id === filter;
+      const dot = c.dot ? `<span class="w-1.5 h-1.5 rounded-full" style="background:${c.dot}"></span>` : '';
       return `<button data-filter="${c.id}"
-        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
-               ${on ? 'bg-bordeaux-700 text-white' : 'bg-white text-bordeaux-700 border border-soft-100 hover:border-soft-200'}">
-        ${c.label}</button>`;
+        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
+               ${on ? 'bg-bordeaux-700 text-white shadow-card' : 'bg-white text-bordeaux-700 border border-soft-100 hover:border-soft-200'}">
+        ${dot}${c.label}</button>`;
     }).join('');
     $$('[data-filter]', filtersEl).forEach((b) =>
       b.addEventListener('click', () => { filter = b.dataset.filter; renderFilters(); renderList(); })
     );
   }
 
+  function renderProgress() {
+    const el = $('#progress', view);
+    if (!el) return;
+    const tops = getTopTasks();
+    const total = tops.length;
+    const done = tops.filter((t) => t.done).length;
+    if (total === 0) { el.innerHTML = ''; return; }
+    const pct = Math.round((done / total) * 100);
+    const msg = pct === 100 ? 'Tudo em dia, respire fundo 🌸' : `${done} de ${total} concluídas`;
+    el.innerHTML = `
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-xs font-medium text-bordeaux-700">${msg}</span>
+        <span class="text-xs font-bold text-accent">${pct}%</span>
+      </div>
+      <div class="h-2 rounded-full bg-soft-100 overflow-hidden">
+        <div class="h-full rounded-full bg-gradient-to-r from-accent to-soft-300 transition-all duration-700 ease-out" style="width:${pct}%"></div>
+      </div>`;
+  }
+
   function renderList() {
+    renderProgress();
     // Apenas tarefas principais na lista; as subtarefas vêm aninhadas.
     const tasks = getTopTasks().filter((t) => filter === 'tudo' || t.category === filter);
 
@@ -93,14 +132,6 @@ export function renderHome(app) {
         (subs.length ? subtaskGroup(subs) : '');
     }).join('');
 
-    $$('[data-check]', listEl).forEach((btn) =>
-      btn.addEventListener('click', () => handleToggle(btn.dataset.check))
-    );
-    // exclusão: hover (desktop) ou long-press (mobile)
-    $$('[data-del]', listEl).forEach((btn) =>
-      btn.addEventListener('click', (e) => { e.stopPropagation(); confirmDelete(btn.dataset.del); })
-    );
-    $$('[data-card]', listEl).forEach((card) => attachLongPress(card));
     renderWeekPanel();
   }
 
@@ -141,16 +172,6 @@ export function renderHome(app) {
     removeTask(id);
     renderList();
     toast('Tarefa removida');
-  }
-
-  function attachLongPress(card) {
-    let timer;
-    const id = card.dataset.card;
-    const start = () => { timer = setTimeout(() => openQuickActions(id), 500); };
-    const cancel = () => clearTimeout(timer);
-    card.addEventListener('touchstart', start, { passive: true });
-    card.addEventListener('touchend', cancel);
-    card.addEventListener('touchmove', cancel);
   }
 
   function openQuickActions(id) {
@@ -195,7 +216,8 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
   const hasSubs = sub.total > 0;
   return `
   <div data-card="${t.id}"
-    class="group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 ${hasSubs ? 'mb-1' : 'mb-3'} flex items-center gap-3 select-none hover:border-soft-200 transition">
+    style="border-left:4px solid ${cat ? cat.dot : '#ffb3c1'}"
+    class="lift group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 ${hasSubs ? 'mb-1' : 'mb-3'} flex items-center gap-3 select-none hover:border-soft-200">
     <button data-check="${t.id}"
       class="shrink-0 w-7 h-7 rounded-full border-2 grid place-items-center transition
              ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent hover:border-accent'}">
@@ -215,7 +237,6 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
       class="hidden lg:grid place-items-center shrink-0 w-8 h-8 rounded-full text-bordeaux-700/0 group-hover:text-bordeaux-600 hover:bg-soft-100 transition">
       ${icons.trash}
     </button>
-    <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : '#ffb3c1'}" title="${cat ? cat.label : ''}"></span>
   </div>`;
 }
 

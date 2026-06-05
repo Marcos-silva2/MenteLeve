@@ -2,7 +2,7 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v20';
+const CACHE = 'menteleve-v24';
 const ASSETS = [
   './',
   './index.html',
@@ -43,15 +43,30 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const { request } = e;
-  // não cacheia chamadas à API
-  if (request.method !== 'GET' || request.url.includes('/tasks') || request.url.includes('/health')) {
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  // Chamadas à API (backend em outra origem) passam direto — sem cache.
+  if (url.origin !== self.location.origin) return;
+
+  // Código (navegação + .js/.css/.html/.json) → NETWORK-FIRST: sempre busca a
+  // versão mais nova quando online; cai no cache só se offline. Evita ficar
+  // preso em JS antigo. Imagens/ícones/fontes → cache-first (mais rápido).
+  const isCode = request.mode === 'navigate' || /\.(?:js|css|html|json)$/.test(url.pathname);
+
+  if (isCode) {
+    e.respondWith(
+      fetch(request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(request).then((c) => c || caches.match('./index.html')))
+    );
     return;
   }
-  // network-first para HTML, cache-first para o resto
-  if (request.mode === 'navigate') {
-    e.respondWith(fetch(request).catch(() => caches.match('./index.html')));
-    return;
-  }
+
   e.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((res) => {
       const copy = res.clone();

@@ -115,7 +115,7 @@ export function renderNav(active, onNavigate, opts = {}) {
     <div class="flex items-center justify-around px-2 py-2">
       ${NAV_ITEMS.map((it) => `
         <button data-tab="${it.id}"
-          class="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${active === it.id ? 'text-bordeaux-900' : 'text-soft-300'}">
+          class="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-soft-300'}">
           ${it.icon}
           <span class="text-[10px] font-medium">${it.label}</span>
         </button>`).join('')}

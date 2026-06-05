@@ -62,6 +62,9 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 .app-screen::-webkit-scrollbar { width: 0; }
+/* Performance/UX de scroll: rolagem suave em iOS e sem "scroll chaining". */
+.app-screen { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+#messages, #list, #day, #timeline { overscroll-behavior: contain; }
 
 /* ---------- Navegação lateral (somente desktop) ---------- */
 .sidenav { display: none; }
@@ -125,6 +128,64 @@ body {
 @keyframes viewEnter {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Entrada escalonada de itens de lista (só no mount da view) ---------- */
+.view-enter .stagger > * { animation: riseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.view-enter .stagger > *:nth-child(1)  { animation-delay: 0.03s; }
+.view-enter .stagger > *:nth-child(2)  { animation-delay: 0.07s; }
+.view-enter .stagger > *:nth-child(3)  { animation-delay: 0.11s; }
+.view-enter .stagger > *:nth-child(4)  { animation-delay: 0.15s; }
+.view-enter .stagger > *:nth-child(5)  { animation-delay: 0.19s; }
+.view-enter .stagger > *:nth-child(6)  { animation-delay: 0.23s; }
+.view-enter .stagger > *:nth-child(7)  { animation-delay: 0.27s; }
+.view-enter .stagger > *:nth-child(n+8){ animation-delay: 0.3s; }
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Lift sutil ao passar o mouse (desktop) ---------- */
+.lift { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+@media (hover: hover) and (min-width: 1024px) {
+  .lift:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(89, 13, 34, 0.12); }
+}
+
+/* ---------- Entrada das bolhas do chat (só a mais nova) ---------- */
+.msg-in { animation: msgIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- FAB: cresce levemente no hover (desktop) ---------- */
+@media (hover: hover) {
+  .fab { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+  .fab:hover { transform: scale(1.06); }
+}
+
+/* ---------- Bottom nav: feedback ao tocar + ícone ativo realçado ---------- */
+.bottomnav button { transition: transform 0.15s ease, color 0.15s ease; }
+.bottomnav button:active { transform: scale(0.9); }
+.bottomnav button.is-active svg { transform: translateY(-2px) scale(1.06); transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* ---------- Brilho suave (IA viva) — avatar/elementos da Bruna ---------- */
+.bruna-glow { animation: brunaGlow 3s ease-in-out infinite; }
+@keyframes brunaGlow {
+  0%, 100% { box-shadow: 0 6px 18px rgba(255, 77, 109, 0.45); }
+  50%      { box-shadow: 0 6px 28px rgba(255, 77, 109, 0.72); }
+}
+
+/* ---------- Botões primários: leve elevação no hover (desktop) ---------- */
+@media (hover: hover) and (min-width: 1024px) {
+  .cta-lift { transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease; }
+  .cta-lift:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(255, 77, 109, 0.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-enter .stagger > *, .msg-in, .lift, .bruna-glow, .fab, .bottomnav button {
+    animation: none !important; transition: none !important; transform: none !important;
+  }
 }
 
 /* ---------- Bottom Sheet ---------- */

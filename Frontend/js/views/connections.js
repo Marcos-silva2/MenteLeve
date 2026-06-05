@@ -19,14 +19,14 @@ export function renderConnections(app) {
 
       <div class="flex-1 overflow-y-auto px-6 lg:px-0 safe-bottom">
         <!-- membros -->
-        <div class="grid grid-cols-2 gap-3 mb-7">
-          <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-4 flex flex-col items-center text-center">
+        <div class="stagger grid grid-cols-2 gap-3 mb-7">
+          <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4 flex flex-col items-center text-center">
             <div class="w-14 h-14 rounded-full bg-soft-200 grid place-items-center text-bordeaux-900 font-serif font-bold mb-2">${ini(user.name)}</div>
             <p class="text-sm font-semibold text-bordeaux-900">${user.name.split(' ')[0]}</p>
             <p class="text-[11px] text-bordeaux-700">(Administradora)</p>
           </div>
           <button id="invite-card"
-            class="rounded-xl2 border-2 border-dashed border-soft-200 p-4 flex flex-col items-center justify-center text-center active:scale-[.98] transition">
+            class="lift rounded-xl2 border-2 border-dashed border-soft-200 p-4 flex flex-col items-center justify-center text-center active:scale-[.98] transition">
             <div class="w-14 h-14 rounded-full bg-soft-100 grid place-items-center text-accent mb-2">${icons.plus}</div>
             <p class="text-sm font-semibold text-bordeaux-900">Convidar Parceiro(a)</p>
             <p class="text-[11px] text-bordeaux-700">Divida a carga</p>
@@ -45,7 +45,7 @@ export function renderConnections(app) {
       <!-- CTA -->
       <div class="px-6 lg:px-0 pb-24 lg:pb-8 pt-2 bg-gradient-to-t from-bg to-transparent">
         <button id="invite"
-          class="w-full lg:w-auto lg:px-10 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+          class="cta-lift w-full lg:w-auto lg:px-10 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
           Convidar Parceiro(a)
         </button>
       </div>

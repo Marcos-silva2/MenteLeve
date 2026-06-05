@@ -44,7 +44,7 @@ export function renderProfile(app) {
                 ${icons.crown} Zere sua sobrecarga mental
               </p>
               <button id="upgrade"
-                class="w-full py-3 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+                class="cta-lift w-full py-3 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
                 Fazer Upgrade
               </button>
             </div>`}
@@ -52,7 +52,7 @@ export function renderProfile(app) {
 
         <!-- menu -->
         <div class="px-6">
-          <div class="bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden">
+          <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden">
             ${menu.map((m) => `
               <button data-menu="${m.id}" class="w-full flex items-center gap-3 px-4 py-4 border-b border-soft-100 last:border-0 active:bg-bg transition text-left">
                 <span class="text-bordeaux-700">${m.icon}</span>
@@ -63,13 +63,13 @@ export function renderProfile(app) {
 
           ${installed ? '' : `
           <!-- Baixar / instalar o app (PWA) -->
-          <div id="install-card" class="bg-white rounded-xl2 shadow-card border border-soft-100 p-4 mt-4 flex items-center gap-3">
+          <div id="install-card" class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4 mt-4 flex items-center gap-3">
             <img src="assets/icon-512.png" alt="" class="w-11 h-11 rounded-xl shrink-0 object-cover" draggable="false" />
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-bordeaux-900 text-sm">Instalar o MenteLeve</p>
               <p class="text-xs text-bordeaux-700">Tenha o app na tela inicial, funciona offline.</p>
             </div>
-            <button id="install" class="shrink-0 px-4 py-2 rounded-full bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-fab active:scale-95 transition">
+            <button id="install" class="cta-lift shrink-0 px-4 py-2 rounded-full bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-fab active:scale-95 transition">
               Baixar
             </button>
           </div>`}
