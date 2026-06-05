@@ -4,6 +4,7 @@
 
 import { isOnboardingSeen, getUser, isPremium, restoreSession } from './store.js';
 import { toast, renderNav } from './ui.js';
+import { wakeBackend } from './api.js';
 
 import { renderOnboarding } from './views/onboarding.js';
 import { renderLogin } from './views/login.js';
@@ -103,22 +104,27 @@ window.addEventListener('hashchange', () => {
 });
 
 function start() {
+  // Assim que o usuário acessa o site, "acorda" o backend (Render free dorme).
+  // Quando ele responder, re-autentica/sincroniza e re-renderiza a aba atual.
+  // Isso evita o erro de cold start ("não consegui falar com a IA").
+  wakeBackend()
+    .then((ok) => {
+      if (!ok || !getUser()) return;
+      return restoreSession().then((updated) => {
+        if (updated && TAB_ROUTES.includes(app.current)) app.refresh();
+      });
+    })
+    .catch(() => {});
+
   const hashRoute = location.hash.slice(1);
   if (!isOnboardingSeen()) {
     navigate('onboarding');
   } else if (!getUser()) {
     navigate('login');
   } else {
-    // Mostra imediatamente a partir do cache local (UI instantânea)...
+    // UI instantânea a partir do cache local; o sync vem do wakeBackend acima.
     if (TAB_ROUTES.includes(hashRoute) || hashRoute === 'paywall') navigate(hashRoute);
     else navigate('home');
-
-    // ...e re-hidrata do backend em segundo plano, re-renderizando se mudou.
-    restoreSession()
-      .then((updated) => {
-        if (updated && TAB_ROUTES.includes(app.current)) app.refresh();
-      })
-      .catch(() => {});
   }
 }
 

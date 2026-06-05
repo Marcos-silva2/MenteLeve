@@ -121,19 +121,34 @@ export async function login({ name, email }) {
   return state.user;
 }
 
-/** Restaura a sessão no boot: reativa o header e re-hidrata se online. */
+/** Restaura a sessão no boot: reativa o header e re-hidrata se online.
+ *
+ * Se o login anterior foi offline (cold start do Render), `userId` fica nulo;
+ * aqui tentamos autenticar de novo assim que o backend responde, para que a
+ * IA/Bruna e o sync voltem a funcionar.
+ */
 export async function restoreSession() {
-  if (!state.user) return;
-  if (state.userId != null) {
-    api.setAuthUserId(state.userId);
-    const remote = await api.apiListTasks();
-    if (remote) {
-      state.tasks = remote;
-      persist();
-      return true; // houve atualização → caller pode re-renderizar
-    }
+  if (!state.user) return false;
+
+  // Sempre re-autentica quando online: garante um `userId` VÁLIDO mesmo se o
+  // login anterior foi offline (cold start) ou se o banco do Render reiniciou
+  // (free tier), caso em que o id antigo deixaria de existir (401 na IA/sync).
+  const user = await api.apiLogin(state.user.email, state.user.name);
+  if (!user) return false; // ainda offline → segue 100% local
+
+  state.userId = user.id;
+  state.isPremium = !!user.is_premium;
+  if (user.name) state.user.name = user.name;
+  persist();
+
+  const remote = await api.apiListTasks();
+  // Só substitui pelo servidor se ele tiver tarefas — evita apagar o que foi
+  // criado localmente enquanto o backend estava offline.
+  if (remote && remote.length) {
+    state.tasks = remote;
+    persist();
   }
-  return false;
+  return true; // re-autenticou → caller pode re-renderizar (premium/nome/sync)
 }
 
 export function logout() {

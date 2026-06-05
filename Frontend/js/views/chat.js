@@ -6,7 +6,7 @@
 
 import { h, $, $$, icons } from '../ui.js';
 import { getUser } from '../store.js';
-import { apiChat } from '../api.js';
+import { apiChat, wakeBackend } from '../api.js';
 
 // Histórico mantido em memória durante a sessão (sobrevive à troca de abas).
 let conversation = []; // [{ role: 'user' | 'assistant', content }]
@@ -107,7 +107,12 @@ export function renderChat(app) {
     typing = true;
     renderMessages();
 
-    const reply = await apiChat(conversation);
+    let reply = await apiChat(conversation);
+    // Pode ser cold start do Render: tenta acordar o backend e reenviar 1x.
+    if (!reply) {
+      const woke = await wakeBackend({ attempts: 5, intervalMs: 2500 });
+      if (woke) reply = await apiChat(conversation);
+    }
     typing = false;
     conversation.push({
       role: 'assistant',

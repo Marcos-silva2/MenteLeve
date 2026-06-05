@@ -13,7 +13,9 @@ export const API_BASE = _isLocalHost
   : 'https://menteleve.onrender.com';
 
 let _userId = null;     // id do usuário (definido após login)
-let _online = null;     // cache do status do backend (null = ainda não checado)
+let _online = null;     // status do backend (true cacheado; false re-tenta)
+let _lastCheck = 0;     // timestamp do último ping (cache negativo curto)
+const NEG_TTL = 10000;  // re-tenta o /health 10s após uma falha
 
 export function setAuthUserId(id) {
   _userId = id != null ? String(id) : null;
@@ -35,22 +37,49 @@ async function request(path, options = {}) {
   return res.status === 204 ? null : res.json();
 }
 
-/** Verifica (com cache) se o backend está no ar. */
-export async function ensureOnline(forceRecheck = false) {
-  if (_online !== null && !forceRecheck) return _online;
-  // Local responde instantâneo; o Render (free tier) tem latência maior e
-  // pode "acordar" de um cold start, então damos mais tempo em produção.
-  const timeoutMs = _isLocalHost ? 2000 : 8000;
+/** Um ping ao /health com timeout. Retorna true/false (não cacheia). */
+async function pingHealth(timeoutMs) {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(`${API_BASE}/health`, { signal: ctrl.signal });
+    const res = await fetch(`${API_BASE}/health`, { signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(t);
-    _online = res.ok;
+    return res.ok;
   } catch (_) {
-    _online = false;
+    return false;
   }
+}
+
+/**
+ * Verifica se o backend está no ar.
+ * - Resultado POSITIVO é cacheado (uma vez online, segue online na sessão).
+ * - Enquanto offline, re-tenta após NEG_TTL (importante p/ cold start do Render).
+ */
+export async function ensureOnline(forceRecheck = false) {
+  if (_online === true && !forceRecheck) return true;
+  if (!forceRecheck && _online === false && (Date.now() - _lastCheck) < NEG_TTL) return false;
+  const timeoutMs = _isLocalHost ? 2000 : 8000;
+  _online = await pingHealth(timeoutMs);
+  _lastCheck = Date.now();
   return _online;
+}
+
+/**
+ * "Acorda" o backend (o Render free dorme após ~15min). Faz pings com
+ * re-tentativas até responder ou estourar o tempo total (~cold start de 60-90s).
+ * Atualiza o status online. Não bloqueante — chame no boot do app.
+ */
+export async function wakeBackend({ attempts = 14, intervalMs = 4000 } = {}) {
+  if (_online === true) return true;
+  for (let i = 0; i < attempts; i++) {
+    if (await pingHealth(_isLocalHost ? 2000 : 9000)) {
+      _online = true;
+      _lastCheck = Date.now();
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return _online === true;
 }
 
 export const isOnline = () => _online === true;
