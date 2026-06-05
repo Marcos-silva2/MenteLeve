@@ -30,8 +30,8 @@ export function renderOnboarding(app) {
     <div class="h-full flex flex-col bg-gradient-to-b from-bg to-soft-100 lg:max-w-lg lg:mx-auto lg:w-full">
       <!-- topo -->
       <div class="flex items-center justify-between px-6 pt-12 pb-2">
-        <div class="flex items-center gap-1.5 text-bordeaux-900">
-          <span class="text-accent">${icons.logo}</span>
+        <div class="flex items-center gap-2 text-bordeaux-900">
+          ${icons.logoImg}
           <span class="font-serif font-bold text-lg">MenteLeve</span>
         </div>
         <button id="skip" class="text-sm font-medium text-bordeaux-700">Pular</button>
@@ -120,22 +120,28 @@ export function renderOnboarding(app) {
 
 /* ---------- Ilustrações ---------- */
 function artWoman() {
-  // Ilustração do mockup (mulher pensativa + ícones flutuando).
-  // A massa visual da ilustração pende ~15% à esquerda; o translate-x
-  // compensa para centralizá-la opticamente. O float dá vida sutil.
+  // Ilustração estática (mulher pensativa + balões), sem animação.
   return `
-  <div class="translate-x-[44px] lg:translate-x-[36px]">
-    <img src="assets/mulher-onboard.png" alt="Mulher pensativa com tarefas ao redor"
-         class="onboard-float h-[44vh] max-h-[400px] w-auto max-w-full object-contain select-none pointer-events-none mx-auto"
-         draggable="false" />
-  </div>`;
+  <img src="assets/mulher-onboard.png" alt="Mulher pensativa com tarefas ao redor"
+       class="h-[44vh] max-h-[400px] w-auto max-w-full object-contain select-none pointer-events-none mx-auto"
+       draggable="false" />`;
 }
 function artAI() {
+  // Fluxo vertical: pensamento (nota) → IA (faísca) → tarefas organizadas (chips).
+  // O alinhamento central e os conectores deixam a relação causa→efeito clara,
+  // melhorando a leitura dos elementos e dos textos nesta tela.
   return `
-  <div class="relative w-60 h-52">
-    <div class="absolute left-1/2 -translate-x-1/2 top-0 bg-white px-5 py-2.5 rounded-2xl shadow-card font-serif italic text-bordeaux-900">Aniversário do Leo</div>
-    <div class="absolute left-1/2 -translate-x-1/2 top-20 w-10 h-10 rounded-full bg-accent grid place-items-center text-white shadow-fab">${icons.spark}</div>
-    <div class="absolute bottom-2 left-0 right-0 flex justify-between gap-2">
+  <div class="w-64 max-w-full mx-auto flex flex-col items-center pt-2">
+    <!-- pensamento solto da usuária -->
+    <div class="bg-white px-5 py-2.5 rounded-2xl shadow-card font-serif italic text-bordeaux-900 text-[15px]">Aniversário do Leo</div>
+
+    <!-- conector + IA processando -->
+    <div class="w-px h-4 bg-soft-200"></div>
+    <div class="w-11 h-11 rounded-full bg-accent grid place-items-center text-white shadow-fab onboard-float">${icons.spark}</div>
+    <div class="w-px h-4 bg-soft-200"></div>
+
+    <!-- tarefas organizadas pela IA -->
+    <div class="grid grid-cols-3 gap-2 w-full">
       ${chip('Encomendar bolo')}
       ${chip('Comprar presente')}
       ${chip('Mandar convites')}

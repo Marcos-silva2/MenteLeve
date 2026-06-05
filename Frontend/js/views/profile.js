@@ -8,6 +8,7 @@ import { getUser, logout, isPremium } from '../store.js';
 export function renderProfile(app) {
   const user = getUser() || { name: 'Você', email: '' };
   const premium = isPremium();
+  const installed = app.isInstalled && app.isInstalled();
 
   const menu = [
     { id: 'account', label: 'Minha Conta', icon: icons.user },
@@ -60,6 +61,19 @@ export function renderProfile(app) {
               </button>`).join('')}
           </div>
 
+          ${installed ? '' : `
+          <!-- Baixar / instalar o app (PWA) -->
+          <div id="install-card" class="bg-white rounded-xl2 shadow-card border border-soft-100 p-4 mt-4 flex items-center gap-3">
+            <img src="assets/icon-512.png" alt="" class="w-11 h-11 rounded-xl shrink-0 object-cover" draggable="false" />
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-bordeaux-900 text-sm">Instalar o MenteLeve</p>
+              <p class="text-xs text-bordeaux-700">Tenha o app na tela inicial, funciona offline.</p>
+            </div>
+            <button id="install" class="shrink-0 px-4 py-2 rounded-full bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-fab active:scale-95 transition">
+              Baixar
+            </button>
+          </div>`}
+
           <button id="logout" class="w-full flex items-center justify-center gap-2 py-4 mt-4 text-bordeaux-600 font-medium">
             ${icons.logout} Sair da Conta
           </button>
@@ -74,6 +88,20 @@ export function renderProfile(app) {
   $$('[data-menu]', view).forEach((b) =>
     b.addEventListener('click', () => toast('Recurso disponível na versão final ✨'))
   );
+
+  const installBtn = $('#install', view);
+  if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+      const outcome = await app.promptInstall();
+      if (outcome === 'accepted') {
+        const card = $('#install-card', view);
+        if (card) card.remove();
+      } else if (outcome === 'unavailable') {
+        // iOS/Safari ou navegador sem prompt nativo: orienta a instalação manual.
+        toast('No menu do navegador, toque em “Adicionar à Tela de Início”.', 4000);
+      }
+    });
+  }
 
   $('#logout', view).addEventListener('click', () => {
     logout();

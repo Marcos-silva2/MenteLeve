@@ -11,8 +11,8 @@ export function renderLogin(app) {
     <div class="h-full flex flex-col px-7 pt-16 pb-10 lg:max-w-md lg:mx-auto lg:w-full lg:justify-center lg:pt-0">
       <!-- logo -->
       <div class="flex flex-col items-center text-center mb-10">
-        <div class="flex items-center gap-1.5 text-bordeaux-900 mb-8">
-          <span class="text-accent">${icons.logo}</span>
+        <div class="flex items-center gap-2 text-bordeaux-900 mb-8">
+          ${icons.logoImg}
           <span class="font-serif font-bold text-xl">MenteLeve</span>
         </div>
         <h1 class="font-serif font-bold text-bordeaux-900 text-[28px] leading-tight">

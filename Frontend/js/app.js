@@ -32,7 +32,32 @@ export const app = {
   current: null,
   // Re-renderiza a rota atual (usado após sincronizar dados do backend).
   refresh: () => navigate(app.current),
+  // ---- Instalação do PWA ----
+  // `true` quando o navegador disponibilizou o prompt de instalação.
+  canInstall: () => !!deferredInstallPrompt,
+  // Detecta se o app já está rodando instalado (standalone).
+  isInstalled: () =>
+    window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+  // Dispara o prompt nativo de instalação. Retorna 'accepted' | 'dismissed' | 'unavailable'.
+  promptInstall: async () => {
+    if (!deferredInstallPrompt) return 'unavailable';
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    return outcome;
+  },
 };
+
+// Captura o evento de instalação do PWA para acioná-lo sob demanda (ex.: Perfil).
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  toast('MenteLeve instalado ✨');
+});
 
 // Abas que podem ser refletidas na URL (deep-link / restaurar ao recarregar).
 const TAB_ROUTES = ['home', 'agenda', 'connections', 'profile'];

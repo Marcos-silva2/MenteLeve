@@ -21,7 +21,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="API do MenteLeve — gestão de carga mental. (IA ainda não plugada.)",
+    description="API do MenteLeve — gestão de carga mental com IA (Google AI Studio / Gemini).",
     lifespan=lifespan,
 )
 

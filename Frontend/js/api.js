@@ -5,8 +5,12 @@
      enquanto a IA real não está plugada no backend (/tasks/smart).
    ============================================================ */
 
-// Local: http://localhost:8000 | Produção: URL do Render.
-export const API_BASE = 'http://localhost:8000';
+// Base da API: em dev local usa o backend local; em produção, o Render.
+// (hostname vazio = arquivo aberto via file://, tratado como local.)
+const _isLocalHost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+export const API_BASE = _isLocalHost
+  ? 'http://localhost:8000'
+  : 'https://menteleve.onrender.com';
 
 let _userId = null;     // id do usuário (definido após login)
 let _online = null;     // cache do status do backend (null = ainda não checado)
@@ -34,9 +38,12 @@ async function request(path, options = {}) {
 /** Verifica (com cache) se o backend está no ar. */
 export async function ensureOnline(forceRecheck = false) {
   if (_online !== null && !forceRecheck) return _online;
+  // Local responde instantâneo; o Render (free tier) tem latência maior e
+  // pode "acordar" de um cold start, então damos mais tempo em produção.
+  const timeoutMs = _isLocalHost ? 2000 : 8000;
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 1500);
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetch(`${API_BASE}/health`, { signal: ctrl.signal });
     clearTimeout(t);
     _online = res.ok;
@@ -59,6 +66,8 @@ function fromServer(t) {
     due: t.due || '',
     done: !!t.done,
     important: !!t.important,
+    // Backend ainda não tem coluna de prioridade: deriva de `important`.
+    priority: t.important ? 'alta' : 'media',
     createdAt: t.created_at ? Date.parse(t.created_at) : Date.now(),
   };
 }
@@ -114,6 +123,32 @@ export async function apiCreateTask({ title, category, due, important }) {
       body: JSON.stringify({ title, category, due: due || '', important: !!important }),
     });
     return fromServer(t);
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Análise inteligente (IA do backend) de um texto livre — o "Aha Moment".
+ * Retorna { title, category, due, subtasks, suggestion } ou null se
+ * offline/erro (o chamador então usa a heurística local decomposeTask).
+ * NÃO persiste a tarefa; o app cria via apiCreateTask/addTask depois.
+ */
+export async function apiSmartTask(text) {
+  if (!_userId || !(await ensureOnline())) return null;
+  try {
+    const r = await request('/tasks/smart', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ text }),
+    });
+    return {
+      title: r.title || text,
+      category: r.category || 'casa',
+      due: r.due || '',
+      subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
+      suggestion: r.suggestion || null,
+    };
   } catch (_) {
     return null;
   }

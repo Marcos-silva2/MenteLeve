@@ -33,6 +33,8 @@ export const icons = {
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 2.5"/><path d="M12 17h.01"/></svg>',
   logo: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 2C8 2 5 5 5 9c0 3.5 2.5 5.8 4.5 7.5L12 22l2.5-5.5C16.5 14.8 19 12.5 19 9c0-4-3-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>',
+  // Isotipo oficial da marca (lótus "ML") — substitui o antigo pin de localização.
+  logoImg: '<img src="assets/ML.png" alt="MenteLeve" class="h-9 w-auto object-contain select-none" draggable="false" />',
 };
 
 /** Toast efêmero dentro da moldura do device. */
@@ -80,7 +82,9 @@ export function renderNav(active, onNavigate, opts = {}) {
   // ---- Sidebar (desktop) ----
   side.innerHTML = `
     <div class="flex items-center gap-2 px-2 mb-8">
-      <span class="text-accent">${icons.logo}</span>
+      <span class="grid place-items-center w-10 h-10 rounded-xl bg-white shadow-fab">
+        <img src="assets/ML.png" alt="" class="h-7 w-auto select-none" draggable="false" />
+      </span>
       <span class="font-serif font-bold text-xl text-white">MenteLeve</span>
     </div>
     <nav class="flex flex-col gap-1">

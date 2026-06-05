@@ -54,13 +54,13 @@ export function renderPaywall(app, params = {}) {
               <button data-plan="mensal"
                 class="plan rounded-xl2 border-2 p-4 text-left transition bg-white border-soft-100">
                 <p class="text-xs font-medium text-bordeaux-700 mb-1">Plano Mensal</p>
-                <p class="font-serif font-bold text-bordeaux-900 text-xl">R$ 29,90<span class="text-xs font-sans font-medium text-bordeaux-700">/mês</span></p>
+                <p class="font-serif font-bold text-bordeaux-900 text-xl">R$ 19,90<span class="text-xs font-sans font-medium text-bordeaux-700">/mês</span></p>
               </button>
               <button data-plan="anual"
                 class="plan relative rounded-xl2 border-2 p-4 text-left transition bg-white border-accent">
-                <span class="absolute -top-2.5 right-3 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ECONOMIZE 40%</span>
+                <span class="absolute -top-2.5 right-3 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ECONOMIZE 60%</span>
                 <p class="text-xs font-medium text-bordeaux-700 mb-1">Plano Anual</p>
-                <p class="font-serif font-bold text-bordeaux-900 text-xl">R$ 17,90<span class="text-xs font-sans font-medium text-bordeaux-700">/mês</span></p>
+                <p class="font-serif font-bold text-bordeaux-900 text-xl">R$ 7,90<span class="text-xs font-sans font-medium text-bordeaux-700">/mês</span></p>
                 <p class="text-[10px] text-bordeaux-700 mt-1">cobrado anualmente</p>
               </button>
             </div>

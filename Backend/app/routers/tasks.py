@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app import crud, schemas
+from app import ai, crud, schemas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
@@ -47,40 +47,37 @@ def create_task(
     return crud.create_task(db, user.id, data)
 
 
-@router.post("/smart", response_model=schemas.SmartTaskOut, status_code=status.HTTP_201_CREATED)
-def create_smart_task(
+@router.post("/smart", response_model=schemas.SmartTaskOut)
+def analyze_smart_task(
     data: schemas.SmartTaskIn,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Criação a partir de texto em linguagem natural.
+    """Analisa um texto em linguagem natural com a IA (o "Aha Moment").
 
-    NOTA: a Inteligência Artificial ainda NÃO está plugada. Por ora, esta rota
-    apenas persiste a tarefa com o texto recebido e devolve o formato que o
-    frontend espera (com `subtasks` vazio e `suggestion` nulo).
+    Esta rota NÃO persiste a tarefa: ela apenas normaliza o título, extrai
+    data/categoria (NLP) e sugere subtarefas + um lembrete preventivo. O
+    frontend usa o resultado para criar a(s) tarefa(s) via `POST /tasks`,
+    preservando as escolhas manuais da usuária.
 
-    TODO(IA): chamar o provedor (Google AI Studio) para:
-      - normalizar título, extrair data/hora (NLP) e categoria;
-      - sugerir subtarefas e um lembrete preventivo (o "Aha Moment").
+    Sem `GOOGLE_AI_API_KEY` configurada (ou em caso de falha da IA), devolve
+    um fallback que apenas normaliza o título.
     """
     _enforce_free_limit(user, db)
 
-    title = data.text.strip()
-    title = title[0].upper() + title[1:] if title else title
+    result = ai.analyze(data.text)
 
-    task = crud.create_task(
-        db,
-        user.id,
-        schemas.TaskCreate(title=title, category="casa", due=""),
-    )
+    if result is None:
+        title = data.text.strip()
+        title = title[0].upper() + title[1:] if title else title
+        return schemas.SmartTaskOut(title=title, category="casa", due="")
 
     return schemas.SmartTaskOut(
-        title=task.title,
-        category=task.category,
-        due=task.due,
-        subtasks=[],        # IA preencherá depois
-        suggestion=None,    # IA preencherá depois
-        task=task,
+        title=result["title"],
+        category=result["category"],
+        due=result["due"],
+        subtasks=result["subtasks"],
+        suggestion=result["suggestion"],
     )
 
 

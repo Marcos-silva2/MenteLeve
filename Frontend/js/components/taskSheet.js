@@ -4,8 +4,8 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
-import { CATEGORIES, addTask, reachedFreeLimit } from '../store.js';
-import { decomposeTask } from '../api.js';
+import { CATEGORIES, PRIORITIES, addTask, reachedFreeLimit } from '../store.js';
+import { apiSmartTask, decomposeTask } from '../api.js';
 
 /**
  * Abre o bottom sheet de nova tarefa.
@@ -23,6 +23,9 @@ export function openTaskSheet(app, onDone) {
   const desktop = isDesktop();
   let selectedCat = 'casa';
   let due = '';
+  let selectedPriority = 'media';
+  // Data mínima do seletor = hoje (evita agendar no passado).
+  const todayISO = new Date().toISOString().slice(0, 10);
 
   // Desktop → modal central (foco no teclado) | Mobile → bottom sheet (foco no polegar)
   const scrim = h(`<div class="scrim ${desktop ? 'grid place-items-center px-6' : ''}"></div>`);
@@ -58,6 +61,25 @@ export function openTaskSheet(app, onDone) {
           </button>`).join('')}
       </div>
 
+      <!-- data específica (calendário) -->
+      <div class="mt-2 flex items-center gap-2">
+        <span class="text-bordeaux-700">${icons.calendar}</span>
+        <input id="task-date" type="date" min="${todayISO}"
+          class="flex-1 px-4 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
+                 focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
+      </div>
+
+      <!-- prioridade -->
+      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Prioridade</p>
+      <div class="flex gap-2">
+        ${PRIORITIES.map((p) => `
+          <button data-prio="${p.id}"
+            class="flex-1 px-3 py-1.5 rounded-full text-sm font-medium border transition flex items-center justify-center gap-1.5
+                   ${p.id === selectedPriority ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}">
+            <span class="w-2 h-2 rounded-full" style="background:${p.dot}"></span>${p.label}
+          </button>`).join('')}
+      </div>
+
       <button id="save-task"
         class="mt-6 w-full py-3.5 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab
                active:scale-[.98] transition flex items-center justify-center gap-2">
@@ -84,13 +106,38 @@ export function openTaskSheet(app, onDone) {
     })
   );
 
-  // seleção de data
+  const dateInput = $('#task-date', sheet);
+
+  // seleção de data rápida (atalhos). Escolher um atalho limpa o calendário.
   $$('[data-due]', sheet).forEach((b) =>
     b.addEventListener('click', () => {
       due = due === b.dataset.due ? '' : b.dataset.due;
+      if (due) dateInput.value = '';
       $$('[data-due]', sheet).forEach((x) => {
         const on = x.dataset.due === due;
         x.className = `px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
+      });
+    })
+  );
+
+  // escolher uma data específica desmarca os atalhos rápidos.
+  dateInput.addEventListener('change', () => {
+    if (!dateInput.value) return;
+    due = '';
+    $$('[data-due]', sheet).forEach((x) => {
+      x.className = 'px-3 py-1.5 rounded-full text-sm font-medium border transition bg-white text-bordeaux-700 border-soft-100';
+    });
+  });
+
+  // seleção de prioridade
+  $$('[data-prio]', sheet).forEach((b) =>
+    b.addEventListener('click', () => {
+      selectedPriority = b.dataset.prio;
+      $$('[data-prio]', sheet).forEach((x) => {
+        const p = PRIORITIES.find((it) => it.id === x.dataset.prio);
+        const on = x.dataset.prio === selectedPriority;
+        x.className = `flex-1 px-3 py-1.5 rounded-full text-sm font-medium border transition flex items-center justify-center gap-1.5 ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
+        x.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${p.dot}"></span>${p.label}`;
       });
     })
   );
@@ -112,21 +159,28 @@ export function openTaskSheet(app, onDone) {
     label.textContent = 'Pensando…';
     btn.classList.add('opacity-80');
 
-    // Decomposição client-side (Aha Moment). Quando a IA real entrar no
-    // backend, troca-se decomposeTask() por uma chamada a /tasks/smart.
-    let result;
+    // Aha Moment: usa a IA real do backend (/tasks/smart). Se estiver
+    // offline ou a IA falhar, cai na heurística client-side decomposeTask().
+    let result = null;
     try {
-      result = decomposeTask(text);
-    } catch (_) {
-      result = { title: text, category: selectedCat, due, subtasks: [], suggestion: null };
+      result = await apiSmartTask(text);
+    } catch (_) { /* tenta o fallback abaixo */ }
+    if (!result) {
+      try {
+        result = decomposeTask(text);
+      } catch (_) {
+        result = { title: text, category: selectedCat, due, subtasks: [], suggestion: null };
+      }
     }
 
     // A escolha manual do usuário tem prioridade sobre o palpite da IA.
     const category = selectedCat !== 'casa' ? selectedCat : (result.category || 'casa');
-    const finalDue = due || result.due || '';
+    // Data específica (calendário) > atalho rápido > palpite da IA.
+    const pickedDate = dateInput.value ? formatDateBR(dateInput.value) : '';
+    const finalDue = pickedDate || due || result.due || '';
 
     // Cria e persiste a tarefa principal (aguarda para reconciliar o id real).
-    await addTask({ title: result.title || text, category, due: finalDue });
+    await addTask({ title: result.title || text, category, due: finalDue, priority: selectedPriority });
 
     close();
     onDone && onDone();
@@ -138,6 +192,13 @@ export function openTaskSheet(app, onDone) {
       toast('Tarefa adicionada ✨');
     }
   });
+}
+
+/** Converte "AAAA-MM-DD" (input date) em "DD/MM/AAAA" sem desvio de fuso. */
+function formatDateBR(iso) {
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
 }
 
 /* ---------------- Modal "Aha Moment" da IA ---------------- */

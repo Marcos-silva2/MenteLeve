@@ -5,7 +5,7 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast } from '../ui.js';
-import { getUser, getTasks, getCategory, toggleTask, removeTask, CATEGORIES } from '../store.js';
+import { getUser, getTasks, getCategory, getPriority, toggleTask, removeTask, CATEGORIES } from '../store.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 
 export function renderHome(app) {
@@ -184,6 +184,8 @@ export function renderHome(app) {
 function taskCard(t) {
   const cat = getCategory(t.category);
   const done = t.done;
+  // Prioridade: deriva de `priority` (fallback p/ tarefas antigas via `important`).
+  const prio = getPriority(t.priority || (t.important ? 'alta' : 'media'));
   return `
   <div data-card="${t.id}"
     class="group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 mb-3 flex items-center gap-3 select-none hover:border-soft-200 transition">
@@ -196,7 +198,8 @@ function taskCard(t) {
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-soft-300' : 'text-bordeaux-900'}">${t.title}</p>
       <div class="flex items-center gap-2 mt-1">
         ${t.due ? `<span class="text-xs ${done ? 'text-soft-300' : 'text-bordeaux-700'}">${t.due}</span>` : ''}
-        ${t.important && !done ? '<span class="text-xs font-semibold text-accent">• Importante</span>' : ''}
+        ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
+          <span class="w-1.5 h-1.5 rounded-full" style="background:${prio.dot}"></span>${prio.label}</span>` : ''}
       </div>
     </div>
     <!-- ação no hover (desktop): excluir, em tom Cherry Rose discreto -->

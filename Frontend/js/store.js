@@ -20,6 +20,16 @@ export const CATEGORIES = [
   { id: 'relacionamento', label: 'Relacionamento', dot: '#ff8fa3' },
 ];
 
+// Níveis de prioridade (padrão: "media"). Alta também marca a tarefa como
+// importante, mantendo compatibilidade com o backend (campo booleano `important`).
+export const PRIORITIES = [
+  { id: 'baixa', label: 'Baixa', dot: '#ff8fa3' },
+  { id: 'media', label: 'Média', dot: '#ff758f' },
+  { id: 'alta',  label: 'Alta',  dot: '#ff4d6d' },
+];
+
+export const getPriority = (id) => PRIORITIES.find((p) => p.id === id) || PRIORITIES[1];
+
 export const FREE_TASK_LIMIT = 50;
 
 const defaultState = () => ({
@@ -32,10 +42,10 @@ const defaultState = () => ({
 
 function seedTasks() {
   return [
-    { id: uid(), title: 'Encomendar bolo p/ Leo',  category: 'filhos',   due: '14:00',           done: false, important: false, createdAt: Date.now() - 5000 },
-    { id: uid(), title: 'Mandar convites p/ Leo',   category: 'filhos',   due: 'Hoje',            done: false, important: true,  createdAt: Date.now() - 4000 },
-    { id: uid(), title: 'Reunião de Equipe',        category: 'trabalho', due: 'Amanhã • 10:00',  done: true,  important: false, createdAt: Date.now() - 3000 },
-    { id: uid(), title: 'Lanche c/ Família',        category: 'casa',     due: '12:00',           done: false, important: false, createdAt: Date.now() - 2000 },
+    { id: uid(), title: 'Encomendar bolo p/ Leo',  category: 'filhos',   due: '14:00',           done: false, important: false, priority: 'media', createdAt: Date.now() - 5000 },
+    { id: uid(), title: 'Mandar convites p/ Leo',   category: 'filhos',   due: 'Hoje',            done: false, important: true,  priority: 'alta',  createdAt: Date.now() - 4000 },
+    { id: uid(), title: 'Reunião de Equipe',        category: 'trabalho', due: 'Amanhã • 10:00',  done: true,  important: false, priority: 'media', createdAt: Date.now() - 3000 },
+    { id: uid(), title: 'Lanche c/ Família',        category: 'casa',     due: '12:00',           done: false, important: false, priority: 'baixa', createdAt: Date.now() - 2000 },
   ];
 }
 
@@ -135,13 +145,15 @@ export function logout() {
  * persistido (com id real) antes de retornar.
  */
 export async function addTask(task) {
+  const priority = task.priority || 'media';
   const local = {
     id: uid(),
     title: task.title,
     category: task.category || 'casa',
     due: task.due || '',
     done: false,
-    important: !!task.important,
+    priority,
+    important: task.important != null ? !!task.important : priority === 'alta',
     createdAt: Date.now(),
   };
   state.tasks.unshift(local);
@@ -152,7 +164,8 @@ export async function addTask(task) {
     if (saved) {
       const idx = state.tasks.findIndex((x) => x.id === local.id);
       if (idx >= 0) {
-        state.tasks[idx] = saved; // reconcilia com o id do backend
+        // O backend ainda não persiste a prioridade; preserva o valor local.
+        state.tasks[idx] = { ...saved, priority };
         persist();
         return state.tasks[idx];
       }
