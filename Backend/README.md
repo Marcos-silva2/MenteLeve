@@ -1,13 +1,13 @@
 # MenteLeve — Backend (API)
 
-API REST em **FastAPI + SQLite (SQLAlchemy)**. Esta fase entrega o CRUD completo
+API REST em **FastAPI + PostgreSQL/Supabase (SQLAlchemy)**. Esta fase entrega o CRUD completo
 de tarefas e o login simplificado. **A Inteligência Artificial ainda não está
 plugada** — a rota `/tasks/smart` apenas persiste a tarefa e devolve o formato
 que o frontend espera (com `subtasks` vazio e `suggestion` nulo).
 
 ## Stack
 - FastAPI + Uvicorn
-- SQLAlchemy 2.0 + SQLite
+- SQLAlchemy 2.0 + PostgreSQL (Supabase, via driver `psycopg`) — SQLite disponível como fallback local (padrão sem `DATABASE_URL`)
 - Pydantic v2
 
 ## Como rodar (local)
@@ -33,7 +33,7 @@ Backend/
 ├── app/
 │   ├── main.py          # FastAPI app, CORS, /health, monta routers
 │   ├── config.py        # settings via variáveis de ambiente
-│   ├── database.py      # engine SQLite, sessão, init_db()
+│   ├── database.py      # engine SQLAlchemy (Postgres/SQLite), sessão, init_db()
 │   ├── models.py        # User, Task
 │   ├── schemas.py       # Pydantic (entrada/saída) + FREE_TASK_LIMIT
 │   ├── crud.py          # operações de banco
@@ -78,8 +78,10 @@ a criação retorna **HTTP 402** (gatilho do Paywall no frontend).
 ## Deploy (Render)
 - Build: `pip install -r requirements.txt`
 - Start: definido no `Procfile` (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`)
-- **Importante:** configure um *Disk* persistente e aponte `DATABASE_URL` para ele
-  (ex.: `sqlite:////var/data/menteleve.db`), senão o banco é perdido a cada deploy.
+- **Importante:** aponte `DATABASE_URL` para o Postgres do Supabase — use a connection
+  string do **"Session pooler"** (IPv4), não a "Direct connection" (IPv6-only, não
+  resolve em muitos hosts/redes). Ver [`supabase_schema.sql`](supabase_schema.sql) para
+  criar as tabelas e [`docs/Roadmap.md`](../docs/Roadmap.md) para o histórico completo.
 
 ## Próximo passo
 Plugar a IA (Google AI Studio) na rota `/tasks/smart` — ver o `TODO(IA)` em

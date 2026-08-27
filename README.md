@@ -4,7 +4,7 @@
 
 **MenteLeve** é um aplicativo de gestão da **carga mental** — um "Segundo Cérebro" inteligente pensado especialmente para mulheres e mães. Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis do dia a dia (o *Aha Moment*).
 
-🔗 **App (PWA):** https://marcos-silva2.github.io/MenteLeve/
+🔗 **App (PWA):** https://mente-leve-teal.vercel.app
 🔗 **API:** https://menteleve.onrender.com · [`/docs`](https://menteleve.onrender.com/docs)
 
 ---
@@ -27,9 +27,9 @@
 | Camada | Tecnologias |
 |---|---|
 | **Frontend** | HTML + CSS + **JavaScript Vanilla (ES Modules)** + **Tailwind (CDN)** · PWA (manifest + Service Worker) |
-| **Backend** | **FastAPI** + **SQLAlchemy 2.0** + **SQLite** · Pydantic v2 · Uvicorn |
+| **Backend** | **FastAPI** + **SQLAlchemy 2.0** + **PostgreSQL (Supabase)** · Pydantic v2 · Uvicorn |
 | **IA** | **Google AI Studio / Gemini** (`gemini-2.5-flash`) via REST |
-| **Deploy** | Frontend: **GitHub Pages** · Backend: **Render** |
+| **Deploy** | Frontend: **Vercel** · Backend: **Render** · Banco: **Supabase** |
 
 Design System: **Bordeaux Pink** (regra 60:30:10) — fundo `#fff0f3`, estrutura `#590d22`, destaque `#ff4d6d`.
 
@@ -39,7 +39,7 @@ Design System: **Bordeaux Pink** (regra 60:30:10) — fundo `#fff0f3`, estrutura
 
 ```
 MenteLeve/
-├── Frontend/                 # PWA (publicado no GitHub Pages)
+├── Frontend/                 # PWA (publicado na Vercel)
 │   ├── index.html            # shell + config do Tailwind
 │   ├── manifest.json · sw.js # PWA (instalação + cache offline)
 │   ├── css/styles.css        # Design System + animações
@@ -56,7 +56,7 @@ MenteLeve/
 │   ├── app/
 │   │   ├── main.py           # app FastAPI, CORS, /health
 │   │   ├── config.py         # settings via .env
-│   │   ├── database.py       # engine SQLite + micro-migrações
+│   │   ├── database.py       # engine SQLAlchemy (Postgres/Supabase) + micro-migrações
 │   │   ├── models.py · schemas.py · crud.py
 │   │   ├── ai.py             # integração Gemini (analyze + chat)
 │   │   └── routers/          # auth, tasks (+ /tasks/smart), ai_chat (Bruna)
@@ -87,7 +87,8 @@ pip install -r requirements.txt
 
 # configure o ambiente
 copy .env.example .env        # Windows  (ou: cp .env.example .env)
-# edite o .env e coloque sua GOOGLE_AI_API_KEY
+# edite o .env: coloque sua GOOGLE_AI_API_KEY e, se for usar Postgres/Supabase,
+# a DATABASE_URL (connection string do "Session pooler" — ver seção do Supabase abaixo)
 
 uvicorn app.main:app --reload
 ```
@@ -137,23 +138,33 @@ Autenticação leve (MVP): após o login, o frontend envia o header **`X-User-Id
 
 ## ☁️ Deploy
 
+### Banco → Supabase (Postgres)
+- Schema pronto em [`Backend/supabase_schema.sql`](Backend/supabase_schema.sql) (cole no SQL Editor do projeto).
+- Use a connection string do **"Session pooler"** (não a "Direct connection" — essa é IPv6-only e falha em redes/hosts IPv4, incluindo o Render). Painel do Supabase → **Connect** → **Connection string** → **Session pooler**.
+- `DATABASE_URL` no formato `postgresql+psycopg://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres`.
+
 ### Backend → Render
 - **Root Directory:** `Backend`
 - **Build:** `pip install -r requirements.txt`
 - **Start:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- **Variáveis:** `GOOGLE_AI_API_KEY`, `AI_MODEL`, `PYTHON_VERSION=3.12.8`, `CORS_ORIGINS=https://marcos-silva2.github.io`
+- **Variáveis:** `GOOGLE_AI_API_KEY`, `AI_MODEL`, `PYTHON_VERSION=3.12.8`, `DATABASE_URL` (Supabase, ver acima), `CORS_ORIGINS=https://mente-leve-teal.vercel.app`
 
-> O plano free usa disco efêmero (SQLite reinicia a cada deploy) e "dorme" após ~15 min (cold start). O frontend acorda a API automaticamente ao abrir.
+> O plano free "dorme" após ~15 min de inatividade (cold start de ~30–50s). Mitigado com um ping externo gratuito (ex.: cron-job.org) batendo em `/health` a cada ~10 min.
 
-### Frontend → GitHub Pages
-Publicado pela Action `.github/workflows/deploy-pages.yml` (envia só a pasta `Frontend/`).
-**Settings → Pages → Source → GitHub Actions.** A cada push em `Frontend/**`, o site é republicado.
+### Frontend → Vercel
+- **Root Directory:** `Frontend`
+- **Framework Preset:** Other (sem build — HTML/JS puro).
+- Deploy automático a cada push em `main` (via integração Vercel ↔ GitHub).
+
+Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [`docs/Roadmap.md`](docs/Roadmap.md).
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Persistência real no backend (PostgreSQL / disco) para não perder dados no free tier
+Migração para Supabase + Vercel **concluída** — histórico completo em [`docs/Roadmap.md`](docs/Roadmap.md).
+
+Próximos passos:
 - [ ] Sincronização offline → online das tarefas criadas localmente
 - [ ] OAuth real (Apple / Google) e notificações da rede de apoio
 - [ ] Recorrência automática de tarefas (sugerida pela IA)

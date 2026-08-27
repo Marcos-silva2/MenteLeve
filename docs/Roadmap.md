@@ -80,11 +80,11 @@ Recomenda-se ciclos curtos (1 semana por Sprint) focados em entregas incrementai
 ### Sprint 3: Deploy e Homologação
 - **Objetivo:** Frontend e Backend disponíveis online e funcionando ponta a ponta.
 - **Tarefas:**
-  - [ ] Atualizar a `DATABASE_URL` no painel do Render para a connection string do Supabase e reiniciar o serviço.
-  - [ ] Criar projeto na Vercel conectando ao repositório do código (Root Directory: `Frontend/`).
-  - [ ] Atualizar o `API_BASE` do Frontend ([api.js](../Frontend/js/api.js)) caso a URL do Render mude.
-  - [ ] Configurar `CORS_ORIGINS` no Backend para aceitar o domínio da Vercel.
-  - [ ] Cadastrar o ping externo (cron-job.org/UptimeRobot) apontando para `/health` do Render.
-  - [ ] Disparar o deploy inicial (Frontend e Backend).
-  - [ ] Testar o fluxo completo de uso através do link gerado (ex: `menteleve.vercel.app` ou similar).
-  - [ ] Corrigir eventuais *bugs* de permissão de acesso (Policies) no banco de dados do Supabase.
+  - [x] Atualizar a `DATABASE_URL` no painel do Render para a connection string do Supabase e reiniciar o serviço — confirmado gravando no Supabase via teste real na API.
+  - [x] Criar projeto na Vercel conectando ao repositório do código (Root Directory: `Frontend/`) — no ar em [mente-leve-teal.vercel.app](https://mente-leve-teal.vercel.app).
+  - [x] ~~Atualizar o `API_BASE` do Frontend~~ — não foi necessário, a URL do Render não mudou.
+  - [x] Configurar `CORS_ORIGINS` no Backend para aceitar o domínio da Vercel — confirmado via preflight real. GitHub Pages ficou de fora do CORS de propósito (decisão: não usar mais o GitHub Pages, Vercel é o único front em produção).
+  - [x] Cadastrar o ping externo (cron-job.org/UptimeRobot) apontando para `/health` do Render.
+  - [x] Disparar o deploy inicial (Frontend e Backend).
+  - [x] Testar o fluxo completo de uso através do link gerado (`mente-leve-teal.vercel.app`) — testado ponta a ponta (login → criar tarefa → listar) com o Origin da Vercel, dados de teste limpos depois.
+  - [ ] Corrigir eventuais *bugs* de permissão de acesso (Policies) no banco de dados do Supabase — provavelmente não se aplica: o backend conecta direto no Postgres (role `postgres`), sem usar RLS/PostgREST do Supabase.
