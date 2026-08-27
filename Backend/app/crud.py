@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import models, schemas, security
 
 
 # ----------------------- Users -----------------------
@@ -16,21 +17,38 @@ def get_user_by_email(db: Session, email: str) -> models.User | None:
     return db.scalar(select(models.User).where(models.User.email == email))
 
 
-def get_or_create_user(db: Session, data: schemas.UserCreate) -> models.User:
-    """Login/registro do MVP: identifica por e-mail; cria se não existir."""
-    user = get_user_by_email(db, data.email)
-    if user:
-        # mantém o nome atualizado se vier preenchido
-        if data.name and data.name != user.name:
-            user.name = data.name
-            db.commit()
-            db.refresh(user)
-        return user
+def create_user(db: Session, data: schemas.UserCreate) -> models.User | None:
+    """Cria o usuário com a senha hasheada.
 
-    user = models.User(email=data.email, name=data.name or "Você")
+    Retorna None se o e-mail já estiver em uso. O `IntegrityError` é tratado
+    porque duas requisições simultâneas com o mesmo e-mail passariam pela
+    verificação prévia e só colidiriam no INSERT.
+    """
+    user = models.User(
+        email=data.email,
+        name=data.name or "Você",
+        hashed_password=security.hash_password(data.password),
+    )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return None
     db.refresh(user)
+    return user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> models.User | None:
+    """Valida e-mail + senha. Retorna None em qualquer falha."""
+    user = get_user_by_email(db, email)
+    if user is None or not user.hashed_password:
+        # Gasta o mesmo tempo de um verify real: sem isso, a diferença de
+        # latência revelaria quais e-mails têm conta cadastrada.
+        security.dummy_verify()
+        return None
+    if not security.verify_password(password, user.hashed_password):
+        return None
     return user
 
 

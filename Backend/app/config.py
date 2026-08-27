@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
@@ -34,9 +35,17 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./menteleve.db")
 
     # CORS — origens permitidas (separadas por vírgula). "*" libera todas (dev).
-    # Em produção, defina a URL do GitHub Pages, ex.:
-    # CORS_ORIGINS=https://usuario.github.io
+    # Em produção, defina a URL do frontend na Vercel, ex.:
+    # CORS_ORIGINS=https://mente-leve-teal.vercel.app
     CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
+
+    # --- Autenticação (JWT) ---
+    # Chave usada para assinar os tokens. Em produção PRECISA ser uma variável de
+    # ambiente fixa: sem ela, o fallback aleatório invalida todos os tokens a cada
+    # restart do processo (no Render free isso acontece a cada cold start).
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "") or secrets.token_hex(32)
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 30)))
 
     # --- IA (Google AI Studio / Gemini) ---
     # Chave da API do Google AI Studio. Sem ela, o /tasks/smart cai no
@@ -54,6 +63,11 @@ class Settings:
     @property
     def ai_enabled(self) -> bool:
         return bool(self.GOOGLE_AI_API_KEY.strip())
+
+    @property
+    def secret_key_is_ephemeral(self) -> bool:
+        """True quando SECRET_KEY não veio do ambiente (fallback aleatório)."""
+        return not os.getenv("SECRET_KEY", "").strip()
 
     @property
     def cors_origins_list(self) -> list[str]:

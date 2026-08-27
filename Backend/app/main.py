@@ -1,6 +1,7 @@
 """Ponto de entrada da API do MenteLeve (FastAPI)."""
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -15,6 +16,11 @@ from app.routers import ai_chat, auth, tasks
 async def lifespan(_app: FastAPI):
     # Cria as tabelas no startup (MVP sem migrações).
     init_db()
+    if settings.secret_key_is_ephemeral:
+        logging.getLogger("uvicorn.error").warning(
+            "SECRET_KEY não definida: usando uma chave aleatória. Todos os tokens "
+            "serão invalidados no próximo restart — defina SECRET_KEY no ambiente."
+        )
     yield
 
 

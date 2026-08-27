@@ -43,6 +43,7 @@ const defaultState = () => ({
   onboardingSeen: false,
   user: null,        // { name, email }
   userId: null,      // id numérico do backend (null = só local)
+  token: null,       // JWT de acesso (null = sessão não autenticada)
   isPremium: false,
   tasks: [],
   cycle: defaultCycle(),
@@ -84,6 +85,8 @@ const isLocalId = (id) => typeof id === 'string' && id.startsWith('id-');
 export const getState = () => state;
 export const getUser = () => state.user;
 export const getUserId = () => state.userId;
+/** True quando existe um token salvo (sessão a ser revalidada no boot). */
+export const hasSession = () => !!state.token;
 export const isOnboardingSeen = () => state.onboardingSeen;
 export const isPremium = () => state.isPremium;
 export const getTasks = () => state.tasks;
@@ -99,73 +102,118 @@ export function markOnboardingSeen() {
 }
 
 // ------- Sessão / Auth -------
-/**
- * Login: registra localmente e tenta autenticar no backend.
- * Se online, hidrata as tarefas a partir do servidor (fonte de verdade).
- * Se offline, mantém/inicia o estado local (com seed de demonstração).
- */
-export async function login({ name, email }) {
-  state.user = { name: name || nameFromEmail(email), email };
+/** Aplica no estado (e persiste) o usuário autenticado devolvido pelo backend. */
+function applySession(user) {
+  state.user = { name: user.name || nameFromEmail(user.email), email: user.email };
+  state.userId = user.id;
+  state.isPremium = !!user.is_premium;
+  state.token = api.getAuthToken();
   persist();
+}
 
-  const user = await api.apiLogin(email, state.user.name);
-  if (user) {
-    state.userId = user.id;
-    state.isPremium = !!user.is_premium;
-    state.user.name = user.name || state.user.name;
-    persist();
+/** Baixa as tarefas do servidor (fonte de verdade) após autenticar. */
+async function hydrateTasks({ onlyIfNotEmpty = false } = {}) {
+  const remote = await api.apiListTasks();
+  if (!remote) return;
+  // No boot, só substitui se o servidor tiver tarefas — evita apagar o que foi
+  // criado localmente enquanto o backend estava offline.
+  if (onlyIfNotEmpty && !remote.length) return;
+  state.tasks = remote;
+  persist();
+}
 
-    const remote = await api.apiListTasks();
-    if (remote) {
-      state.tasks = remote; // backend é a fonte de verdade
-      persist();
-    }
-  } else {
-    // offline: experiência local com dados de demonstração
-    state.userId = null;
-    if (state.tasks.length === 0) state.tasks = seedTasks();
-    persist();
-    // Pode ser cold start do Render: acorda e re-autentica em 2º plano, para
-    // a IA/Bruna e o sync voltarem a funcionar sem o usuário recarregar.
-    api.wakeBackend().then((ok) => { if (ok) restoreSession().catch(() => {}); }).catch(() => {});
+/** Entra em modo local (offline): dados de demonstração e re-tentativa em 2º plano. */
+function startOfflineMode(email, name) {
+  state.user = { name: name || nameFromEmail(email), email };
+  state.userId = null;
+  state.token = null;
+  if (state.tasks.length === 0) state.tasks = seedTasks();
+  persist();
+}
+
+/**
+ * Login com e-mail + senha.
+ * - Sucesso: guarda o token e hidrata as tarefas do servidor.
+ * - Credencial errada: lança AuthError (a tela mostra o erro).
+ * - Backend offline (cold start do Render): entra no modo local de demonstração.
+ */
+export async function login({ email, password }) {
+  const user = await api.apiLogin(email, password);
+  if (!user) {
+    // Offline de verdade — nunca cai aqui por senha errada (isso lança AuthError).
+    startOfflineMode(email);
+    return state.user;
   }
+  applySession(user);
+  await hydrateTasks();
   return state.user;
 }
 
-/** Restaura a sessão no boot: reativa o header e re-hidrata se online.
- *
- * Se o login anterior foi offline (cold start do Render), `userId` fica nulo;
- * aqui tentamos autenticar de novo assim que o backend responde, para que a
- * IA/Bruna e o sync voltem a funcionar.
+/** Cadastro: cria a conta, já autentica e hidrata. Lança erro 409 se o e-mail existir. */
+export async function register({ name, email, password }) {
+  const user = await api.apiRegister(email, name, password);
+  if (!user) {
+    startOfflineMode(email, name);
+    return state.user;
+  }
+  applySession(user);
+  await hydrateTasks();
+  return state.user;
+}
+
+/**
+ * Restaura a sessão no boot (e após o cold start do Render).
+ * Valida o token salvo com /auth/me: se estiver expirado/inválido, o `request()`
+ * do api.js dispara o handler de sessão expirada (ver initSession).
+ * Retorna true se revalidou (o caller pode re-renderizar).
  */
 export async function restoreSession() {
-  if (!state.user) return false;
+  if (!state.token) return false;
+  api.setAuthToken(state.token);
 
-  // Sempre re-autentica quando online: garante um `userId` VÁLIDO mesmo se o
-  // login anterior foi offline (cold start) ou se o banco do Render reiniciou
-  // (free tier), caso em que o id antigo deixaria de existir (401 na IA/sync).
-  const user = await api.apiLogin(state.user.email, state.user.name);
+  let user;
+  try {
+    user = await api.apiMe();
+  } catch (_) {
+    return false; // AuthError já limpou a sessão via onSessionExpired
+  }
   if (!user) return false; // ainda offline → segue 100% local
 
-  state.userId = user.id;
-  state.isPremium = !!user.is_premium;
-  if (user.name) state.user.name = user.name;
-  persist();
+  applySession(user);
+  await hydrateTasks({ onlyIfNotEmpty: true });
+  return true;
+}
 
-  const remote = await api.apiListTasks();
-  // Só substitui pelo servidor se ele tiver tarefas — evita apagar o que foi
-  // criado localmente enquanto o backend estava offline.
-  if (remote && remote.length) {
-    state.tasks = remote;
-    persist();
-  }
-  return true; // re-autenticou → caller pode re-renderizar (premium/nome/sync)
+/**
+ * Liga o token salvo ao cliente HTTP e registra o handler de sessão expirada.
+ * Chamado uma vez no boot, antes de qualquer chamada autenticada.
+ */
+export function initSession(onExpired) {
+  if (state.token) api.setAuthToken(state.token);
+  api.onSessionExpired(() => {
+    clearSession();
+    if (onExpired) onExpired();
+  });
+}
+
+/**
+ * Limpa a sessão preservando o que não pertence à conta:
+ * - `onboardingSeen`: evita repetir a introdução.
+ * - `cycle`: os dados do ciclo menstrual são 100% locais e nunca vão ao
+ *   backend. Apagá-los numa expiração de token (que acontece sozinha, sem
+ *   ação da usuária) perderia o histórico para sempre.
+ */
+function clearSession() {
+  const { onboardingSeen, cycle } = state;
+  state = defaultState();
+  state.onboardingSeen = onboardingSeen;
+  state.cycle = cycle;
+  api.setAuthToken(null);
+  persist();
 }
 
 export function logout() {
-  state = defaultState();
-  api.setAuthUserId(null);
-  persist();
+  clearSession();
 }
 
 // ------- Tarefas -------

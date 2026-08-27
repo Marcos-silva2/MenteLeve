@@ -2,12 +2,13 @@
    app.js — Bootstrap + mini-router
    ============================================================ */
 
-import { isOnboardingSeen, getUser, isPremium, restoreSession } from './store.js';
+import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession } from './store.js';
 import { toast, renderNav } from './ui.js';
 import { wakeBackend } from './api.js';
 
 import { renderOnboarding } from './views/onboarding.js';
 import { renderLogin } from './views/login.js';
+import { renderRegister } from './views/register.js';
 import { renderHome } from './views/home.js';
 import { renderAgenda } from './views/agenda.js';
 import { renderChat } from './views/chat.js';
@@ -18,6 +19,7 @@ import { renderProfile } from './views/profile.js';
 const routes = {
   onboarding: renderOnboarding,
   login: renderLogin,
+  register: renderRegister,
   home: renderHome,
   agenda: renderAgenda,
   bruna: renderChat,
@@ -107,12 +109,19 @@ window.addEventListener('hashchange', () => {
 });
 
 function start() {
+  // Liga o token salvo ao cliente HTTP e reage a uma sessão expirada em
+  // qualquer chamada: limpa o estado e volta para o login.
+  initSession(() => {
+    toast('Sua sessão expirou. Entre novamente.');
+    navigate('login');
+  });
+
   // Assim que o usuário acessa o site, "acorda" o backend (Render free dorme).
-  // Quando ele responder, re-autentica/sincroniza e re-renderiza a aba atual.
+  // Quando ele responder, revalida o token/sincroniza e re-renderiza a aba atual.
   // Isso evita o erro de cold start ("não consegui falar com a IA").
   wakeBackend()
     .then((ok) => {
-      if (!ok || !getUser()) return;
+      if (!ok || !hasSession()) return;
       return restoreSession().then((updated) => {
         if (updated && TAB_ROUTES.includes(app.current)) app.refresh();
       });

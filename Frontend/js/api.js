@@ -1,6 +1,7 @@
 /* ============================================================
    api.js — Cliente REST do backend (FastAPI) + heurística local
-   - Cliente REST: login, tarefas, premium (auth via header X-User-Id)
+   - Cliente REST: cadastro/login, tarefas, premium
+     (auth via token JWT no header Authorization: Bearer)
    - decomposeTask(): "IA temporária" client-side que gera o Aha Moment
      enquanto a IA real não está plugada no backend (/tasks/smart).
    ============================================================ */
@@ -12,24 +13,55 @@ export const API_BASE = _isLocalHost
   ? 'http://localhost:8000'
   : 'https://menteleve.onrender.com';
 
-let _userId = null;     // id do usuário (definido após login)
+let _token = null;      // token JWT (definido após login/cadastro)
 let _online = null;     // status do backend (true cacheado; false re-tenta)
 let _lastCheck = 0;     // timestamp do último ping (cache negativo curto)
 const NEG_TTL = 10000;  // re-tenta o /health 10s após uma falha
 
-export function setAuthUserId(id) {
-  _userId = id != null ? String(id) : null;
+/** Erro de sessão inválida/expirada (HTTP 401) — o app deve pedir login. */
+export class AuthError extends Error {
+  constructor(message = 'Sessão expirada') {
+    super(message);
+    this.name = 'AuthError';
+    this.status = 401;
+  }
+}
+
+export function setAuthToken(token) {
+  _token = token || null;
+}
+
+export const hasAuthToken = () => !!_token;
+export const getAuthToken = () => _token;
+
+// Handler chamado quando o backend rejeita o token (401) em qualquer chamada.
+// O store registra aqui para limpar a sessão e mandar a usuária ao login —
+// sem isso, um token expirado pareceria "backend offline" para sempre.
+let _onSessionExpired = null;
+export function onSessionExpired(fn) {
+  _onSessionExpired = fn;
 }
 
 function headers(extra = {}) {
   const h = { 'Content-Type': 'application/json', ...extra };
-  if (_userId) h['X-User-Id'] = _userId;
+  if (_token) h['Authorization'] = `Bearer ${_token}`;
   return h;
 }
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
+    // 401 é tratado à parte: significa sessão inválida/expirada, e não
+    // "backend fora do ar" — o app precisa mandar a usuária para o login.
+    if (res.status === 401) {
+      // Nas rotas de login/cadastro o 401 é "credencial errada", não sessão
+      // expirada — quem chamou trata; não dispara o logout global.
+      if (_token && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')) {
+        setAuthToken(null);
+        if (_onSessionExpired) _onSessionExpired();
+      }
+      throw new AuthError();
+    }
     const err = new Error(`HTTP ${res.status}`);
     err.status = res.status;
     throw err;
@@ -103,24 +135,45 @@ function fromServer(t) {
 }
 
 // ----------------------- Auth -----------------------
-/** Faz login/registro. Retorna o usuário do backend ou null se offline/erro. */
-export async function apiLogin(email, name) {
+/**
+ * Autentica com e-mail + senha. Guarda o token e retorna o usuário.
+ * - Retorna null se o backend estiver offline (cold start do Render).
+ * - Lança AuthError (401) se as credenciais estiverem incorretas.
+ */
+export async function apiLogin(email, password) {
   if (!(await ensureOnline(true))) return null;
-  try {
-    const user = await request('/auth/login', {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ email, name }),
-    });
-    setAuthUserId(user.id);
-    return user;
-  } catch (_) {
-    return null;
-  }
+  const data = await request('/auth/login', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ email, password }),
+  });
+  setAuthToken(data.access_token);
+  return data.user;
+}
+
+/**
+ * Cria a conta e já autentica. Mesmas regras do apiLogin, mas lança um
+ * erro com status 409 quando o e-mail já está cadastrado.
+ */
+export async function apiRegister(email, name, password) {
+  if (!(await ensureOnline(true))) return null;
+  const data = await request('/auth/register', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ email, name, password }),
+  });
+  setAuthToken(data.access_token);
+  return data.user;
+}
+
+/** Valida o token atual e devolve o usuário. Lança AuthError se expirado. */
+export async function apiMe() {
+  if (!_token || !(await ensureOnline())) return null;
+  return request('/auth/me', { headers: headers() });
 }
 
 export async function apiSetPremium(isPremium) {
-  if (!_userId || !(await ensureOnline())) return null;
+  if (!_token || !(await ensureOnline())) return null;
   try {
     return await request(`/auth/me/premium?is_premium=${isPremium}`, {
       method: 'POST',
@@ -134,7 +187,7 @@ export async function apiSetPremium(isPremium) {
 // ----------------------- Tasks -----------------------
 /** Lista as tarefas do usuário. Retorna array (front-format) ou null. */
 export async function apiListTasks() {
-  if (!_userId || !(await ensureOnline())) return null;
+  if (!_token || !(await ensureOnline())) return null;
   try {
     const tasks = await request('/tasks', { headers: headers() });
     return tasks.map(fromServer);
@@ -145,7 +198,7 @@ export async function apiListTasks() {
 
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
 export async function apiCreateTask({ title, category, due, important, parentId }) {
-  if (!_userId || !(await ensureOnline())) return null;
+  if (!_token || !(await ensureOnline())) return null;
   try {
     const t = await request('/tasks', {
       method: 'POST',
@@ -171,7 +224,7 @@ export async function apiCreateTask({ title, category, due, important, parentId 
  * NÃO persiste a tarefa; o app cria via apiCreateTask/addTask depois.
  */
 export async function apiSmartTask(text) {
-  if (!_userId || !(await ensureOnline())) return null;
+  if (!_token || !(await ensureOnline())) return null;
   try {
     const r = await request('/tasks/smart', {
       method: 'POST',
@@ -195,7 +248,7 @@ export async function apiSmartTask(text) {
  * a resposta (string) ou null se offline/erro.
  */
 export async function apiChat(messages) {
-  if (!_userId || !(await ensureOnline())) return null;
+  if (!_token || !(await ensureOnline())) return null;
   try {
     const r = await request('/ai/chat', {
       method: 'POST',
@@ -209,7 +262,7 @@ export async function apiChat(messages) {
 }
 
 export async function apiSetDone(id, done) {
-  if (!_userId || !(await ensureOnline())) return null;
+  if (!_token || !(await ensureOnline())) return null;
   const verb = done ? 'complete' : 'uncomplete';
   try {
     return fromServer(await request(`/tasks/${id}/${verb}`, { method: 'PUT', headers: headers() }));
@@ -219,7 +272,7 @@ export async function apiSetDone(id, done) {
 }
 
 export async function apiDeleteTask(id) {
-  if (!_userId || !(await ensureOnline())) return false;
+  if (!_token || !(await ensureOnline())) return false;
   try {
     await request(`/tasks/${id}`, { method: 'DELETE', headers: headers() });
     return true;

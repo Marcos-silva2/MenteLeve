@@ -4,12 +4,18 @@
 -- É idempotente (IF NOT EXISTS) — pode rodar de novo sem erro se as tabelas já existirem.
 
 create table if not exists users (
-    id            bigint generated always as identity primary key,
-    email         varchar(255) not null unique,
-    name          varchar(120) not null default 'Você',
-    is_premium    boolean not null default false,
-    created_at    timestamptz not null default now()
+    id              bigint generated always as identity primary key,
+    email           varchar(255) not null unique,
+    name            varchar(120) not null default 'Você',
+    -- Hash bcrypt da senha (nunca a senha em texto puro).
+    -- Nullable: contas criadas antes da autenticação real não têm senha.
+    hashed_password varchar(255),
+    is_premium      boolean not null default false,
+    created_at      timestamptz not null default now()
 );
+
+-- Para bancos criados antes da autenticação real (idempotente):
+alter table users add column if not exists hashed_password varchar(255);
 
 create index if not exists ix_users_email on users (email);
 

@@ -2,7 +2,7 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v27';
+const CACHE = 'menteleve-v28';
 const ASSETS = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ const ASSETS = [
   './js/components/taskSheet.js',
   './js/views/onboarding.js',
   './js/views/login.js',
+  './js/views/register.js',
   './js/views/home.js',
   './js/views/agenda.js',
   './js/views/chat.js',

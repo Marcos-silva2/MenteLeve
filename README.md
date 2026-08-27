@@ -132,7 +132,7 @@ Sem a chave, o app continua funcionando em **modo fallback** (apenas normaliza o
 | `DELETE` | `/tasks/{id}` | Excluir (remove subtarefas) |
 | `POST` | `/ai/chat` | Conversa com a **Bruna** |
 
-Autenticação leve (MVP): após o login, o frontend envia o header **`X-User-Id`**. Limite freemium: 50 tarefas → `HTTP 402` (dispara o Paywall).
+Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend devolve um **token JWT** que o frontend envia no header **`Authorization: Bearer <token>`**. Limite freemium: 50 tarefas → `HTTP 402` (dispara o Paywall).
 
 ---
 

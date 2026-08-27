@@ -50,18 +50,27 @@ def init_db() -> None:
     _ensure_columns()
 
 
+# Colunas adicionadas depois da criação original das tabelas.
+# (tabela, coluna, tipo SQL) — a sintaxe usada é compatível com SQLite e Postgres.
+_ADDITIVE_COLUMNS = (
+    ("tasks", "parent_id", "INTEGER"),
+    ("users", "hashed_password", "VARCHAR(255)"),
+)
+
+
 def _ensure_columns() -> None:
-    """Adiciona colunas novas em tabelas já existentes (SQLite), de forma
-    idempotente. Mantém o banco atual sem precisar recriá-lo.
+    """Adiciona colunas novas em tabelas já existentes, de forma idempotente.
+    Mantém o banco atual sem precisar recriá-lo.
     """
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)
-    try:
-        cols = {c["name"] for c in inspector.get_columns("tasks")}
-    except Exception:
-        return  # tabela ainda não existe (create_all cuidou) — nada a fazer
+    for table, column, sql_type in _ADDITIVE_COLUMNS:
+        try:
+            cols = {c["name"] for c in inspector.get_columns(table)}
+        except Exception:
+            continue  # tabela ainda não existe (create_all cuidou) — nada a fazer
 
-    if "parent_id" not in cols:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE tasks ADD COLUMN parent_id INTEGER"))
+        if column not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))

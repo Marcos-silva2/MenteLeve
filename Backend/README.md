@@ -37,7 +37,8 @@ Backend/
 │   ├── models.py        # User, Task
 │   ├── schemas.py       # Pydantic (entrada/saída) + FREE_TASK_LIMIT
 │   ├── crud.py          # operações de banco
-│   ├── dependencies.py  # auth leve via header X-User-Id
+│   ├── security.py      # hash de senha (bcrypt) + tokens JWT
+│   ├── dependencies.py  # auth via Authorization: Bearer <token>
 │   └── routers/
 │       ├── auth.py      # /auth/login, /auth/me, /auth/me/premium
 │       └── tasks.py     # CRUD de tarefas + /tasks/smart (stub sem IA)
@@ -47,18 +48,30 @@ Backend/
 └── .gitignore
 ```
 
-## Autenticação (MVP)
+## Autenticação (JWT)
 
-Sem OAuth/senha nesta fase. Fluxo:
-1. `POST /auth/login` com `{ "email": "...", "name": "..." }` → retorna o usuário com `id`.
-2. O frontend guarda o `id` e o envia no header **`X-User-Id`** nas demais chamadas.
+E-mail + senha, com hash **bcrypt** e token **JWT** (`HS256`). Fluxo:
+1. `POST /auth/register` com `{ "email", "name", "password" }` → cria a conta e já
+   devolve `{ access_token, token_type, user }`. Retorna **409** se o e-mail existir.
+2. `POST /auth/login` com `{ "email", "password" }` → mesma resposta.
+   Retorna **401** genérico ("E-mail ou senha incorretos") — não revela se o e-mail
+   tem conta.
+3. O frontend guarda o `access_token` e o envia como
+   **`Authorization: Bearer <token>`** nas demais chamadas.
+
+Requer a variável de ambiente **`SECRET_KEY`** (ver `.env.example`). Sem ela, o
+backend usa uma chave aleatória por processo e derruba todas as sessões a cada
+restart — no Render free isso acontece a cada cold start.
+
+OAuth real (Google/Apple) ainda não está implementado — ver `docs/roadmap-sprints-menteleve.md`.
 
 ## Endpoints
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/health` | Ping (usado pelo frontend) |
-| POST | `/auth/login` | Login/registro por e-mail |
+| POST | `/auth/register` | Cria conta (e-mail + senha) e devolve o token |
+| POST | `/auth/login` | Autentica e devolve o token |
 | GET | `/auth/me` | Dados do usuário atual |
 | POST | `/auth/me/premium?is_premium=true` | Ativa/desativa Premium |
 | GET | `/tasks` | Lista tarefas do usuário |
@@ -69,7 +82,8 @@ Sem OAuth/senha nesta fase. Fluxo:
 | PUT | `/tasks/{id}/uncomplete` | Reabre a tarefa |
 | DELETE | `/tasks/{id}` | Exclui tarefa |
 
-Todas as rotas de `/tasks` e `/auth/me*` exigem o header `X-User-Id`.
+Todas as rotas de `/tasks` e `/auth/me*` exigem o header `Authorization: Bearer <token>`
+(respondem **401** sem ele ou com token inválido/expirado).
 
 ## Freemium
 Usuários não-Premium têm limite de **50 tarefas** (`FREE_TASK_LIMIT`). Ao exceder,

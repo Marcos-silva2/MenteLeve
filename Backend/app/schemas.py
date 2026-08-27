@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -19,8 +19,21 @@ class UserBase(BaseModel):
     name: str = "Você"
 
 
+# Mínimo de 6 caracteres — espelha a validação que o frontend já faz.
+Password = Annotated[str, Field(min_length=6, max_length=128)]
+
+
 class UserCreate(UserBase):
-    """Login/registro simplificado do MVP (sem senha/OAuth)."""
+    """Cadastro: e-mail, nome e senha."""
+
+    password: Password
+
+
+class UserLogin(BaseModel):
+    """Login: e-mail e senha."""
+
+    email: EmailStr
+    password: Password
 
 
 class UserOut(UserBase):
@@ -29,6 +42,14 @@ class UserOut(UserBase):
     id: int
     is_premium: bool
     created_at: datetime
+
+
+class TokenOut(BaseModel):
+    """Resposta de /auth/register e /auth/login."""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
 
 
 # ----------------------- Task -----------------------
