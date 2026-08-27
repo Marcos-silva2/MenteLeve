@@ -1,13 +1,16 @@
 """Schemas Pydantic (validação de entrada/saída da API)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # Categorias do design system (espelham o frontend).
 Category = Literal["casa", "filhos", "trabalho", "saude", "financas", "relacionamento"]
+
+# Horário no formato "HH:MM" (24h).
+TimeStr = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
 
 # Limite do plano gratuito (Freemium) — alinhado ao frontend.
 FREE_TASK_LIMIT = 50
@@ -56,6 +59,10 @@ class TokenOut(BaseModel):
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
     category: Category = "casa"
+    # Prazo estruturado — fonte da verdade para o calendário.
+    due_date: date | None = None
+    due_time: TimeStr | None = None
+    # Rótulo livre; hoje só fallback de exibição (ver models.Task.due).
     due: str = Field("", max_length=120)
     important: bool = False
     # Subtarefa: id da tarefa-mãe (None = tarefa principal).
@@ -69,6 +76,8 @@ class TaskCreate(TaskBase):
 class TaskUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=500)
     category: Category | None = None
+    due_date: date | None = None
+    due_time: TimeStr | None = None
     due: str | None = Field(None, max_length=120)
     important: bool | None = None
     done: bool | None = None
@@ -101,11 +110,16 @@ class ChatOut(BaseModel):
 class SmartTaskIn(BaseModel):
     """Entrada do endpoint /tasks/smart — texto em linguagem natural."""
     text: str = Field(..., min_length=1, max_length=1000)
+    # Data local da usuária (o servidor roda em UTC; entre 21h e 00h no Brasil
+    # o "hoje" do servidor já é o dia seguinte, e "amanhã" viraria +2 dias).
+    today: date | None = None
 
 
 class AiSuggestionAction(BaseModel):
     title: str
     category: Category = "casa"
+    due_date: date | None = None
+    due_time: TimeStr | None = None
     due: str = ""
 
 
@@ -117,10 +131,12 @@ class AiSuggestion(BaseModel):
 class SmartTaskOut(BaseModel):
     """Saída compatível com o que o frontend (api.js) já consome.
 
-    Por enquanto (sem IA), `subtasks` vem vazio e `suggestion` nulo.
+    Sem IA configurada, `subtasks` vem vazio e `suggestion` nulo.
     """
     title: str
     category: Category = "casa"
+    due_date: date | None = None
+    due_time: TimeStr | None = None
     due: str = ""
     subtasks: list[str] = []
     suggestion: AiSuggestion | None = None

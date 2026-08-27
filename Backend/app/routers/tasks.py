@@ -65,16 +65,18 @@ def analyze_smart_task(
     """
     _enforce_free_limit(user, db)
 
-    result = ai.analyze(data.text)
+    result = ai.analyze(data.text, today=data.today)
 
     if result is None:
         title = data.text.strip()
         title = title[0].upper() + title[1:] if title else title
-        return schemas.SmartTaskOut(title=title, category="casa", due="")
+        return schemas.SmartTaskOut(title=title, category="casa")
 
     return schemas.SmartTaskOut(
         title=result["title"],
         category=result["category"],
+        due_date=result["due_date"],
+        due_time=result["due_time"],
         due=result["due"],
         subtasks=result["subtasks"],
         suggestion=result["suggestion"],

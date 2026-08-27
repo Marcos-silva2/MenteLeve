@@ -1,9 +1,10 @@
 """Models do banco de dados."""
 from __future__ import annotations
 
+from datetime import date as dt_date
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -47,7 +48,11 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     # Categoria do design system: casa | filhos | trabalho | saude | financas | relacionamento
     category: Mapped[str] = mapped_column(String(40), default="casa", nullable=False)
-    # MVP: prazo em texto livre ("Hoje", "14:00", "Amanhã • 10:00"). Vira datetime depois.
+    # Prazo estruturado — fonte da verdade para posicionar a tarefa no calendário.
+    due_date: Mapped[dt_date | None] = mapped_column(Date, nullable=True, index=True)
+    due_time: Mapped[str | None] = mapped_column(String(5), nullable=True)  # "HH:MM"
+    # Rótulo em texto livre ("Toda semana", "Véspera"). Hoje é apenas fallback de
+    # exibição: vale para linhas antigas e para prazos sem uma data única.
     due: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     important: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

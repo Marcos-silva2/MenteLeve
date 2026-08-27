@@ -6,6 +6,8 @@
      enquanto a IA real não está plugada no backend (/tasks/smart).
    ============================================================ */
 
+import { todayKey, resolveDue, resolveTime, addDaysKey } from './dates.js';
+
 // Base da API: em dev local usa o backend local; em produção, o Render.
 // (hostname vazio = arquivo aberto via file://, tratado como local.)
 const _isLocalHost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
@@ -117,13 +119,16 @@ export async function wakeBackend({ attempts = 14, intervalMs = 4000 } = {}) {
 export const isOnline = () => _online === true;
 
 // --------- Normalização backend <-> frontend ---------
-// Backend Task: {id, user_id, title, category, due, done, important, created_at}
-// Frontend Task: {id(string), title, category, due, done, important, createdAt}
+// Backend Task: {id, user_id, title, category, due_date, due_time, due, done, important, created_at}
+// Frontend Task: {id(string), title, category, dueDate, dueTime, due, done, important, createdAt}
 function fromServer(t) {
   return {
     id: String(t.id),
     title: t.title,
     category: t.category,
+    // Prazo estruturado (fonte da verdade); `due` é só o rótulo legado.
+    dueDate: t.due_date || null,
+    dueTime: t.due_time || null,
     due: t.due || '',
     done: !!t.done,
     important: !!t.important,
@@ -197,7 +202,7 @@ export async function apiListTasks() {
 }
 
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
-export async function apiCreateTask({ title, category, due, important, parentId }) {
+export async function apiCreateTask({ title, category, dueDate, dueTime, due, important, parentId }) {
   if (!_token || !(await ensureOnline())) return null;
   try {
     const t = await request('/tasks', {
@@ -206,6 +211,8 @@ export async function apiCreateTask({ title, category, due, important, parentId 
       body: JSON.stringify({
         title,
         category,
+        due_date: dueDate || null,
+        due_time: dueTime || null,
         due: due || '',
         important: !!important,
         parent_id: parentId != null ? Number(parentId) : null,
@@ -219,9 +226,12 @@ export async function apiCreateTask({ title, category, due, important, parentId 
 
 /**
  * Análise inteligente (IA do backend) de um texto livre — o "Aha Moment".
- * Retorna { title, category, due, subtasks, suggestion } ou null se
- * offline/erro (o chamador então usa a heurística local decomposeTask).
+ * Retorna { title, category, dueDate, dueTime, subtasks, suggestion } ou null
+ * se offline/erro (o chamador então usa a heurística local decomposeTask).
  * NÃO persiste a tarefa; o app cria via apiCreateTask/addTask depois.
+ *
+ * `today` é a data local da usuária: o servidor roda em UTC e, à noite no
+ * Brasil, resolveria "amanhã" com um dia de diferença.
  */
 export async function apiSmartTask(text) {
   if (!_token || !(await ensureOnline())) return null;
@@ -229,14 +239,30 @@ export async function apiSmartTask(text) {
     const r = await request('/tasks/smart', {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, today: todayKey() }),
     });
+    const act = r.suggestion && r.suggestion.action;
     return {
       title: r.title || text,
       category: r.category || 'casa',
+      dueDate: r.due_date || null,
+      dueTime: r.due_time || null,
       due: r.due || '',
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
-      suggestion: r.suggestion || null,
+      suggestion: r.suggestion
+        ? {
+            text: r.suggestion.text,
+            action: act
+              ? {
+                  title: act.title,
+                  category: act.category,
+                  dueDate: act.due_date || null,
+                  dueTime: act.due_time || null,
+                  due: act.due || '',
+                }
+              : null,
+          }
+        : null,
     };
   } catch (_) {
     return null;
@@ -328,7 +354,26 @@ export function decomposeTask(text) {
     };
   }
 
-  return { title, category, due, subtasks, suggestion };
+  // Converte os rótulos da heurística em data estruturada — é isso que faz a
+  // tarefa aparecer no calendário mesmo quando o app está offline.
+  const today = todayKey();
+  const structure = (label) => ({
+    dueDate: resolveDue(label, today),
+    dueTime: resolveTime(label),
+  });
+  if (suggestion && suggestion.action) {
+    const a = suggestion.action;
+    // "Véspera" é relativa à data da tarefa-mãe, não a hoje.
+    const base = a.due === 'Véspera' ? resolveDue(due, today) : null;
+    suggestion.action = {
+      ...a,
+      ...(base
+        ? { dueDate: addDaysKey(base, -1), dueTime: null }
+        : structure(a.due)),
+    };
+  }
+
+  return { title, category, due, ...structure(due), subtasks, suggestion };
 }
 
 function extractDue(text) {

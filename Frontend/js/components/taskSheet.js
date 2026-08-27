@@ -6,6 +6,7 @@
 import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
 import { CATEGORIES, PRIORITIES, addTask, reachedFreeLimit } from '../store.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
+import { todayKey, resolveDue } from '../dates.js';
 
 /**
  * Abre o bottom sheet de nova tarefa.
@@ -25,7 +26,9 @@ export function openTaskSheet(app, onDone) {
   let due = '';
   let selectedPriority = 'media';
   // Data mínima do seletor = hoje (evita agendar no passado).
-  const todayISO = new Date().toISOString().slice(0, 10);
+  // todayKey() usa o fuso local: toISOString() devolveria o dia seguinte
+  // à noite no Brasil, bloqueando a escolha do próprio dia de hoje.
+  const todayISO = todayKey();
 
   // Desktop → modal central (foco no teclado) | Mobile → bottom sheet (foco no polegar)
   const scrim = h(`<div class="scrim ${desktop ? 'grid place-items-center px-6' : ''}"></div>`);
@@ -66,11 +69,14 @@ export function openTaskSheet(app, onDone) {
           </button>`).join('')}
       </div>
 
-      <!-- data específica (calendário) -->
+      <!-- data específica (calendário) + horário -->
       <div class="mt-2 flex items-center gap-2">
-        <span class="text-bordeaux-700">${icons.calendar}</span>
+        <span class="text-bordeaux-700 shrink-0">${icons.calendar}</span>
         <input id="task-date" type="date" min="${todayISO}"
-          class="flex-1 px-4 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
+          class="flex-1 min-w-0 px-4 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
+                 focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
+        <input id="task-time" type="time" aria-label="Horário"
+          class="w-[7.5rem] shrink-0 px-3 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
                  focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
       </div>
 
@@ -112,6 +118,7 @@ export function openTaskSheet(app, onDone) {
   );
 
   const dateInput = $('#task-date', sheet);
+  const timeInput = $('#task-time', sheet);
 
   // seleção de data rápida (atalhos). Escolher um atalho limpa o calendário.
   $$('[data-due]', sheet).forEach((b) =>
@@ -180,31 +187,38 @@ export function openTaskSheet(app, onDone) {
 
     // A escolha manual do usuário tem prioridade sobre o palpite da IA.
     const category = selectedCat !== 'casa' ? selectedCat : (result.category || 'casa');
-    // Data específica (calendário) > atalho rápido > palpite da IA.
-    const pickedDate = dateInput.value ? formatDateBR(dateInput.value) : '';
-    const finalDue = pickedDate || due || result.due || '';
+    // Data: escolha no calendário > atalho rápido > palpite da IA.
+    const finalDueDate =
+      dateInput.value || (due ? resolveDue(due) : null) || result.dueDate || null;
+    // Horário: escolha manual > palpite da IA.
+    const finalDueTime = timeInput.value || result.dueTime || null;
 
     // Cria e persiste a tarefa principal (aguarda para reconciliar o id real).
     // Guardamos a tarefa-mãe para fixar as sugestões da IA como subtarefas.
-    const parent = await addTask({ title: result.title || text, category, due: finalDue, priority: selectedPriority });
+    const parent = await addTask({
+      title: result.title || text,
+      category,
+      dueDate: finalDueDate,
+      dueTime: finalDueTime,
+      priority: selectedPriority,
+    });
 
     close();
     onDone && onDone();
 
     // Aha Moment: se houver subtarefas/lembrete sugeridos, mostra o modal
     if ((result.subtasks && result.subtasks.length) || result.suggestion) {
-      setTimeout(() => openAiModal(app, { ...result, category, parentId: parent.id }, onDone), 300);
+      setTimeout(() => openAiModal(app, {
+        ...result,
+        category,
+        dueDate: finalDueDate,
+        dueTime: finalDueTime,
+        parentId: parent.id,
+      }, onDone), 300);
     } else {
       toast('Tarefa adicionada ✨');
     }
   });
-}
-
-/** Converte "AAAA-MM-DD" (input date) em "DD/MM/AAAA" sem desvio de fuso. */
-function formatDateBR(iso) {
-  const [y, m, d] = iso.split('-');
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
 }
 
 /* ---------------- Modal "Aha Moment" da IA ---------------- */
@@ -265,12 +279,27 @@ function openAiModal(app, result, onDone) {
     btn.classList.add('opacity-80');
 
     // adiciona as subtarefas marcadas, FIXADAS como filhas da tarefa-mãe
+    // (herdam a data da mãe, para caírem no mesmo dia do calendário)
     for (const cb of $$('[data-sub]:checked', card)) {
-      await addTask({ title: decodeURIComponent(cb.dataset.sub), category: result.category, due: result.due || '', parentId: result.parentId });
+      await addTask({
+        title: decodeURIComponent(cb.dataset.sub),
+        category: result.category,
+        dueDate: result.dueDate || null,
+        dueTime: result.dueTime || null,
+        parentId: result.parentId,
+      });
     }
-    // adiciona a sugestão preventiva (também como subtarefa da tarefa-mãe)
+    // adiciona a sugestão preventiva (também como subtarefa da tarefa-mãe).
+    // Ela tem data própria — é o lembrete ANTES/DEPOIS do evento.
     if (sug && sug.action) {
-      await addTask({ title: sug.action.title, category: sug.action.category || result.category, due: sug.action.due || '', parentId: result.parentId });
+      await addTask({
+        title: sug.action.title,
+        category: sug.action.category || result.category,
+        dueDate: sug.action.dueDate || null,
+        dueTime: sug.action.dueTime || null,
+        due: sug.action.due || '',
+        parentId: result.parentId,
+      });
     }
     close();
     onDone && onDone();

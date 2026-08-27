@@ -55,13 +55,21 @@ def init_db() -> None:
 _ADDITIVE_COLUMNS = (
     ("tasks", "parent_id", "INTEGER"),
     ("users", "hashed_password", "VARCHAR(255)"),
+    ("tasks", "due_date", "DATE"),
+    ("tasks", "due_time", "VARCHAR(5)"),
 )
 
 
 def _ensure_columns() -> None:
     """Adiciona colunas novas em tabelas já existentes, de forma idempotente.
     Mantém o banco atual sem precisar recriá-lo.
+
+    Uma falha no ALTER (permissão, lock) apenas registra um aviso: derrubar o
+    boot deixaria a API inteira fora do ar, quando o efeito real é só uma coluna
+    ausente. As rotas que dependem dela degradam sozinhas.
     """
+    import logging
+
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)
@@ -72,5 +80,11 @@ def _ensure_columns() -> None:
             continue  # tabela ainda não existe (create_all cuidou) — nada a fazer
 
         if column not in cols:
-            with engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
+            except Exception:
+                logging.getLogger("uvicorn.error").warning(
+                    "Não foi possível adicionar a coluna %s.%s — siga com a migração manual.",
+                    table, column,
+                )

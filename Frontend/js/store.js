@@ -8,6 +8,7 @@
    ============================================================ */
 
 import * as api from './api.js';
+import { resolveDue, resolveTime } from './dates.js';
 
 const STORAGE_KEY = 'menteleve.state.v1';
 
@@ -223,10 +224,16 @@ export function logout() {
  */
 export async function addTask(task) {
   const priority = task.priority || 'media';
+  // Sem data estruturada vinda da IA/formulário, resolve o rótulo aqui mesmo.
+  // Isso é o que mantém o calendário funcionando no modo offline, onde a
+  // tarefa nunca chega ao backend.
+  const dueDate = task.dueDate || resolveDue(task.due) || null;
   const local = {
     id: uid(),
     title: task.title,
     category: task.category || 'casa',
+    dueDate,
+    dueTime: task.dueTime || resolveTime(task.due) || null,
     due: task.due || '',
     done: false,
     priority,

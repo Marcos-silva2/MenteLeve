@@ -27,7 +27,10 @@ create table if not exists tasks (
     title         varchar(500) not null,
     -- Categoria do design system: casa | filhos | trabalho | saude | financas | relacionamento
     category      varchar(40) not null default 'casa',
-    -- MVP: prazo em texto livre ("Hoje", "14:00", "Amanhã • 10:00").
+    -- Prazo estruturado: fonte da verdade para posicionar no calendário.
+    due_date      date,
+    due_time      varchar(5),   -- "HH:MM"
+    -- Rótulo em texto livre ("Toda semana", "Véspera"); só fallback de exibição.
     due           varchar(120) not null default '',
     done          boolean not null default false,
     important     boolean not null default false,
@@ -36,6 +39,11 @@ create table if not exists tasks (
 
 create index if not exists ix_tasks_user_id on tasks (user_id);
 create index if not exists ix_tasks_parent_id on tasks (parent_id);
+create index if not exists ix_tasks_due_date on tasks (due_date);
+
+-- Para bancos criados antes do prazo estruturado (idempotente):
+alter table tasks add column if not exists due_date date;
+alter table tasks add column if not exists due_time varchar(5);
 
 -- De-para de tipos (SQLite -> Postgres):
 --   INTEGER (PK, autoincrement) -> bigint generated always as identity

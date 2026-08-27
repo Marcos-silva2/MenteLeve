@@ -11,6 +11,7 @@ import {
   getCycle, setCycle, logPeriodToday, cyclePhase, cycleSummary,
 } from '../store.js';
 import { openTaskSheet } from '../components/taskSheet.js';
+import { resolveTime } from '../dates.js';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -73,9 +74,16 @@ export function renderAgenda(app) {
     const byDay = new Map();
     const undated = [];
     for (const t of getTasks()) {
-      const d = parseDueDate(t.due, today);
-      if (!d) { undated.push(t); continue; }
-      const k = keyOf(d);
+      // `dueDate` já vem no formato "AAAA-MM-DD" — o mesmo de keyOf(). Indexar
+      // a string direto evita `new Date('AAAA-MM-DD')`, que é lido como UTC e
+      // volta um dia no Brasil.
+      let k = t.dueDate || null;
+      if (!k) {
+        // Legado: tarefas criadas antes da data estruturada só têm o texto.
+        const d = parseDueDate(t.due, today);
+        k = d ? keyOf(d) : null;
+      }
+      if (!k) { undated.push(t); continue; }
       if (!byDay.has(k)) byDay.set(k, []);
       byDay.get(k).push(t);
     }
@@ -237,7 +245,8 @@ function clampNum(v, min, max, fallback) {
 function taskRow(t) {
   const cat = getCategory(t.category);
   const done = t.done;
-  const time = (t.due && t.due.match(/\d{1,2}:\d{2}/)) ? t.due.match(/\d{1,2}:\d{2}/)[0] : '';
+  // Horário estruturado; cai no texto legado só para tarefas antigas.
+  const time = t.dueTime || resolveTime(t.due) || '';
   return `
     <div class="lift flex items-center gap-3 bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3">
       <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : '#ff4d6d'}"></span>

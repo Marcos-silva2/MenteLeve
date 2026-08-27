@@ -6,6 +6,7 @@
 
 import { h, $, $$, icons, toast } from '../ui.js';
 import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, CATEGORIES } from '../store.js';
+import { formatDue, isOverdue } from '../dates.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 
 export function renderHome(app) {
@@ -226,7 +227,7 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
     <div class="min-w-0 flex-1">
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-soft-300' : 'text-bordeaux-900'}">${t.title}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
-        ${t.due ? `<span class="text-xs ${done ? 'text-soft-300' : 'text-bordeaux-700'}">${t.due}</span>` : ''}
+        ${formatDue(t) ? `<span class="text-xs ${done ? 'text-soft-300' : (isOverdue(t) ? 'text-accent font-semibold' : 'text-bordeaux-700')}">${formatDue(t)}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
           <span class="w-1.5 h-1.5 rounded-full" style="background:${prio.dot}"></span>${prio.label}</span>` : ''}
         ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-accent">✨ ${sub.done}/${sub.total} passos</span>` : ''}
@@ -258,7 +259,7 @@ function subtaskRow(t) {
       <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
     </button>
     <p class="flex-1 min-w-0 text-[13px] leading-tight ${done ? 'line-through text-soft-300' : 'text-bordeaux-800'}">${t.title}</p>
-    ${t.due && !done ? `<span class="text-[11px] text-bordeaux-700 shrink-0">${t.due}</span>` : ''}
+    ${formatDue(t) && !done ? `<span class="text-[11px] shrink-0 ${isOverdue(t) ? 'text-accent font-semibold' : 'text-bordeaux-700'}">${formatDue(t)}</span>` : ''}
     <button data-del="${t.id}" title="Excluir"
       class="hidden lg:grid place-items-center shrink-0 w-7 h-7 rounded-full text-bordeaux-700/0 group-hover:text-bordeaux-600 hover:bg-soft-100 transition">
       ${icons.trash}
