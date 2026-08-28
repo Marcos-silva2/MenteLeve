@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.crypto import encryption_active
 from app.database import init_db
 from app.routers import ai_chat, auth, tasks
 
@@ -16,10 +17,17 @@ from app.routers import ai_chat, auth, tasks
 async def lifespan(_app: FastAPI):
     # Cria as tabelas no startup (MVP sem migrações).
     init_db()
+    log = logging.getLogger("uvicorn.error")
     if settings.secret_key_is_ephemeral:
-        logging.getLogger("uvicorn.error").warning(
+        log.warning(
             "SECRET_KEY não definida: usando uma chave aleatória. Todos os tokens "
             "serão invalidados no próximo restart — defina SECRET_KEY no ambiente."
+        )
+    if not encryption_active():
+        log.warning(
+            "ENCRYPTION_KEY não definida: títulos e nomes serão gravados em TEXTO "
+            "PURO. Quem tiver acesso ao banco lê tudo. Gere uma chave com "
+            "`python -c \"import secrets; print(secrets.token_hex(32))\"`."
         )
     yield
 

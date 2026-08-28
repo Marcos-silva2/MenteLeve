@@ -47,6 +47,17 @@ class Settings:
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 30)))
 
+    # --- Criptografia do conteúdo em repouso (AES-256-GCM) ---
+    # 32 bytes em hexadecimal (64 caracteres). Gere com:
+    #   python -c "import secrets; print(secrets.token_hex(32))"
+    # Criptografa o título das tarefas e o nome da usuária, para que um dump do
+    # banco (ou o painel do Supabase) não revele o conteúdo. Sem ela o app roda
+    # em texto puro e avisa no boot — ver app/crypto.py.
+    #
+    # ATENÇÃO: perder esta chave torna os dados já gravados irrecuperáveis.
+    # Guarde uma cópia fora do servidor.
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
+
     # --- IA (Google AI Studio / Gemini) ---
     # Chave da API do Google AI Studio. Sem ela, o /tasks/smart cai no
     # fallback (apenas normaliza o título, sem sugestões).

@@ -48,6 +48,7 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_columns()
+    _widen_columns()
 
 
 # Colunas adicionadas depois da criação original das tabelas.
@@ -88,3 +89,52 @@ def _ensure_columns() -> None:
                     "Não foi possível adicionar a coluna %s.%s — siga com a migração manual.",
                     table, column,
                 )
+
+
+# Colunas que passaram a guardar conteúdo criptografado (ver app/crypto.py). O
+# base64 infla ~35%, então o VARCHAR(n) original ficou apertado: um título de
+# 500 caracteres passa de 700 no banco.
+_WIDENED_COLUMNS = (
+    ("tasks", "title"),
+    ("users", "name"),
+)
+
+
+def _widen_columns() -> None:
+    """Converte para TEXT as colunas criptografadas, de forma idempotente.
+
+    Só no Postgres: o SQLite ignora o tamanho declarado em VARCHAR (não trunca),
+    e nem suporta ALTER COLUMN TYPE — lá não há nada a fazer.
+
+    Como em `_ensure_columns`, uma falha aqui só registra aviso: derrubar o boot
+    deixaria a API inteira fora do ar por causa de um limite de tamanho.
+    """
+    if _is_sqlite:
+        return
+
+    import logging
+
+    from sqlalchemy import inspect, text
+    from sqlalchemy.types import Text as SAText
+
+    inspector = inspect(engine)
+    for table, column in _WIDENED_COLUMNS:
+        try:
+            cols = {c["name"]: c["type"] for c in inspector.get_columns(table)}
+        except Exception:
+            continue  # tabela ainda não existe
+
+        atual = cols.get(column)
+        if atual is None or isinstance(atual, SAText):
+            continue  # já é TEXT (ou a coluna sumiu) — nada a fazer
+
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE TEXT"))
+        except Exception:
+            logging.getLogger("uvicorn.error").warning(
+                "Não foi possível converter %s.%s para TEXT — títulos longos podem "
+                "falhar ao gravar. Rode manualmente: "
+                "ALTER TABLE %s ALTER COLUMN %s TYPE TEXT;",
+                table, column, table, column,
+            )

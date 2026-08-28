@@ -6,3 +6,4 @@ pydantic[email]>=2.11,<3.0
 psycopg[binary]>=3.1,<4.0  # driver Postgres (Supabase) — usar DATABASE_URL com esquema postgresql+psycopg://
 bcrypt>=4.0,<5.0
 pyjwt>=2.9,<3.0
+cryptography>=42,<47  # AES-256-GCM do conteúdo em repouso (app/crypto.py) — wheel abi3, sem compilação

@@ -29,6 +29,7 @@ Frontend/
     ├── store.js            # estado + localStorage + sincronização
     ├── api.js              # cliente REST (JWT) + heurística local de fallback
     ├── dates.js            # prazo estruturado: resolução e exibição de datas
+    ├── sound.js            # feedback sonoro sintetizado (Web Audio)
     ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
     ├── components/
     │   └── taskSheet.js    # Bottom Sheet de nova tarefa + modal "Aha Moment" da IA
@@ -75,6 +76,19 @@ Ao sincronizar, o store faz **upsert por id** (`store.upsertTasks`), nunca subst
 lista inteira: isso apagaria tarefas criadas offline e rebaixaria a prioridade, que o
 backend não persiste.
 
+## Som
+
+`js/sound.js` **sintetiza** os sons pela Web Audio API — não há arquivos de áudio.
+Motivo: o precache do PWA é enxuto (~125 KB); anexar `.mp3` andaria para trás.
+Sintetizar custa zero byte e não pode dar 404 no modo offline.
+
+O `AudioContext` nasce suspenso até um gesto da usuária (política de autoplay), então é
+criado preguiçosamente e retomado com `resume()`. **Falha de áudio nunca pode derrubar
+a ação que o disparou** — tudo é tolerante a erro.
+
+Ligado por padrão; desligável no Perfil. A preferência (`soundEnabled`) é do **aparelho**,
+não da conta: sobrevive ao logout, assim como os dados do ciclo.
+
 ## Imagens
 
 Ilustrações e logo em **WebP**, dimensionadas para o tamanho real de exibição. Os ícones
@@ -91,3 +105,7 @@ o usa, na instalação. Ao adicionar um arquivo novo, lembre de incluí-lo em `A
 - O **calendário menstrual é 100% local** (`localStorage`), nunca vai ao backend — e
   sobrevive à expiração da sessão, por não pertencer à conta.
 - Estado persiste em `localStorage` (chave `menteleve.state.v1`).
+- No **servidor**, o título das tarefas é criptografado (AES-256-GCM). No **aparelho**
+  ele fica em texto puro no `localStorage` — é o que faz o modo offline funcionar. A
+  criptografia protege o banco, não o dispositivo de quem já está com a sessão aberta.
+  Por isso `store.clearSession()` limpa as tarefas ao sair da conta.

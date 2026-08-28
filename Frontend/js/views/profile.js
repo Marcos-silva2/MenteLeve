@@ -3,12 +3,14 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast } from '../ui.js';
-import { getUser, logout, isPremium } from '../store.js';
+import { getUser, logout, isPremium, isSoundEnabled, setSoundEnabled } from '../store.js';
+import { playTap } from '../sound.js';
 
 export function renderProfile(app) {
   const user = getUser() || { name: 'Você', email: '' };
   const premium = isPremium();
   const installed = app.isInstalled && app.isInstalled();
+  const som = isSoundEnabled();
 
   const menu = [
     { id: 'account', label: 'Minha Conta', icon: icons.user },
@@ -50,6 +52,25 @@ export function renderProfile(app) {
             </div>`}
         </div>
 
+        <!-- preferências -->
+        <div class="px-6 mb-4">
+          <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden">
+            <button id="sound-toggle" role="switch" aria-checked="${som}"
+              class="w-full flex items-center gap-3 px-4 py-4 active:bg-bg transition text-left">
+              <span class="text-bordeaux-700">${icons.spark}</span>
+              <span class="flex-1 min-w-0">
+                <span class="block text-sm text-bordeaux-900">Sons do app</span>
+                <span class="block text-xs text-bordeaux-700">Toque suave ao concluir tarefas e ao falar com a Bruna.</span>
+              </span>
+              <span id="sound-track"
+                class="relative shrink-0 w-11 h-6 rounded-full transition-colors ${som ? 'bg-accent' : 'bg-soft-200'}">
+                <span id="sound-knob"
+                  class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${som ? 'translate-x-5' : ''}"></span>
+              </span>
+            </button>
+          </div>
+        </div>
+
         <!-- menu -->
         <div class="px-6">
           <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden">
@@ -84,6 +105,19 @@ export function renderProfile(app) {
 
   const up = $('#upgrade', view);
   if (up) up.addEventListener('click', () => app.navigate('paywall', { trigger: 'profile' }));
+
+  // Interruptor de som — o primeiro item realmente funcional deste menu.
+  const soundBtn = $('#sound-toggle', view);
+  soundBtn.addEventListener('click', () => {
+    const on = setSoundEnabled(!isSoundEnabled());
+    soundBtn.setAttribute('aria-checked', String(on));
+    $('#sound-track', view).className =
+      `relative shrink-0 w-11 h-6 rounded-full transition-colors ${on ? 'bg-accent' : 'bg-soft-200'}`;
+    $('#sound-knob', view).className =
+      `absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : ''}`;
+    // Toca só ao LIGAR: dá para ouvir o que acabou de ser ativado.
+    if (on) playTap();
+  });
 
   $$('[data-menu]', view).forEach((b) =>
     b.addEventListener('click', () => toast('Recurso disponível na versão final ✨'))

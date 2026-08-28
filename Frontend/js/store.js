@@ -46,6 +46,7 @@ const defaultState = () => ({
   userId: null,      // id numérico do backend (null = só local)
   token: null,       // JWT de acesso (null = sessão não autenticada)
   isPremium: false,
+  soundEnabled: true, // feedback sonoro (desligável no Perfil)
   tasks: [],
   cycle: defaultCycle(),
 });
@@ -203,12 +204,14 @@ export function initSession(onExpired) {
  * - `cycle`: os dados do ciclo menstrual são 100% locais e nunca vão ao
  *   backend. Apagá-los numa expiração de token (que acontece sozinha, sem
  *   ação da usuária) perderia o histórico para sempre.
+ * - `soundEnabled`: preferência do aparelho, não da conta.
  */
 function clearSession() {
-  const { onboardingSeen, cycle } = state;
+  const { onboardingSeen, cycle, soundEnabled } = state;
   state = defaultState();
   state.onboardingSeen = onboardingSeen;
   state.cycle = cycle;
+  state.soundEnabled = soundEnabled;
   api.setAuthToken(null);
   persist();
   // A conversa da Bruna vive na memória da view. Registrada via callback para
@@ -316,6 +319,15 @@ export function removeTask(id) {
   if (state.userId != null && !isLocalId(id)) {
     api.apiDeleteTask(id).catch(() => {});
   }
+}
+
+// ------- Preferências -------
+export const isSoundEnabled = () => state.soundEnabled !== false;
+
+export function setSoundEnabled(on) {
+  state.soundEnabled = !!on;
+  persist();
+  return state.soundEnabled;
 }
 
 export function reachedFreeLimit() {

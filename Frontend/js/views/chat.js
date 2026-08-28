@@ -7,6 +7,7 @@
 import { h, $, $$, icons } from '../ui.js';
 import { getUser, restoreSession, upsertTasks } from '../store.js';
 import { apiChat, wakeBackend, isOnline } from '../api.js';
+import { playMessage } from '../sound.js';
 
 // Histórico mantido em memória durante a sessão (sobrevive à troca de abas).
 let conversation = []; // [{ role: 'user' | 'assistant', content }]
@@ -154,6 +155,7 @@ export function renderChat(app) {
     typing = false;
     conversation.push({ role: 'assistant', content: reply });
     renderMessages();
+    playMessage();
   }
 
   function autosize() {

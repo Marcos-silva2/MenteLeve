@@ -7,6 +7,7 @@
 import { h, $, $$, icons, toast } from '../ui.js';
 import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, CATEGORIES } from '../store.js';
 import { formatDue, isOverdue } from '../dates.js';
+import { playComplete, playTap } from '../sound.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 
 export function renderHome(app) {
@@ -161,7 +162,7 @@ export function renderHome(app) {
     const card = $(`[data-card="${id}"]`, listEl);
     const t = toggleTask(id);
     if (t && t.done && card) {
-      playDing();
+      playComplete();
       card.classList.add('task-done');
       card.addEventListener('animationend', () => renderList(), { once: true });
     } else {
@@ -197,7 +198,7 @@ export function renderHome(app) {
   }
 
   // eventos
-  $('#fab', view).addEventListener('click', () => openTaskSheet(app, renderList));
+  $('#fab', view).addEventListener('click', () => { playTap(); openTaskSheet(app, renderList); });
   const avatar = $('#avatar', view);
   if (avatar) avatar.addEventListener('click', () => app.navigate('profile'));
   const goAgenda = $('#go-agenda', view);
@@ -290,21 +291,3 @@ function initials(name) {
   return `<span class="font-serif font-bold text-sm">${txt.toUpperCase()}</span>`;
 }
 
-/* som de conclusão suave via WebAudio */
-let audioCtx;
-function playDing() {
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(880, audioCtx.currentTime);
-    o.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.12);
-    g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.08, audioCtx.currentTime + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
-    o.connect(g).connect(audioCtx.destination);
-    o.start();
-    o.stop(audioCtx.currentTime + 0.26);
-  } catch (_) { /* navegador sem suporte/autoplay bloqueado */ }
-}

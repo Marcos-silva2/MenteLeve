@@ -18,7 +18,7 @@ Este documento estabelece o planejamento estratégico e a divisão de sprints pa
 
 ## 🚀 ROADMAP ESTRATÉGICO
 
-O roadmap está estruturado em **4 fases principais (Sprints)**, organizadas por ordem lógica de dependência técnica e impacto na experiência da usuária.
+O roadmap está estruturado em **4 fases principais (Sprints)**, organizadas por ordem lógica de dependência técnica e impacto na experiência da usuária. A **Sprint 5** foi acrescentada depois, a partir de uma revisão de segurança.
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -35,6 +35,10 @@ O roadmap está estruturado em **4 fases principais (Sprints)**, organizadas por
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │  SPRINT 4: Feedback Multissensorial e Ajustes Finos    │
+└───────────────────────────┬────────────────────────────┘
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│  SPRINT 5: Criptografia do Conteúdo em Repouso         │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -163,19 +167,108 @@ quebrada e nenhuma requisição com erro.
 
 ---
 
-### 🎵 Sprint 4: Feedback Multissensorial e Ajustes Finos
-**Foco:** Adicionar diversão e leveza ao aplicativo por meio de elementos de áudio e realizar um controle rigoroso de qualidade.
+---
+
+### 🎵 Sprint 4: Feedback Multissensorial e Ajustes Finos ✅ CONCLUÍDA
+**Foco:** Adicionar diversão e leveza por meio de áudio e fazer um controle rigoroso de qualidade.
 
 * **Audio-Feedback e Micro-interações:**
-  * Adicionar efeitos sonoros discretos (áudios curtos e sutis) para ações importantes do aplicativo, como:
-    * Micro-interações de recompensa ao concluir uma tarefa (efeito sonoro de "concluído" ou celebração suave) [5].
-    * Alertas sonoros ao receber uma resposta ou conselho acolhedor da Bruna [5].
-    * Sons de feedback tátil para cliques em botões principais do PWA.
-  * Disponibilizar uma opção simples no perfil da usuária para desativar os sons (modo silencioso).
-* **Varredura de Erros e Controle de Qualidade Geral:**
-  * Executar uma varredura rigorosa de possíveis bugs no Service Worker (`sw.js`) para garantir que o suporte offline e o cache do PWA funcionem perfeitamente [6].
-  * ~~Mitigar o "cold start" do Render~~ — ✅ já resolvido na migração (ping externo em `/health`).
-  * Revisar erros de console do navegador, links quebrados e falhas de layout no deploy da **Vercel**.
+  * [x] Sons **sintetizados pela Web Audio API** (`js/sound.js`), não arquivos de áudio.
+    O precache tinha acabado de cair para ~125 KB na Sprint 3 — anexar `.mp3` andaria
+    para trás. Sintetizar custa **zero byte**, não tem licenciamento e não dá 404 offline.
+    - Recompensa ao concluir tarefa (duas notas ascendentes)
+    - Aviso quando a Bruna responde
+    - Toque curto nos botões principais
+  * [x] **Interruptor de som no Perfil.** Ligado por padrão (decisão do produto).
+    É o primeiro item realmente funcional daquele menu — os demais seguem placeholders.
+    A preferência é do **aparelho**, não da conta: sobrevive ao logout, como o ciclo.
+
+  > Achado: já existia um `playDing()` solto no `home.js` fazendo síntese Web Audio,
+  > mas **sem nenhuma forma de desligar**. Consolidado no módulo compartilhado.
+
+* **Varredura de Erros e Controle de Qualidade:**
+  * [x] **Três defeitos reais corrigidos no Service Worker:**
+
+    | Defeito | Consequência |
+    |---|---|
+    | `cache.addAll(ASSETS)` sem tratamento de erro | **UM** caminho errado na lista (mantida à mão) derrubava a instalação inteira e o app ficava **sem offline nenhum**, em silêncio |
+    | Respostas cacheadas sem checar `res.ok` | Um 404/5xx entrava no cache e passava a ser servido offline como conteúdo válido |
+    | `catch(() => cached)` no ramo cache-first | Ali `cached` é sempre indefinido; offline + não cacheado fazia o `respondWith` estourar |
+
+    **Comprovado experimentalmente:** com um caminho inválido injetado em `ASSETS`, o
+    código antigo terminava com **0 arquivos cacheados e o Service Worker inativo**;
+    o corrigido segue com 24 arquivos e o SW ativo.
+  * [x] Console e requisições varridos nas 9 telas, local **e no deploy da Vercel**:
+    **0 erros, 0 requisições com falha** em produção.
+  * [x] Regressão visual conferida por diferença de pixels: conexões **0 px** de
+    diferença (só bytes de compressão do PNG), Bruna 19 px (o cursor piscando no
+    campo de texto). A única mudança real é o Perfil — o interruptor novo.
+  * ~~Mitigar o "cold start" do Render~~ — já resolvido na migração (ping em `/health`).
+
+---
+
+### 🔐 Sprint 5: Criptografia do Conteúdo em Repouso ✅ CONCLUÍDA
+
+* **Objetivo:** o conteúdo das tarefas deixa de ser legível para quem chega ao banco
+  **por fora da API** — dump do Postgres, `DATABASE_URL` vazada, painel do Supabase.
+
+* **Origem:** revisão de segurança. O isolamento entre contas já existia (checagem de
+  posse em toda rota, respondendo `404` para não confirmar que a tarefa existe), mas
+  valia só para quem entrava pela API. No banco, tudo estava em texto puro.
+
+* **Decisão — criptografia no servidor, não ponta a ponta.** A alternativa (chave
+  derivada da senha, só a usuária lê) foi descartada por dois custos concretos:
+  mataria a Bruna — o servidor precisa ler os títulos para `_match_tasks` e para
+  `/tasks/smart` — e tornaria o esquecimento de senha uma perda permanente.
+
+* **Tarefas:**
+  * [x] `app/crypto.py`: **AES-256-GCM** (cifra autenticada — esconde e detecta
+    adulteração), envelope versionado `v1:<base64url(nonce || ciphertext || tag)>`,
+    nonce novo a cada gravação.
+  * [x] Tipo `EncryptedText` (`TypeDecorator`) — cifra na ida, decifra na volta. Foi o
+    que evitou espalhar cripto pelo código: `crud.py`, routers, schemas e `ai.py`
+    continuam vendo texto puro e **não mudaram**.
+  * [x] Criptografados: `tasks.title` e `users.name`. Fora, de propósito: `users.email`
+    (chave de busca do login, índice UNIQUE) e os metadados `due_date`/`category`/
+    `done` (sustentam o calendário e os índices). O banco revela *quando*, não *o quê*.
+  * [x] **Correção obrigatória em `crud.find_recent_duplicate`:** comparava título
+    dentro do SQL (`func.lower(title) == ...`), o que passaria a comparar contra
+    ciphertext e **nunca casaria** — a proteção contra tarefa duplicada morreria em
+    silêncio. Movida para Python.
+  * [x] `database._widen_columns()`: `VARCHAR(n)` → `TEXT` no boot. O base64 infla ~37%
+    (500 caracteres viram 687), então o `varchar(500)` original estouraria.
+  * [x] Sem `ENCRYPTION_KEY` o app sobe, grava em texto puro e avisa no log.
+    **Sem fallback de chave aleatória** como no `SECRET_KEY` — uma chave nova por
+    processo tornaria ilegível tudo que foi gravado antes do restart.
+  * [x] `scripts/encrypt_existing.py`: converte linhas antigas, idempotente, com
+    simulação antes de gravar.
+  * [x] Frontend: **nenhuma mudança** — continua recebendo texto puro por HTTPS.
+
+* **Verificação — 87 checagens, 0 falhas.** A que prova a sprint: criar tarefa pela API
+  e ler a tabela com SQL puro devolve
+
+  ```
+  v1:CRUGya26Yykck3yFP9_xdRkz2A9bx0I3vMynUrvy4_6MaFGoqNv8S6K0s82bEui3-Vv...
+  ```
+
+  enquanto o `GET /tasks` devolve o título correto. Também cobertas: adulteração de um
+  bit é rejeitada pelo GCM; chave errada ou malformada é rejeitada com mensagem clara;
+  linha legada em texto puro continua legível; `find_recent_duplicate` segue impedindo
+  duplicata; `_match_tasks` da Bruna (exato, parcial e com typo) intacto; isolamento
+  entre contas; cascade do delete; e o script rodado duas vezes não altera bytes.
+
+  Nenhuma chamada de IA foi feita nos testes — as cotas do Gemini e do Groq foram
+  preservadas exercitando as funções server-side diretamente.
+
+* **Limites conhecidos (registrados de propósito):**
+  * Chave e banco ficam ambos no Render — comprometer essa conta entrega os dois.
+  * A Bruna continua enviando o texto das tarefas ao Gemini/Groq.
+  * O `localStorage` do aparelho guarda as tarefas em texto puro (é o que faz o modo
+    offline funcionar).
+  * **Perder a `ENCRYPTION_KEY` torna os dados irrecuperáveis.** Não há recuperação.
+
+* **Fica para a próxima:** `/auth/login` ainda aceita tentativas infinitas — o custo do
+  bcrypt (~250 ms) freia na prática, mas não é uma trava.
 
 ---
 *Este planejamento é dinâmico e deve ser revisado ao final de cada Sprint de acordo com os testes de usabilidade e feedbacks das usuárias do MenteLeve [4].*

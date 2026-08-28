@@ -2,7 +2,7 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v31';
+const CACHE = 'menteleve-v32';
 const ASSETS = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS = [
   './js/store.js',
   './js/api.js',
   './js/dates.js',
+  './js/sound.js',
   './js/ui.js',
   './js/components/taskSheet.js',
   './js/views/onboarding.js',
@@ -32,8 +33,18 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
+  // Item a item, tolerando falha individual. Com `cache.addAll(ASSETS)`, UM
+  // arquivo com caminho errado (a lista é mantida à mão) rejeitava a promessa,
+  // a instalação inteira falhava e o app ficava SEM offline nenhum — em
+  // silêncio. Assim o que estiver acessível é cacheado de qualquer forma.
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((c) => Promise.all(
+        ASSETS.map((url) => c.add(url).catch(() => {
+          console.warn('[sw] não foi possível precachear:', url);
+        }))
+      ))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -58,24 +69,33 @@ self.addEventListener('fetch', (e) => {
   // preso em JS antigo. Imagens/ícones/fontes → cache-first (mais rápido).
   const isCode = request.mode === 'navigate' || /\.(?:js|css|html|json)$/.test(url.pathname);
 
+  // Só guarda resposta boa. Antes, um 404/5xx era cacheado e passava a ser
+  // servido offline como se fosse conteúdo válido.
+  const guardar = (req, res) => {
+    if (!res || !res.ok || res.type === 'opaque') return res;
+    const copy = res.clone();
+    caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+    return res;
+  };
+
   if (isCode) {
     e.respondWith(
       fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-          return res;
-        })
+        .then((res) => guardar(request, res))
         .catch(() => caches.match(request).then((c) => c || caches.match('./index.html')))
     );
     return;
   }
 
   e.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-      return res;
-    }).catch(() => cached))
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request)
+        .then((res) => guardar(request, res))
+        // Offline e sem cache: devolve uma resposta de verdade. Antes caía em
+        // `catch(() => cached)`, mas aqui `cached` é sempre indefinido — o
+        // respondWith recebia undefined e estourava.
+        .catch(() => new Response('', { status: 504, statusText: 'Offline' }));
+    })
   );
 });

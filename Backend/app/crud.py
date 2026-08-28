@@ -100,17 +100,21 @@ def find_recent_duplicate(
     cliente não cancela a requisição em andamento), e sem isso ela ganharia uma
     tarefa duplicada. Checar no banco — e não em memória — sobrevive ao restart
     do Render.
+
+    O título é comparado **em Python**, não no SQL: a coluna é criptografada
+    (ver crypto.EncryptedText) e um `WHERE title = ...` compararia contra o
+    ciphertext, que nunca casa — a proteção morreria em silêncio. O conjunto
+    filtrado no banco já é pequeno (mesma usuária, em aberto, últimos minutos).
     """
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=within_minutes)
     normalized = title.strip().lower()
     stmt = select(models.Task).where(
         models.Task.user_id == user_id,
         models.Task.done.is_(False),
-        func.lower(models.Task.title) == normalized,
         models.Task.created_at >= cutoff,
     )
     for task in db.scalars(stmt):
-        if task.due_date == due_date:
+        if task.title.strip().lower() == normalized and task.due_date == due_date:
             return task
     return None
 

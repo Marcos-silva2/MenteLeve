@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.crypto import EncryptedText
 from app.database import Base
 
 
@@ -18,8 +19,11 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    # E-mail fica em texto puro de propósito: é a chave de busca do login
+    # (`WHERE email = ?`) e tem índice UNIQUE. Com nonce aleatório, o mesmo
+    # e-mail geraria valores diferentes e as duas coisas quebrariam.
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(120), nullable=False, default="Você")
+    name: Mapped[str] = mapped_column(EncryptedText, nullable=False, default="Você")
     # Hash bcrypt da senha. Nullable por causa da micro-migração aditiva
     # (ver database.py): contas antigas sem senha não conseguem logar.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -45,7 +49,11 @@ class Task(Base):
         ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
-    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Criptografado no banco (AES-256-GCM) — é o conteúdo sensível da usuária.
+    # Consequência: não dá para comparar/ordenar título em SQL. Ver crypto.py.
+    title: Mapped[str] = mapped_column(EncryptedText, nullable=False)
+    # Metadados ficam em texto puro: são eles que sustentam o calendário e os
+    # índices (ix_tasks_due_date). Revelam quando, não o quê.
     # Categoria do design system: casa | filhos | trabalho | saude | financas | relacionamento
     category: Mapped[str] = mapped_column(String(40), default="casa", nullable=False)
     # Prazo estruturado — fonte da verdade para posicionar a tarefa no calendário.

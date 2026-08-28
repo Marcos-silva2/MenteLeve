@@ -1,14 +1,14 @@
 # MenteLeve — Backend (API)
 
-API REST em **FastAPI + PostgreSQL/Supabase (SQLAlchemy)**. Esta fase entrega o CRUD completo
-de tarefas e o login simplificado. **A Inteligência Artificial ainda não está
-plugada** — a rota `/tasks/smart` apenas persiste a tarefa e devolve o formato
-que o frontend espera (com `subtasks` vazio e `suggestion` nulo).
+API REST em **FastAPI + PostgreSQL/Supabase (SQLAlchemy)**: CRUD de tarefas,
+autenticação por e-mail + senha (JWT), IA (Gemini com reserva no Groq) e
+criptografia do conteúdo em repouso.
 
 ## Stack
 - FastAPI + Uvicorn
 - SQLAlchemy 2.0 + PostgreSQL (Supabase, via driver `psycopg`) — SQLite disponível como fallback local (padrão sem `DATABASE_URL`)
 - Pydantic v2
+- bcrypt (senhas) · PyJWT (tokens) · cryptography (AES-256-GCM do conteúdo)
 
 ## Como rodar (local)
 
@@ -38,10 +38,16 @@ Backend/
 │   ├── schemas.py       # Pydantic (entrada/saída) + FREE_TASK_LIMIT
 │   ├── crud.py          # operações de banco
 │   ├── security.py      # hash de senha (bcrypt) + tokens JWT
+│   ├── crypto.py        # AES-256-GCM do conteúdo em repouso (EncryptedText)
+│   ├── ai.py            # Gemini + Groq (analyze, chat, function calling)
 │   ├── dependencies.py  # auth via Authorization: Bearer <token>
 │   └── routers/
-│       ├── auth.py      # /auth/login, /auth/me, /auth/me/premium
-│       └── tasks.py     # CRUD de tarefas + /tasks/smart (stub sem IA)
+│       ├── auth.py      # /auth/register, /auth/login, /auth/me, /auth/me/premium
+│       ├── tasks.py     # CRUD de tarefas + /tasks/smart
+│       └── ai_chat.py   # /ai/chat (Bruna) — cria e conclui tarefas
+├── scripts/
+│   └── encrypt_existing.py  # migra linhas anteriores à criptografia (uma vez)
+├── supabase_schema.sql
 ├── requirements.txt
 ├── Procfile             # deploy (Render): uvicorn ...
 ├── .env.example
@@ -64,6 +70,54 @@ backend usa uma chave aleatória por processo e derruba todas as sessões a cada
 restart — no Render free isso acontece a cada cold start.
 
 OAuth real (Google/Apple) ainda não está implementado — ver `docs/roadmap-sprints-menteleve.md`.
+
+> Não há limite de tentativas de login. O custo do bcrypt (~250 ms por tentativa)
+> freia força bruta na prática, mas não é uma trava — está na lista de próximos passos.
+
+## Criptografia do conteúdo (em repouso)
+
+`tasks.title` e `users.name` são gravados com **AES-256-GCM** (`app/crypto.py`). Quem
+obtiver um dump do Postgres, a `DATABASE_URL` ou o painel do Supabase vê `v1:<base64>`,
+não o conteúdo. A chave (`ENCRYPTION_KEY`) vive só no ambiente do backend.
+
+O uso é transparente: os models declaram o tipo `EncryptedText` (um `TypeDecorator`),
+então `crud.py`, os routers, os schemas e a `ai.py` continuam vendo texto puro.
+
+**O que NÃO é criptografado, e por quê:**
+
+| Campo | Motivo |
+|---|---|
+| `users.email` | É a chave de busca do login (`WHERE email = ?`) e tem índice UNIQUE. Com nonce aleatório, o mesmo e-mail geraria valores diferentes e as duas coisas quebrariam |
+| `due_date`, `category`, `done`, `important` | Sustentam o calendário e os índices (`ix_tasks_due_date`) |
+| `tasks.due` | Rótulo de exibição ("Toda semana"), sem conteúdo pessoal |
+
+Ou seja: o banco revela **quando**, não **o quê**.
+
+**Armadilhas ao mexer aqui:**
+- **Comparação em SQL não funciona** sobre coluna criptografada — `WHERE title = 'x'`,
+  `LIKE` e `ORDER BY` alfabético nunca casam, porque comparam contra o ciphertext.
+  Filtre em Python depois de carregar; ver `crud.find_recent_duplicate`, que já foi
+  corrigido por causa disso (a falha seria **silenciosa**: voltaria a duplicar tarefa).
+- **Nonce novo a cada gravação**, então o mesmo título gera valores diferentes — o banco
+  não revela quais tarefas se repetem. Também é por isso que não dá para indexar.
+- **Envelope versionado** (`v1:`): valor sem o prefixo é texto puro legado e passa
+  direto. Foi o que permitiu ativar a criptografia sem migração obrigatória.
+- **TEXT, não `VARCHAR(n)`**: o base64 infla ~37% (500 caracteres viram 687).
+- Um valor adulterado no banco falha na autenticação do GCM em vez de devolver lixo.
+
+**Sem `ENCRYPTION_KEY`** o app sobe, grava em texto puro e avisa no log. Deliberadamente
+**não** existe fallback de chave aleatória como no `SECRET_KEY`: uma chave nova a cada
+processo tornaria ilegível tudo que foi gravado antes do restart.
+
+> ⚠️ **Perder a chave torna os dados já gravados irrecuperáveis.** Guarde uma cópia num
+> gerenciador de senhas, fora do servidor. Trocar a chave depois só é possível com a
+> antiga em mãos.
+
+Para converter linhas anteriores à criptografia (idempotente, roda uma vez):
+```bash
+python scripts/encrypt_existing.py            # simulação
+python scripts/encrypt_existing.py --aplicar  # grava
+```
 
 ## Endpoints
 
@@ -146,7 +200,16 @@ a criação retorna **HTTP 402** (gatilho do Paywall no frontend).
   string do **"Session pooler"** (IPv4), não a "Direct connection" (IPv6-only, não
   resolve em muitos hosts/redes). Ver [`supabase_schema.sql`](supabase_schema.sql) para
   criar as tabelas e [`docs/Roadmap.md`](../docs/Roadmap.md) para o histórico completo.
+- **Variáveis obrigatórias:** `DATABASE_URL`, `SECRET_KEY`, `ENCRYPTION_KEY`.
+  As duas últimas são valores **diferentes**, geradas com
+  `python -c "import secrets; print(secrets.token_hex(32))"`.
 
-## Próximo passo
-Plugar a IA (Google AI Studio) na rota `/tasks/smart` — ver o `TODO(IA)` em
-`app/routers/tasks.py`.
+No boot, `init_db()` aplica micro-migrações: `_ensure_columns()` adiciona colunas novas
+e `_widen_columns()` converte para `TEXT` as colunas criptografadas. As duas apenas
+registram aviso se falharem — derrubar o boot deixaria a API inteira fora do ar.
+
+## Próximos passos
+- Limite de tentativas em `/auth/login`.
+- `POST /auth/me/premium` permite que qualquer usuária autenticada se conceda Premium.
+  Inofensivo enquanto o pagamento é simulado; **corrigir antes de haver cobrança real**.
+- OAuth real (Google/Apple).
