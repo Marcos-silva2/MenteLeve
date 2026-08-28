@@ -76,14 +76,39 @@ OAuth real (Google/Apple) ainda não está implementado — ver `docs/roadmap-sp
 | POST | `/auth/me/premium?is_premium=true` | Ativa/desativa Premium |
 | GET | `/tasks` | Lista tarefas do usuário |
 | POST | `/tasks` | Cria tarefa (campos completos) |
-| POST | `/tasks/smart` | Cria a partir de texto (`{text}`) — **sem IA ainda** |
+| POST | `/tasks/smart` | Analisa texto livre com a IA (título, `due_date`/`due_time`, subtarefas, sugestão) |
 | PATCH | `/tasks/{id}` | Atualiza tarefa |
 | PUT | `/tasks/{id}/complete` | Marca como concluída |
 | PUT | `/tasks/{id}/uncomplete` | Reabre a tarefa |
 | DELETE | `/tasks/{id}` | Exclui tarefa |
+| POST | `/ai/chat` | Conversa com a Bruna; pode criar/concluir tarefas |
 
 Todas as rotas de `/tasks` e `/auth/me*` exigem o header `Authorization: Bearer <token>`
 (respondem **401** sem ele ou com token inválido/expirado).
+
+## Bruna: ações pelo chat
+
+`POST /ai/chat` usa *function calling* do Gemini. A Bruna pode chamar duas funções:
+`criar_tarefa` e `concluir_tarefa`. **Excluir ficou de fora de propósito** — é
+destrutivo e a identificação é por texto aproximado.
+
+Pontos de projeto que importam ao mexer aqui (`routers/ai_chat.py`):
+- **O modelo nunca informa um id.** Ele passa o título com as palavras da usuária e o
+  servidor casa contra as tarefas **dela** (`_match_tasks`, ignorando acentos/caixa).
+  Isso elimina a classe de erro "modelo inventa um id". Com mais de uma candidata,
+  devolve `ambiguo` e a Bruna pergunta em vez de escolher.
+- **Confirmação composta no servidor** no caminho feliz (1 ida ao modelo, mais rápido
+  e sem risco de a IA narrar errado o que fez). A 2ª ida só acontece quando é preciso
+  nuance: ambiguidade, tarefa não encontrada, limite do plano.
+- **Idempotência:** o timeout do cliente não cancela a requisição, então a usuária
+  podia ver o fallback, repetir o pedido e criar duplicata. `find_recent_duplicate`
+  bloqueia isso.
+- **Limite gratuito vira resultado de função**, não `HTTPException(402)` — um 402 aqui
+  abortaria a resposta e a usuária perderia a fala da Bruna.
+
+> ⚠️ O plano gratuito do Gemini limita a **~20 requisições/minuto**. Ao estourar, a API
+> devolve **429** e o app cai no fallback ("estou com um probleminha para pensar"). O
+> motivo agora aparece no log do Render. Avalie um provedor de reserva ou o tier pago.
 
 ## Freemium
 Usuários não-Premium têm limite de **50 tarefas** (`FREE_TASK_LIMIT`). Ao exceder,

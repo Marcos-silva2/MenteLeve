@@ -100,10 +100,18 @@ class ChatMessage(BaseModel):
 
 class ChatIn(BaseModel):
     messages: list[ChatMessage] = Field(..., min_length=1, max_length=40)
+    # Data local da usuária — mesmo motivo de fuso do SmartTaskIn.
+    today: date | None = None
 
 
 class ChatOut(BaseModel):
     reply: str
+    # Tarefas criadas/concluídas pela Bruna nesta resposta. O frontend atualiza
+    # essas por id (nunca recarrega a lista toda: isso apagaria tarefas criadas
+    # offline e rebaixaria a prioridade, que o backend não persiste).
+    tasks: list[TaskOut] = []
+    # True quando a criação esbarrou no limite do plano gratuito.
+    limite_atingido: bool = False
 
 
 # ------------------- Tarefa Inteligente (IA) -------------------

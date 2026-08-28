@@ -5,12 +5,20 @@
    ============================================================ */
 
 import { h, $, $$, icons } from '../ui.js';
-import { getUser, restoreSession } from '../store.js';
-import { apiChat, wakeBackend } from '../api.js';
+import { getUser, restoreSession, upsertTasks } from '../store.js';
+import { apiChat, wakeBackend, isOnline } from '../api.js';
 
 // Histórico mantido em memória durante a sessão (sobrevive à troca de abas).
 let conversation = []; // [{ role: 'user' | 'assistant', content }]
 let typing = false;
+
+/** Limpa a conversa ao sair da conta.
+ *  Sem isso, num aparelho compartilhado a próxima pessoa herdaria o histórico
+ *  da anterior — e a Bruna, que agora age nas tarefas, poderia agir em cima dele. */
+export function clearConversation() {
+  conversation = [];
+  typing = false;
+}
 
 const SUGGESTIONS = [
   'Me ajuda a organizar a semana',
@@ -120,8 +128,19 @@ export function renderChat(app) {
     typing = true;
     renderMessages();
 
-    // Tenta a IA real, com um teto de espera para a conversa não travar.
-    let reply = await withTimeout(apiChat(conversation), 7000);
+    // A Bruna pode executar ações (criar/concluir tarefa), o que exige até duas
+    // idas ao modelo. Com o backend já no ar, esperamos bem mais: desistir cedo
+    // mostraria a resposta pronta enquanto a tarefa É criada no servidor — e a
+    // usuária, achando que falhou, repetiria o pedido e ganharia uma duplicata.
+    const budget = isOnline() ? 30000 : 7000;
+    const result = await withTimeout(apiChat(conversation), budget);
+
+    let reply = result && result.reply;
+    if (result) {
+      // Reflete na Home/Agenda o que a Bruna acabou de fazer, sem recarregar
+      // a lista inteira (ver upsertTasks).
+      upsertTasks(result.tasks);
+    }
 
     if (!reply) {
       // Sem conexão (ou lenta): a "Bruna local" responde de forma natural,

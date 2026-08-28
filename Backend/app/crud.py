@@ -1,6 +1,8 @@
 """Operações de banco de dados (camada CRUD)."""
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta, timezone
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -77,6 +79,40 @@ def count_tasks(db: Session, user_id: int) -> int:
 
 def get_task(db: Session, task_id: int) -> models.Task | None:
     return db.get(models.Task, task_id)
+
+
+def list_open_tasks(db: Session, user_id: int) -> list[models.Task]:
+    """Tarefas em aberto — usadas para casar o título dito no chat da Bruna."""
+    stmt = (
+        select(models.Task)
+        .where(models.Task.user_id == user_id, models.Task.done.is_(False))
+        .order_by(models.Task.created_at.desc())
+    )
+    return list(db.scalars(stmt))
+
+
+def find_recent_duplicate(
+    db: Session, user_id: int, title: str, due_date: date | None, within_minutes: int = 5
+) -> models.Task | None:
+    """Procura uma tarefa igual criada há pouco.
+
+    O chat pode ser reenviado pela usuária quando a resposta demora (o timeout do
+    cliente não cancela a requisição em andamento), e sem isso ela ganharia uma
+    tarefa duplicada. Checar no banco — e não em memória — sobrevive ao restart
+    do Render.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=within_minutes)
+    normalized = title.strip().lower()
+    stmt = select(models.Task).where(
+        models.Task.user_id == user_id,
+        models.Task.done.is_(False),
+        func.lower(models.Task.title) == normalized,
+        models.Task.created_at >= cutoff,
+    )
+    for task in db.scalars(stmt):
+        if task.due_date == due_date:
+            return task
+    return None
 
 
 def create_task(db: Session, user_id: int, data: schemas.TaskCreate) -> models.Task:

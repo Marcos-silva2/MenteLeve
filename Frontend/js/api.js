@@ -269,9 +269,15 @@ export async function apiSmartTask(text) {
   }
 }
 
+// O backend aceita no máximo 40 mensagens (ChatIn). Enviar o histórico inteiro
+// fazia toda requisição virar 422 depois de ~20 trocas — e a Bruna passava a
+// responder só com as frases prontas, para sempre.
+const CHAT_HISTORY_MAX = 30;
+
 /**
  * Conversa com a Bruna (IA). Recebe o histórico [{role, content}] e retorna
- * a resposta (string) ou null se offline/erro.
+ * { reply, tasks, limiteAtingido } — ou null se offline/erro.
+ * `tasks` traz as tarefas que ela criou/concluiu nesta resposta.
  */
 export async function apiChat(messages) {
   if (!_token || !(await ensureOnline())) return null;
@@ -279,9 +285,17 @@ export async function apiChat(messages) {
     const r = await request('/ai/chat', {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({
+        messages: messages.slice(-CHAT_HISTORY_MAX),
+        today: todayKey(),
+      }),
     });
-    return r && r.reply ? r.reply : null;
+    if (!r || !r.reply) return null;
+    return {
+      reply: r.reply,
+      tasks: Array.isArray(r.tasks) ? r.tasks.map(fromServer) : [],
+      limiteAtingido: !!r.limite_atingido,
+    };
   } catch (_) {
     return null;
   }

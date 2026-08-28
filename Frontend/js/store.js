@@ -211,6 +211,17 @@ function clearSession() {
   state.cycle = cycle;
   api.setAuthToken(null);
   persist();
+  // A conversa da Bruna vive na memória da view. Registrada via callback para
+  // o store não importar uma view (evita import circular).
+  for (const fn of _onSessionCleared) {
+    try { fn(); } catch (_) { /* ignore */ }
+  }
+}
+
+// Handlers chamados quando a sessão é limpa (logout ou token expirado).
+const _onSessionCleared = [];
+export function onSessionCleared(fn) {
+  _onSessionCleared.push(fn);
 }
 
 export function logout() {
@@ -263,6 +274,28 @@ export async function addTasks(list) {
   const out = [];
   for (const t of list) out.push(await addTask(t));
   return out;
+}
+
+/**
+ * Insere/atualiza tarefas vindas do servidor, casando por id.
+ *
+ * Usado depois que a Bruna cria ou conclui algo pelo chat. Deliberadamente NÃO
+ * substitui a lista inteira: isso apagaria tarefas criadas offline (que só
+ * existem localmente) e rebaixaria a prioridade — o backend ainda não a
+ * persiste, então `fromServer` sempre devolve "media" no lugar de "baixa".
+ */
+export function upsertTasks(list) {
+  if (!Array.isArray(list) || !list.length) return;
+  for (const t of list) {
+    const idx = state.tasks.findIndex((x) => x.id === t.id);
+    if (idx >= 0) {
+      // Preserva a prioridade local (o servidor não a conhece).
+      state.tasks[idx] = { ...t, priority: state.tasks[idx].priority };
+    } else {
+      state.tasks.unshift(t);
+    }
+  }
+  persist();
 }
 
 export function toggleTask(id) {

@@ -55,6 +55,10 @@ class Settings:
     AI_MODEL: str = os.getenv("AI_MODEL", "gemini-2.5-flash")
     # Timeout (segundos) da chamada à IA — a resposta precisa ser rápida.
     AI_TIMEOUT: float = float(os.getenv("AI_TIMEOUT", "8"))
+    # O chat da Bruna pode fazer duas idas ao modelo (function calling), então
+    # tem um teto próprio, por chamada. Medido: ~1s quente, mas a API tem picos
+    # de dezenas de segundos — 12s derrubava turnos válidos para o fallback.
+    AI_CHAT_TIMEOUT: float = float(os.getenv("AI_CHAT_TIMEOUT", "25"))
 
     # Metadados
     APP_NAME: str = "MenteLeve API"

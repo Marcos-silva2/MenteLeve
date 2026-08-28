@@ -11,9 +11,9 @@
 
 ## ✨ Funcionalidades
 
-- **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai data/categoria, sugere subtarefas e um **lembrete preventivo**.
+- **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
 - **Subtarefas da IA fixadas** na tarefa-mãe (a sugestão vira filho da tarefa que você criou).
-- **Bruna — chat com IA:** uma assistente acolhedora para organizar a rotina e aliviar a sobrecarga.
+- **Bruna — chat com IA que age:** além de acolher e organizar, ela **cria e conclui tarefas pelo chat** ("cria uma consulta amanhã às 10h", "marca o mercado como feito").
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **🌸 Calendário menstrual** (opcional e 100% privado/local): fases do ciclo, período fértil, ovulação e previsão da próxima menstruação.
 - **Categorias, prioridade e data** por tarefa; micro-interações de recompensa ao concluir.
@@ -130,7 +130,7 @@ Sem a chave, o app continua funcionando em **modo fallback** (apenas normaliza o
 | `POST` | `/tasks/smart` | Analisa texto livre com IA (título, data, subtarefas, sugestão) |
 | `PUT` | `/tasks/{id}/complete` · `/uncomplete` | Concluir / reabrir |
 | `DELETE` | `/tasks/{id}` | Excluir (remove subtarefas) |
-| `POST` | `/ai/chat` | Conversa com a **Bruna** |
+| `POST` | `/ai/chat` | Conversa com a **Bruna** — pode criar/concluir tarefas (function calling) |
 
 Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend devolve um **token JWT** que o frontend envia no header **`Authorization: Bearer <token>`**. Limite freemium: 50 tarefas → `HTTP 402` (dispara o Paywall).
 

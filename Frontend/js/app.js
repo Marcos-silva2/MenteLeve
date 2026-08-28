@@ -2,7 +2,7 @@
    app.js — Bootstrap + mini-router
    ============================================================ */
 
-import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession } from './store.js';
+import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession, onSessionCleared } from './store.js';
 import { toast, renderNav } from './ui.js';
 import { wakeBackend } from './api.js';
 
@@ -11,7 +11,7 @@ import { renderLogin } from './views/login.js';
 import { renderRegister } from './views/register.js';
 import { renderHome } from './views/home.js';
 import { renderAgenda } from './views/agenda.js';
-import { renderChat } from './views/chat.js';
+import { renderChat, clearConversation } from './views/chat.js';
 import { renderConnections } from './views/connections.js';
 import { renderPaywall } from './views/paywall.js';
 import { renderProfile } from './views/profile.js';
@@ -115,6 +115,9 @@ function start() {
     toast('Sua sessão expirou. Entre novamente.');
     navigate('login');
   });
+
+  // Ao sair da conta, descarta a conversa com a Bruna (fica em memória na view).
+  onSessionCleared(clearConversation);
 
   // Assim que o usuário acessa o site, "acorda" o backend (Render free dorme).
   // Quando ele responder, revalida o token/sincroniza e re-renderiza a aba atual.

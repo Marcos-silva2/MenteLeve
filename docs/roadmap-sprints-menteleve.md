@@ -69,17 +69,54 @@ corrigido antes de existir cobrança real.**
 
 ---
 
-### 🧠 Sprint 2: Evolução das Tarefas e IA "Bruna"
+### 🧠 Sprint 2: Evolução das Tarefas e IA "Bruna" ✅ CONCLUÍDA
 **Foco:** Elevar o core do aplicativo, facilitando a entrada de dados e tornando a assistente virtual mais proativa e integrada às ações de gerenciamento.
 
-* **Aprimoramento da Criação de Atividades (Tarefas):**
-  * Melhorar o componente `taskSheet` no frontend para suportar mais campos de forma intuitiva [6].
-  * Otimizar o endpoint `/tasks/smart` para melhorar a extração de datas, categorias e subtarefas automáticas de linguagem natural utilizando o Gemini [5, 9].
-  * Implementar suporte inicial à sugestão automática de tarefas recorrentes baseadas no histórico da usuária [11].
-* **CRUD de Tarefas via IA Bruna:**
-  * Atualizar o endpoint `/ai/chat` [9] e a visão da Bruna (`views/chat.js`) [6] para permitir que comandos passados no chat (ex: *"Crie uma consulta médica para amanhã"* ou *"Marque como concluída a tarefa de mercado"*) executem ações reais de CRUD no banco de dados.
-  * Garantir que as interações com a IA sejam confiáveis, tratando falhas de timeout (`AI_TIMEOUT`) e provendo fallbacks amigáveis para quando a chave de API estiver indisponível ou limitada [8, 9].
-  * Reforçar a privacidade: implementar políticas claras no prompt de sistema da Bruna para que dados pessoais das usuárias nunca sejam expostos ou armazenados indevidamente.
+#### Parte A — Tarefas e extração de datas
+* [x] `taskSheet` com mais campos: **campo de horário** adicionado (antes o horário só
+  chegava via texto interpretado pela IA).
+* [x] `/tasks/smart` com extração melhor. **A causa raiz não era o prompt:** a data era
+  guardada como texto ("Amanhã", "Esta semana") e o calendário a reconvertia com regex.
+  Agora existem `due_date` (ISO) + `due_time`, e o rótulo amigável é derivado na exibição.
+* [ ] Tarefas recorrentes — **adiado**. O prompt pedia "Toda semana" ao modelo, mas o
+  schema não representa recorrência; isso gerava lixo por construção. Removido do prompt
+  (ele devolve a data da 1ª ocorrência). Recorrência real precisa de coluna própria.
+
+**Dois bugs corrigidos de quebra:**
+1. A tarefa "andava" no calendário — salva como "Amanhã", era reinterpretada todo dia,
+   caminhando um dia para frente e **nunca ficando atrasada**.
+2. "Esta semana" (um dos três atalhos do formulário) nunca aparecia no calendário.
+
+**Erro de fuso evitado:** o Render roda em UTC; entre 21h e 00h no Brasil o servidor já
+acha que é amanhã, e "amanhã" viraria +2 dias. O cliente passa a enviar a data local.
+
+#### Parte B — A Bruna executa ações
+* [x] `/ai/chat` com **function calling** do Gemini: `criar_tarefa` e `concluir_tarefa`.
+  Excluir ficou de fora (destrutivo, com identificação por texto aproximado).
+  **O modelo não escolhe id** — informa o título e o servidor faz o casamento
+  (ignorando acentos/caixa) contra as tarefas da própria usuária. Com mais de uma
+  candidata, ela pergunta em vez de escolher.
+* [x] Confiabilidade: `AI_CHAT_TIMEOUT` próprio (duas idas ao modelo), fallback gentil,
+  e **checagem de duplicata** — o timeout do cliente não cancela a requisição, então
+  a usuária podia ver "falhei", repetir o pedido e ganhar tarefa duplicada.
+* [x] Privacidade no prompt: não pedir/repetir dados de saúde; nunca mencionar o
+  calendário menstrual (que é 100% local e nunca chega ao backend).
+
+**Três bugs pré-existentes corrigidos junto** (sem eles o recurso nasceria quebrado):
+1. A Bruna travava após ~20 trocas — `chat.js` enviava o histórico inteiro e o backend
+   aceita no máximo 40 mensagens; acima disso, 422 e queda permanente nas frases prontas.
+2. Sincronizar apagava tarefas criadas offline e rebaixava prioridade "baixa" para
+   "média" (o backend não persiste prioridade). Agora é atualização por id.
+3. O histórico do chat sobrevivia ao logout — num aparelho compartilhado, a próxima
+   pessoa herdava a conversa da anterior.
+
+**Validação com Gemini real:** 7/7 nos casos de intenção (cria quando pedem para criar,
+conclui quando dizem que terminaram, e **não age** em desabafo/conversa).
+
+**⚠️ Achado operacional:** a chave do Gemini é do **tier gratuito (~20 req/min)** e a
+cota estoura fácil. Pior: o **429 era engolido em silêncio** — a usuária via "estou com
+um probleminha para pensar" e não havia como diagnosticar. Agora o motivo é registrado
+em log. Avaliar um provedor de fallback (Groq tem 30/min e 1000/dia grátis) ou tier pago.
 
 ---
 
