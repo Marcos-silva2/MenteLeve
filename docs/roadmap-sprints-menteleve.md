@@ -120,16 +120,46 @@ em log. Avaliar um provedor de fallback (Groq tem 30/min e 1000/dia grátis) ou 
 
 ---
 
-### 📱 Sprint 3: Responsividade e Refinamento Visual
-**Foco:** Deixar a interface do PWA fluida, moderna, esteticamente agradável e perfeitamente ajustada a qualquer tamanho de tela.
+### 📱 Sprint 3: Responsividade e Refinamento Visual ✅ CONCLUÍDA
+**Foco:** Deixar a interface do PWA fluida, moderna e ajustada a qualquer tamanho de tela.
 
-* **Responsividade Multiplataforma (Mobile & Desktop):**
-  * Ajustar os arquivos do frontend (`index.html` e componentes) utilizando classes utilitárias responsivas do Tailwind CSS (`sm:`, `md:`, `lg:`) para garantir excelente visualização tanto em celulares quanto em desktops [6].
-  * Otimizar o painel lateral (shell do app) e a visualização da agenda em calendário mensal navegável para telas menores [5, 6].
-* **Melhorias Visuais, Imagens e Animações:**
-  * Padronizar o Design System **Bordeaux Pink** [6] em todas as telas (Onboarding, Agenda, Perfil, Chat) garantindo consistência com a paleta `#fff0f3` (fundo), `#590d22` (estrutura) e `#ff4d6d` (destaque) [6].
-  * Substituir ou otimizar imagens e ilustrações da pasta `assets/` para carregamento rápido no PWA (usando formatos modernos como SVG ou WebP) [6].
-  * Implementar transições suaves via CSS (`css/styles.css`) ao abrir o modal de tarefas, alternar entre visões do mini-router e interagir com o chat [6].
+* **Responsividade Multiplataforma:**
+  * [x] **Vão de tablet fechado.** `.content-wrap` só tinha `max-width` dentro de
+    `@media (min-width: 1024px)` — abaixo disso não havia limite nenhum, e entre 640px
+    e 1024px (tablet, celular deitado) o conteúdo **esticava de ponta a ponta**, com os
+    cartões de tarefa larguíssimos e o texto perdido à esquerda. Agora a coluna é
+    centralizada com largura confortável, e o respiro lateral cresce a partir de 640px.
+    Correção concentrada em `css/styles.css`; **nenhuma view precisou mudar**, porque
+    todas as telas internas já usavam `.content-wrap`.
+  * [x] Agenda/calendário validados nas três larguras.
+* **Melhorias Visuais e Imagens:**
+  * [x] **Imagens otimizadas — o ganho real da sprint.** `assets/` tinha 1,2 MB e o
+    Service Worker baixava tudo na instalação. Várias imagens eram muito maiores que o
+    tamanho exibido (`ML.png` era 812×626 para aparecer com 36px de altura).
+    Convertidas para **WebP** e redimensionadas ao uso real:
+
+    | Arquivo | Antes | Depois |
+    |---|---|---|
+    | `mulher-onboard` | 585 KB | **47 KB** (WebP) |
+    | `isotipo` | 113 KB | **27 KB** (WebP) |
+    | `ML` | 98 KB | **7 KB** (WebP) |
+    | `icon-192.png` | 51 KB | 44 KB (PNG mantido — manifest) |
+
+    **Precache do PWA: 1,2 MB → ~125 KB.** O `icon-512.png` continua PNG (compatibilidade
+    do manifest) mas saiu do precache: só o manifest o usa, na instalação. O favicon e o
+    avatar do perfil (44px) passaram a usar o ícone de 192px em vez do de 512px.
+  * [ ] ~~Padronizar o Design System~~ — **não era necessário.** Auditoria mostrou que os
+    valores hex espalhados pelos JS **já são exatamente os tokens** da paleta; os únicos
+    destoantes são as cores da logo do Google, legítimas. Nada a corrigir.
+  * [ ] Transições/animações novas — não feitas. O CSS já tem animações e respeita
+    `prefers-reduced-motion`; sem problema concreto identificado, seria mudança
+    puramente estética.
+
+**Validação visual:** montado um harness com `puppeteer-core` dirigindo o Chrome já
+instalado (sem baixar navegador, fora do repositório) — 24 capturas por rodada, em
+390px / 768px / 1280px, em todas as telas. Comparação antes/depois confirmou: tablet
+corrigido, **desktop e celular byte a byte idênticos** (zero regressão), nenhuma imagem
+quebrada e nenhuma requisição com erro.
 
 ---
 

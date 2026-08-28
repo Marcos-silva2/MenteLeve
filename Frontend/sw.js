@@ -2,15 +2,17 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v30';
+const CACHE = 'menteleve-v31';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
-  './assets/mulher-onboard.png',
-  './assets/isotipo.png',
-  './assets/ML.png',
-  './assets/icon-512.png',
+  './assets/mulher-onboard.webp',
+  './assets/isotipo.webp',
+  './assets/ML.webp',
+  './assets/icon-192.png',
+  // icon-512.png fica FORA do precache de propósito: só o manifest o usa (na
+  // instalação), e são 288 KB que todo mundo baixaria à toa.
   './js/app.js',
   './js/store.js',
   './js/api.js',

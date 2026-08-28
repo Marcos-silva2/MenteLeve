@@ -122,7 +122,7 @@ export function renderOnboarding(app) {
 function artWoman() {
   // Ilustração estática (mulher pensativa + balões), sem animação.
   return `
-  <img src="assets/mulher-onboard.png" alt="Mulher pensativa com tarefas ao redor"
+  <img src="assets/mulher-onboard.webp" alt="Mulher pensativa com tarefas ao redor"
        class="h-[44vh] max-h-[400px] w-auto max-w-full object-contain select-none pointer-events-none mx-auto"
        decoding="async" fetchpriority="high" draggable="false" />`;
 }

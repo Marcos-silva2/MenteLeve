@@ -64,7 +64,7 @@ export function renderProfile(app) {
           ${installed ? '' : `
           <!-- Baixar / instalar o app (PWA) -->
           <div id="install-card" class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4 mt-4 flex items-center gap-3">
-            <img src="assets/icon-512.png" alt="" class="w-11 h-11 rounded-xl shrink-0 object-cover" draggable="false" />
+            <img src="assets/icon-192.png" alt="" class="w-11 h-11 rounded-xl shrink-0 object-cover" draggable="false" />
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-bordeaux-900 text-sm">Instalar o MenteLeve</p>
               <p class="text-xs text-bordeaux-700">Tenha o app na tela inicial, funciona offline.</p>

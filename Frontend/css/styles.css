@@ -81,6 +81,26 @@ body {
 }
 .bottomnav:empty { display: none; }
 
+/* ---------- Coluna de conteúdo ----------
+   O layout foi desenhado para telas estreitas. Sem um limite de largura, na
+   faixa entre celular e desktop (tablet, celular deitado) o conteúdo esticava
+   de ponta a ponta: os cartões de tarefa ficavam larguíssimos com o texto
+   perdido à esquerda. Aqui a coluna fica centralizada e com largura confortável;
+   o desktop (≥1024px) amplia esse limite mais abaixo. */
+.content-wrap {
+  width: 100%;
+  max-width: 600px;
+  margin-inline: auto;
+}
+
+/* Acima de 640px o respiro lateral cresce junto com a tela. */
+@media (min-width: 640px) {
+  .app-screen {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
 /* ============================================================
    Breakpoint Desktop (≥ 1024px)
    ============================================================ */

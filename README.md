@@ -16,9 +16,9 @@
 - **Bruna — chat com IA que age:** além de acolher e organizar, ela **cria e conclui tarefas pelo chat** ("cria uma consulta amanhã às 10h", "marca o mercado como feito").
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **🌸 Calendário menstrual** (opcional e 100% privado/local): fases do ciclo, período fértil, ovulação e previsão da próxima menstruação.
-- **Categorias, prioridade e data** por tarefa; micro-interações de recompensa ao concluir.
+- **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Rede de apoio** (compartilhar a carga) e **Paywall Premium** (modelo freemium).
-- **PWA instalável** e com suporte offline (Service Worker).
+- **PWA instalável** e com suporte offline (Service Worker) — ~125 KB de precache.
 
 ---
 
@@ -42,15 +42,16 @@ MenteLeve/
 ├── Frontend/                 # PWA (publicado na Vercel)
 │   ├── index.html            # shell + config do Tailwind
 │   ├── manifest.json · sw.js # PWA (instalação + cache offline)
-│   ├── css/styles.css        # Design System + animações
-│   ├── assets/               # ícones, ilustrações
+│   ├── css/styles.css        # Design System + layout responsivo + animações
+│   ├── assets/               # ilustrações (WebP) + ícones do PWA (PNG)
 │   └── js/
 │       ├── app.js            # bootstrap + mini-router
 │       ├── store.js          # estado local (localStorage) + sync
-│       ├── api.js            # cliente REST + IA + heurística de fallback
+│       ├── api.js            # cliente REST (JWT) + heurística de fallback
+│       ├── dates.js          # prazo estruturado (resolução + exibição)
 │       ├── ui.js             # helpers, ícones, navegação
 │       ├── components/       # taskSheet (nova tarefa + Aha Moment)
-│       └── views/            # onboarding, login, home, agenda, chat (Bruna), connections, paywall, profile
+│       └── views/            # onboarding, login, register, home, agenda, chat (Bruna), connections, paywall, profile
 │
 ├── Backend/                  # API (publicada no Render)
 │   ├── app/
@@ -162,12 +163,20 @@ Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [
 
 ## 🗺️ Roadmap
 
-Migração para Supabase + Vercel **concluída** — histórico completo em [`docs/Roadmap.md`](docs/Roadmap.md).
+**Concluído:**
+- Migração para Supabase + Vercel — [`docs/Roadmap.md`](docs/Roadmap.md)
+- Sprint 1: autenticação real (JWT + senha com bcrypt)
+- Sprint 2: prazo estruturado (data/horário) e a **Bruna executando ações** pelo chat
+- Sprint 3: responsividade em tablet e imagens otimizadas (precache −90%)
 
-Próximos passos:
-- [ ] Sincronização offline → online das tarefas criadas localmente
+Histórico detalhado das sprints em [`docs/roadmap-sprints-menteleve.md`](docs/roadmap-sprints-menteleve.md).
+
+**Próximos passos:**
+- [ ] Sincronização offline → online das tarefas criadas localmente (não há fila de escrita)
 - [ ] OAuth real (Apple / Google) e notificações da rede de apoio
-- [ ] Recorrência automática de tarefas (sugerida pela IA)
+- [ ] Recorrência de tarefas (precisa de coluna própria — ver Sprint 2)
+- [ ] **Corrigir antes de haver cobrança real:** `POST /auth/me/premium` permite que
+      qualquer usuária autenticada se conceda Premium
 
 ---
 

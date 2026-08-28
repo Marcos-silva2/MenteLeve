@@ -13,42 +13,81 @@ python -m http.server 5500
 
 Depois acesse **http://127.0.0.1:5500** no navegador (ative o modo dispositivo móvel no DevTools para a experiência completa).
 
+`API_BASE` (em `js/api.js`) detecta o ambiente sozinho: `localhost` em dev, Render em produção.
+
 ## Estrutura
 
 ```
 Frontend/
 ├── index.html              # shell + config do Tailwind (cores Bordeaux Pink)
 ├── manifest.json           # PWA
-├── sw.js                   # service worker (cache offline)
-├── assets/                 # ícones do PWA
-├── css/styles.css          # tokens, animações, moldura de device
+├── sw.js                   # service worker (precache + cache offline)
+├── assets/                 # ilustrações (WebP) + ícones do PWA (PNG)
+├── css/styles.css          # tokens, layout responsivo, animações
 └── js/
     ├── app.js              # bootstrap + mini-router (deep-link por hash)
-    ├── store.js            # estado + localStorage + dados de exemplo
-    ├── api.js              # comunicação com o backend (mock de IA enquanto não há backend)
+    ├── store.js            # estado + localStorage + sincronização
+    ├── api.js              # cliente REST (JWT) + heurística local de fallback
+    ├── dates.js            # prazo estruturado: resolução e exibição de datas
     ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
     ├── components/
     │   └── taskSheet.js    # Bottom Sheet de nova tarefa + modal "Aha Moment" da IA
     └── views/
-        ├── onboarding.js   # Tela 1 — carrossel 3 slides
-        ├── login.js        # Tela 2 — autenticação (MVP: email no localStorage)
-        ├── home.js         # Tela 3 — dashboard "Minha Mente"
-        ├── agenda.js       # Tela 5 — calendário + timeline
-        ├── connections.js  # Tela 6 — rede de apoio (estático)
-        ├── paywall.js      # Tela 7 — premium (assinatura simulada)
+        ├── onboarding.js   # carrossel de 3 slides
+        ├── login.js        # entrar (e-mail + senha)
+        ├── register.js     # criar conta
+        ├── home.js         # dashboard "Minha Mente"
+        ├── agenda.js       # calendário mensal + ciclo menstrual (local)
+        ├── chat.js         # Bruna (IA)
+        ├── connections.js  # rede de apoio (estático)
+        ├── paywall.js      # premium (assinatura simulada)
         └── profile.js      # perfil / conta
 ```
 
-## Integração com o backend
+## Autenticação
 
-Em `js/api.js`, ajuste `API_BASE` para a URL do backend (local: `http://localhost:8000`; produção: URL do Render).
-Enquanto o backend não responde em `/health`, a quebra de tarefas pela IA usa um **mock local** (heurística por palavra-chave), para o frontend funcionar de forma independente.
+E-mail + senha, com token **JWT**. O token fica no `localStorage` e vai em
+`Authorization: Bearer` a cada chamada. No boot, `store.restoreSession()` revalida o
+token em `/auth/me`; se o backend responder **401**, a sessão é limpa e o app volta
+para o login (ver `api.onSessionExpired`).
 
-Endpoints esperados do backend:
-- `GET  /health` — ping
-- `POST /tasks/smart` — recebe `{ text }`, retorna `{ title, category, due, subtasks, suggestion }`
+## Datas das tarefas
 
-## Notas do MVP
-- Login social (Apple/Google) é **simulado** — sem OAuth real ainda.
-- Conexões e Paywall têm visual completo, mas as ações são simuladas (toast/assinatura fake).
+O prazo é **estruturado**: `dueDate` (`AAAA-MM-DD`) + `dueTime` (`HH:MM`). O texto
+amigável ("Hoje", "Amanhã • 10:00") é **derivado na exibição** por `dates.js::formatDue`
+— nunca armazenado.
+
+> Guardar o rótulo criava duas fontes de verdade: uma tarefa salva como "Amanhã"
+> continuava exibindo "Amanhã" para sempre e **andava um dia no calendário a cada dia
+> que passava**, sem nunca ficar atrasada. O campo `due` (texto livre) só permanece
+> como fallback de exibição para tarefas criadas antes dessa mudança.
+
+Cuidado ao mexer: `new Date('2026-08-27')` é interpretado como meia-noite **UTC** e
+volta um dia no Brasil. Use `dates.js::dateFromKey` / `keyOf`, nunca o construtor direto.
+
+## Modo offline
+
+O app é *local-first*. Sem backend, `store.login()` entra em modo local com tarefas de
+demonstração, e `dates.js::resolveDue` resolve as datas no próprio cliente — senão quem
+está sem conexão não veria as tarefas no calendário (não existe fila de sincronização).
+
+Ao sincronizar, o store faz **upsert por id** (`store.upsertTasks`), nunca substitui a
+lista inteira: isso apagaria tarefas criadas offline e rebaixaria a prioridade, que o
+backend não persiste.
+
+## Imagens
+
+Ilustrações e logo em **WebP**, dimensionadas para o tamanho real de exibição. Os ícones
+do `manifest.json` continuam **PNG** (compatibilidade entre plataformas).
+
+O `icon-512.png` está **fora do precache** do Service Worker de propósito — só o manifest
+o usa, na instalação. Ao adicionar um arquivo novo, lembre de incluí-lo em `ASSETS`
+(`sw.js`) **e incrementar o `CACHE`**, senão o modo offline fica sem ele.
+
+## Notas
+
+- Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.
+- Conexões e Paywall têm visual completo, mas as ações são simuladas.
+- O **calendário menstrual é 100% local** (`localStorage`), nunca vai ao backend — e
+  sobrevive à expiração da sessão, por não pertencer à conta.
 - Estado persiste em `localStorage` (chave `menteleve.state.v1`).

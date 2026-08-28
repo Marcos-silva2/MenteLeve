@@ -1,5 +1,12 @@
 # 🏃 Sprint de 3 Dias: MVP MenteLeve
 
+> ⚠️ **Documento histórico — não siga as instruções técnicas daqui.**
+> Registra o plano do MVP original. Várias decisões já foram substituídas:
+> SQLite → **PostgreSQL (Supabase)**, GitHub Pages → **Vercel**, e o disco
+> persistente no Render **não é mais usado** (seguir aquilo hoje daria errado).
+> Para o estado atual, veja [`../README.md`](../README.md),
+> [`Roadmap.md`](Roadmap.md) e [`roadmap-sprints-menteleve.md`](roadmap-sprints-menteleve.md).
+
 Como temos apenas 3 dias para lançar o MVP, precisamos ser implacáveis com o escopo. A regra de ouro aqui é: **Focar no "Aha Moment"** (A criação mágica de tarefas com IA) e deixar telas secundárias (como Configurações e Paywall completo) apenas como interfaces visuais (mockadas) por enquanto.
 
 ---

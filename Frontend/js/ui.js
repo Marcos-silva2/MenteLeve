@@ -34,7 +34,7 @@ export const icons = {
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 2.5"/><path d="M12 17h.01"/></svg>',
   logo: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 2C8 2 5 5 5 9c0 3.5 2.5 5.8 4.5 7.5L12 22l2.5-5.5C16.5 14.8 19 12.5 19 9c0-4-3-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>',
   // Isotipo oficial da marca (lótus "ML") — substitui o antigo pin de localização.
-  logoImg: '<img src="assets/ML.png" alt="MenteLeve" class="h-9 w-auto object-contain select-none" draggable="false" />',
+  logoImg: '<img src="assets/ML.webp" alt="MenteLeve" class="h-9 w-auto object-contain select-none" draggable="false" />',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.7L3 21l1.8-5.8A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M3.4 20.4l17.4-7.5c.9-.4.9-1.6 0-2L3.4 3.6c-.7-.3-1.5.3-1.4 1.1L3.2 11l9 1-9 1-1.2 5.3c-.1.8.7 1.4 1.4 1.1z"/></svg>',
 };
@@ -86,7 +86,7 @@ export function renderNav(active, onNavigate, opts = {}) {
   side.innerHTML = `
     <div class="flex items-center gap-2 px-2 mb-8">
       <span class="grid place-items-center w-10 h-10 rounded-xl bg-white shadow-fab">
-        <img src="assets/ML.png" alt="" class="h-7 w-auto select-none" draggable="false" />
+        <img src="assets/ML.webp" alt="" class="h-7 w-auto select-none" draggable="false" />
       </span>
       <span class="font-serif font-bold text-xl text-white">MenteLeve</span>
     </div>
