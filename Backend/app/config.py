@@ -60,6 +60,13 @@ class Settings:
     # de dezenas de segundos — 12s derrubava turnos válidos para o fallback.
     AI_CHAT_TIMEOUT: float = float(os.getenv("AI_CHAT_TIMEOUT", "25"))
 
+    # --- IA de reserva (Groq) ---
+    # Usada quando o Gemini falha ou estoura a cota (429). O plano gratuito do
+    # Gemini permite ~20 req/min, o que é fácil de atingir.
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    # Modelos disponíveis variam por conta — confira em /openai/v1/models.
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
     # Metadados
     APP_NAME: str = "MenteLeve API"
     APP_VERSION: str = "0.3.0"
@@ -67,6 +74,10 @@ class Settings:
     @property
     def ai_enabled(self) -> bool:
         return bool(self.GOOGLE_AI_API_KEY.strip())
+
+    @property
+    def groq_enabled(self) -> bool:
+        return bool(self.GROQ_API_KEY.strip())
 
     @property
     def secret_key_is_ephemeral(self) -> bool:

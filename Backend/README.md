@@ -106,9 +106,34 @@ Pontos de projeto que importam ao mexer aqui (`routers/ai_chat.py`):
 - **Limite gratuito vira resultado de função**, não `HTTPException(402)` — um 402 aqui
   abortaria a resposta e a usuária perderia a fala da Bruna.
 
-> ⚠️ O plano gratuito do Gemini limita a **~20 requisições/minuto**. Ao estourar, a API
-> devolve **429** e o app cai no fallback ("estou com um probleminha para pensar"). O
-> motivo agora aparece no log do Render. Avalie um provedor de reserva ou o tier pago.
+## IA: provedor principal e reserva
+
+O plano gratuito do Gemini limita a **~20 requisições/minuto**. Ao estourar, ele devolve
+**429** — e antes o app simplesmente caía no fallback ("estou com um probleminha para
+pensar") sem nenhum rastro. Hoje o motivo aparece no log e existe **reserva automática**:
+
+```
+Gemini (GOOGLE_AI_API_KEY)
+   └─ falhou/cota estourada/resposta vazia → Groq (GROQ_API_KEY)
+        └─ também falhou → fallback gentil de texto
+```
+
+Vale para o chat da Bruna **e** para o `/tasks/smart`. A troca é transparente: os dois
+provedores são normalizados para o mesmo formato interno de chamada de função
+(`{name, args, id}`) em `ai.py`.
+
+Detalhes que economizam depuração:
+- O Groq usa o padrão **OpenAI** (`messages`, `tools[].function`, `tool_calls[]`), e o
+  Gemini usa o seu próprio (`contents`, `function_declarations`, `functionCall`). Os
+  adaptadores são `_gemini_chat` / `_groq_chat`.
+- O Groq exige um **`User-Agent` explícito**: sem ele, o Cloudflare bloqueia o
+  `Python-urllib/3.x` padrão com **HTTP 403 (erro 1010)** — que parece problema de
+  chave, mas não é.
+- Os **modelos disponíveis variam por conta**. Consulte
+  `https://api.groq.com/openai/v1/models` com a sua chave antes de fixar `GROQ_MODEL`.
+
+> ⚠️ O tier gratuito dos dois provedores permite uso do conteúdo para treinamento. Para
+> um app de rotina/saúde feminina, considere o tier pago.
 
 ## Freemium
 Usuários não-Premium têm limite de **50 tarefas** (`FREE_TASK_LIMIT`). Ao exceder,
