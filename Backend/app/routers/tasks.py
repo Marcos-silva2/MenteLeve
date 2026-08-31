@@ -68,9 +68,12 @@ def analyze_smart_task(
     result = ai.analyze(data.text, today=data.today)
 
     if result is None:
+        # Fallback do servidor: só normaliza o título. `ai=False` avisa o cliente
+        # de que ninguém analisou nada, para que ele aplique a heurística local
+        # em vez de aceitar "casa, sem data" como se fosse um palpite.
         title = data.text.strip()
         title = title[0].upper() + title[1:] if title else title
-        return schemas.SmartTaskOut(title=title, category="casa")
+        return schemas.SmartTaskOut(title=title, category="casa", ai=False)
 
     return schemas.SmartTaskOut(
         title=result["title"],
@@ -80,6 +83,7 @@ def analyze_smart_task(
         due=result["due"],
         subtasks=result["subtasks"],
         suggestion=result["suggestion"],
+        ai=True,
     )
 
 

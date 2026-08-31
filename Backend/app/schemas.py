@@ -149,3 +149,9 @@ class SmartTaskOut(BaseModel):
     subtasks: list[str] = []
     suggestion: AiSuggestion | None = None
     task: TaskOut | None = None  # a tarefa principal persistida
+    # A IA respondeu de verdade, ou isto é o fallback do servidor?
+    # Sem este campo a resposta degradada (título normalizado, categoria "casa",
+    # sem data) chega ao frontend indistinguível de uma análise real — e o
+    # cliente, vendo um objeto válido, deixa de usar a própria heurística, que
+    # ao menos extrai data e categoria do texto. Ver Frontend/js/api.js.
+    ai: bool = True

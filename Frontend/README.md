@@ -79,22 +79,30 @@ backend não persiste.
 ## Som
 
 `js/sound.js` **sintetiza** os sons pela Web Audio API — não há arquivos de áudio.
-Motivo: o precache do PWA é enxuto (~125 KB); anexar `.mp3` andaria para trás.
+Motivo: o precache do PWA é enxuto (264 KB em disco, ~149 KB transferidos); anexar
+`.mp3` andaria para trás. O Perfil oferece três níveis — **Todos os sons /
+Só conclusões / Silencioso** — e cada som pertence a uma família (`recompensa` ou
+`ambiente`) que o nível libera ou não.
 Sintetizar custa zero byte e não pode dar 404 no modo offline.
 
 O `AudioContext` nasce suspenso até um gesto da usuária (política de autoplay), então é
 criado preguiçosamente e retomado com `resume()`. **Falha de áudio nunca pode derrubar
 a ação que o disparou** — tudo é tolerante a erro.
 
-Ligado por padrão; desligável no Perfil. A preferência (`soundEnabled`) é do **aparelho**,
-não da conta: sobrevive ao logout, assim como os dados do ciclo.
+No nível **Todos os sons** por padrão. A preferência (`soundLevel`) é do **aparelho**,
+não da conta: sobrevive ao logout, assim como os dados do ciclo. Estados gravados pela
+versão do interruptor booleano migram na leitura — quem tinha desligado fica em
+`silencio`.
 
 ## Imagens
 
-Ilustrações e logo em **WebP**, dimensionadas para o tamanho real de exibição. Os ícones
-do `manifest.json` continuam **PNG** (compatibilidade entre plataformas).
+Ilustrações, logo e ícones em **WebP**, dimensionados para o tamanho real de exibição.
+O `manifest.json` lista o WebP primeiro e mantém o **PNG como fallback** para qualquer
+plataforma que não o aceite.
 
-O `icon-512.png` está **fora do precache** do Service Worker de propósito — só o manifest
+Os **PNG** dos ícones estão **fora do precache** do Service Worker de propósito. O
+manifest oferece WebP primeiro (`icon-512.webp`, 14 KB) com o PNG como fallback, e é
+o `icon-192.webp` (4 KB) que entra no precache. O PNG de 512 — só o manifest
 o usa, na instalação. Ao adicionar um arquivo novo, lembre de incluí-lo em `ASSETS`
 (`sw.js`) **e incrementar o `CACHE`**, senão o modo offline fica sem ele.
 

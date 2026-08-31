@@ -46,8 +46,9 @@ const defaultState = () => ({
   userId: null,      // id numérico do backend (null = só local)
   token: null,       // JWT de acesso (null = sessão não autenticada)
   isPremium: false,
-  soundEnabled: true, // feedback sonoro (desligável no Perfil)
+  soundLevel: 'tudo',  // 'tudo' | 'conclusoes' | 'silencio' — ver SOUND_LEVELS
   tasks: [],
+  pending: [],       // fila de escritas que ainda não subiram (ver "Fila offline")
   cycle: defaultCycle(),
 });
 
@@ -65,9 +66,28 @@ let state = load();
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultState(), ...JSON.parse(raw) };
+    if (!raw) return defaultState();
+    const salvo = JSON.parse(raw);
+    return migrar({ ...defaultState(), ...salvo }, salvo);
   } catch (_) { /* ignore */ }
   return defaultState();
+}
+
+/**
+ * Ajusta estados salvos por versões anteriores do app.
+ *
+ * `salvo` é o objeto **cru** do localStorage, e é ele que decide. No estado já
+ * mesclado todo campo novo aparece com o valor padrão, então perguntar "está
+ * faltando?" ali sempre responde que não — e a migração nunca rodaria.
+ */
+function migrar(s, salvo) {
+  // O interruptor de som virou nível (tudo / conclusões / silêncio). Quem já
+  // tinha desligado continua no silêncio; quem não mexeu, ouve tudo.
+  if (salvo.soundLevel == null && typeof salvo.soundEnabled === 'boolean') {
+    s.soundLevel = salvo.soundEnabled ? 'tudo' : 'silencio';
+  }
+  delete s.soundEnabled;
+  return s;
 }
 
 function persist() {
@@ -89,6 +109,16 @@ export const getUser = () => state.user;
 export const getUserId = () => state.userId;
 /** True quando existe um token salvo (sessão a ser revalidada no boot). */
 export const hasSession = () => !!state.token;
+
+// Sincronização de abertura: começa ligada quando há sessão salva, porque o
+// boot vai mesmo buscar as tarefas no servidor. É o que permite à Home mostrar
+// um esqueleto em vez de "sua mente está limpa" para quem, na verdade, ainda
+// não recebeu a própria lista. `endBootSync()` é chamado pelo app.js quando a
+// tentativa termina — inclusive quando falha, senão o esqueleto ficaria para
+// sempre em quem está offline.
+let _bootSyncing = !!state.token;
+export const isSyncing = () => _bootSyncing;
+export function endBootSync() { _bootSyncing = false; }
 export const isOnboardingSeen = () => state.onboardingSeen;
 export const isPremium = () => state.isPremium;
 export const getTasks = () => state.tasks;
@@ -115,12 +145,22 @@ function applySession(user) {
 
 /** Baixa as tarefas do servidor (fonte de verdade) após autenticar. */
 async function hydrateTasks({ onlyIfNotEmpty = false } = {}) {
+  // Sobe o que ficou pendente ANTES de ler: o que subir agora volta na própria
+  // resposta do servidor, sem virar duplicata.
+  await flushPending();
+
   const remote = await api.apiListTasks();
   if (!remote) return;
   // No boot, só substitui se o servidor tiver tarefas — evita apagar o que foi
   // criado localmente enquanto o backend estava offline.
   if (onlyIfNotEmpty && !remote.length) return;
-  state.tasks = remote;
+
+  // O que ainda está na fila não existe (ou não está atualizado) no servidor.
+  // Substituir a lista pela resposta remota apagaria justamente essas tarefas.
+  const naFila = pendingIds();
+  const locais = state.tasks.filter((t) => naFila.has(t.id));
+  const mantidos = new Set(locais.map((t) => t.id));
+  state.tasks = [...locais, ...remote.filter((t) => !mantidos.has(t.id))];
   persist();
 }
 
@@ -196,6 +236,12 @@ export function initSession(onExpired) {
     clearSession();
     if (onExpired) onExpired();
   });
+  // Conexão de volta: sobe o que ficou para trás. O evento `online` do navegador
+  // só diz que existe rede, não que o backend respondeu — por isso o flush
+  // revalida o /health antes de tentar (e o Render pode estar em cold start).
+  try {
+    window.addEventListener('online', () => { flushPending(); });
+  } catch (_) { /* ignore */ }
 }
 
 /**
@@ -204,14 +250,15 @@ export function initSession(onExpired) {
  * - `cycle`: os dados do ciclo menstrual são 100% locais e nunca vão ao
  *   backend. Apagá-los numa expiração de token (que acontece sozinha, sem
  *   ação da usuária) perderia o histórico para sempre.
- * - `soundEnabled`: preferência do aparelho, não da conta.
+ * - `soundLevel`: preferência do aparelho, não da conta.
  */
 function clearSession() {
-  const { onboardingSeen, cycle, soundEnabled } = state;
+  _bootSyncing = false;   // sem sessão não há sync pendente: nada de esqueleto
+  const { onboardingSeen, cycle, soundLevel } = state;
   state = defaultState();
   state.onboardingSeen = onboardingSeen;
   state.cycle = cycle;
-  state.soundEnabled = soundEnabled;
+  state.soundLevel = soundLevel;
   api.setAuthToken(null);
   persist();
   // A conversa da Bruna vive na memória da view. Registrada via callback para
@@ -229,6 +276,118 @@ export function onSessionCleared(fn) {
 
 export function logout() {
   clearSession();
+}
+
+// ============================================================
+// Fila de escrita offline → online
+//
+// Antes, uma tarefa criada sem conexão ficava só no localStorage e nunca subia:
+// perda de dado silenciosa, no app cujo argumento é não deixar nada cair.
+//
+// Cada mutação que falha por falta de rede entra aqui e é reenviada quando a
+// conexão volta. Três regras sustentam a corretude:
+//
+//   1. A fila é FIFO e para no primeiro erro. Assim o `create` de uma tarefa
+//      sempre sobe antes do `done` dela.
+//   2. Ao subir um `create`, o id local ("id-xxx") é trocado pelo id do servidor
+//      em TODO lugar: na tarefa, nas subtarefas que a apontam e nas operações
+//      que ainda estão na fila. É o que impede a mesma tarefa de ser criada duas
+//      vezes — o sync casa por id.
+//   3. Só existe uma operação por tarefa e por tipo. Alternar "concluída" cinco
+//      vezes offline manda um estado, não cinco.
+// ============================================================
+
+// Uma operação rejeitada pelo servidor (uma tarefa já apagada lá, por exemplo)
+// nunca teria sucesso e travaria a fila para sempre. Após este número de
+// tentativas ela é descartada e a fila segue.
+const PENDING_MAX_TRIES = 5;
+
+let _flushing = false;
+
+/** Ids de tarefas com alguma operação na fila. */
+function pendingIds() {
+  return new Set((state.pending || []).map((op) => op.id));
+}
+
+/** Quantas escritas aguardam conexão (para exibir na interface, se preciso). */
+export const pendingCount = () => (state.pending || []).length;
+
+function enqueue(op) {
+  if (!state.pending) state.pending = [];
+  if (op.kind === 'delete') {
+    const criacaoPendente = state.pending.some((p) => p.id === op.id && p.kind === 'create');
+    // Nunca chegou ao servidor: some com tudo e não manda nada.
+    state.pending = state.pending.filter((p) => p.id !== op.id);
+    if (criacaoPendente) { persist(); return; }
+  } else {
+    // Um `create` e um `done` por tarefa; o mais recente vence.
+    state.pending = state.pending.filter((p) => !(p.id === op.id && p.kind === op.kind));
+  }
+  state.pending.push({ ...op, tries: 0 });
+  persist();
+}
+
+/** Troca o id local pelo id do servidor em toda parte que o referencia. */
+function remapId(localId, serverId) {
+  for (const t of state.tasks) {
+    if (t.parentId === localId) t.parentId = serverId;
+  }
+  for (const op of state.pending) {
+    if (op.id === localId) op.id = serverId;
+  }
+}
+
+/** Executa uma operação da fila. `false` significa "tente de novo depois". */
+async function applyPending(op) {
+  if (op.kind === 'create') {
+    const idx = state.tasks.findIndex((t) => t.id === op.id);
+    if (idx < 0) return true;                    // apagada localmente: nada a subir
+    const local = state.tasks[idx];
+    const saved = await api.apiCreateTask(local);
+    if (!saved) return false;
+    // O backend ainda não persiste a prioridade; preserva o valor local.
+    state.tasks[idx] = { ...saved, priority: local.priority };
+    remapId(op.id, saved.id);
+    return true;
+  }
+
+  if (isLocalId(op.id)) return true;             // o `create` sumiu; não há o que atualizar
+
+  if (op.kind === 'done') return !!(await api.apiSetDone(op.id, op.done));
+  if (op.kind === 'delete') return await api.apiDeleteTask(op.id);
+  return true;
+}
+
+/**
+ * Reenvia a fila. Chamada no boot, ao voltar a conexão e antes de hidratar.
+ * Silenciosa por natureza: falhar aqui apenas adia, nunca quebra a interface.
+ */
+export async function flushPending() {
+  if (_flushing) return false;
+  if (state.userId == null || !(state.pending || []).length) return false;
+  if (!(await api.ensureOnline(true))) return false;
+
+  _flushing = true;
+  try {
+    while (state.pending.length) {
+      const op = state.pending[0];
+      let ok = false;
+      try {
+        ok = await applyPending(op);
+      } catch (_) { /* trata como falha de rede */ }
+
+      if (!ok) {
+        op.tries = (op.tries || 0) + 1;
+        if (op.tries < PENDING_MAX_TRIES) { persist(); break; }
+        // Esgotou: descarta e segue, para não bloquear as operações seguintes.
+      }
+      state.pending.shift();
+      persist();
+    }
+  } finally {
+    _flushing = false;
+  }
+  return true;
 }
 
 // ------- Tarefas -------
@@ -265,9 +424,13 @@ export async function addTask(task) {
       if (idx >= 0) {
         // O backend ainda não persiste a prioridade; preserva o valor local.
         state.tasks[idx] = { ...saved, priority };
+        remapId(local.id, saved.id);
         persist();
         return state.tasks[idx];
       }
+    } else {
+      // Sem rede (ou o servidor recusou): guarda para subir quando voltar.
+      enqueue({ kind: 'create', id: local.id });
     }
   }
   return local;
@@ -306,8 +469,16 @@ export function toggleTask(id) {
   if (t) {
     t.done = !t.done;
     persist();
-    if (state.userId != null && !isLocalId(id)) {
-      api.apiSetDone(id, t.done).catch(() => {});
+    if (state.userId != null) {
+      // Id local significa que o `create` ainda está na fila: enfileira o estado
+      // para ir logo depois dele, já com o id que o servidor devolver.
+      if (isLocalId(id)) {
+        enqueue({ kind: 'done', id, done: t.done });
+      } else {
+        api.apiSetDone(id, t.done)
+          .then((r) => { if (!r) enqueue({ kind: 'done', id, done: t.done }); })
+          .catch(() => enqueue({ kind: 'done', id, done: t.done }));
+      }
     }
   }
   return t;
@@ -316,30 +487,88 @@ export function toggleTask(id) {
 export function removeTask(id) {
   state.tasks = state.tasks.filter((x) => x.id !== id);
   persist();
-  if (state.userId != null && !isLocalId(id)) {
-    api.apiDeleteTask(id).catch(() => {});
+  if (state.userId != null) {
+    if (isLocalId(id)) {
+      // Cancela a criação pendente: a tarefa nunca chegou ao servidor.
+      enqueue({ kind: 'delete', id });
+    } else {
+      api.apiDeleteTask(id)
+        .then((ok) => { if (!ok) enqueue({ kind: 'delete', id }); })
+        .catch(() => enqueue({ kind: 'delete', id }));
+    }
   }
 }
 
 // ------- Preferências -------
-export const isSoundEnabled = () => state.soundEnabled !== false;
+/**
+ * Níveis de som.
+ *
+ * Havia só um liga/desliga, e ele misturava coisas diferentes: quem achava o
+ * som do chat intrusivo desligava tudo — e perdia junto a recompensa de
+ * concluir uma tarefa, que é justamente a que sustenta o hábito. O nível do
+ * meio existe para essa pessoa.
+ */
+export const SOUND_LEVELS = [
+  { id: 'tudo',       label: 'Todos os sons', hint: 'Conclusões, Bruna, toques e avisos.' },
+  { id: 'conclusoes', label: 'Só conclusões', hint: 'Apenas a recompensa ao concluir e ao organizar.' },
+  { id: 'silencio',   label: 'Silencioso',    hint: 'Nenhum som. O retorno fica só na tela.' },
+];
 
-export function setSoundEnabled(on) {
-  state.soundEnabled = !!on;
-  persist();
-  return state.soundEnabled;
+const NIVEIS = SOUND_LEVELS.map((n) => n.id);
+
+export function getSoundLevel() {
+  return NIVEIS.includes(state.soundLevel) ? state.soundLevel : 'tudo';
 }
+
+export function setSoundLevel(nivel) {
+  state.soundLevel = NIVEIS.includes(nivel) ? nivel : 'tudo';
+  persist();
+  return state.soundLevel;
+}
+
+/** Compatibilidade: "há algum som ligado?". */
+export const isSoundEnabled = () => getSoundLevel() !== 'silencio';
 
 export function reachedFreeLimit() {
   return !state.isPremium && state.tasks.length >= FREE_TASK_LIMIT;
 }
 
-export function setPremium(v) {
-  state.isPremium = v;
+/**
+ * Liga/desliga o Premium. Quem decide é o servidor.
+ *
+ * A UI responde na hora (otimista), mas a resposta do servidor manda: se ele
+ * recusar — 403 quando a cobrança real estiver ligada, 401 se a sessão caiu —
+ * o estado volta ao que era. Sem isso o app mostraria "Premium ativo" com o
+ * servidor dizendo o contrário, e a divergência só apareceria no próximo
+ * /auth/me, num recarregamento aparentemente aleatório.
+ *
+ * Falha de rede é diferente de recusa: aí o otimismo permanece e a próxima
+ * sincronização reconcilia.
+ *
+ * @returns {Promise<boolean>} o estado que efetivamente valeu.
+ */
+export async function setPremium(v) {
+  const anterior = state.isPremium;
+  state.isPremium = !!v;
   persist();
-  if (state.userId != null) {
-    api.apiSetPremium(v).catch(() => {});
+  if (state.userId == null) return state.isPremium;
+
+  try {
+    const user = await api.apiSetPremium(v);
+    // null = offline: nada foi decidido, mantém o otimista.
+    if (user) {
+      state.isPremium = !!user.is_premium;
+      persist();
+    }
+  } catch (e) {
+    // `.status` presente = o servidor respondeu e recusou. Sem status é falha
+    // de rede no meio da chamada, e aí não há recusa a acatar.
+    if (e && e.status) {
+      state.isPremium = anterior;
+      persist();
+    }
   }
+  return state.isPremium;
 }
 
 // ------- Ciclo menstrual (100% local/privado) -------

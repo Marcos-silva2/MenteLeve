@@ -18,7 +18,9 @@
 - **🌸 Calendário menstrual** (opcional e 100% privado/local): fases do ciclo, período fértil, ovulação e previsão da próxima menstruação.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Rede de apoio** (compartilhar a carga) e **Paywall Premium** (modelo freemium).
-- **PWA instalável** e com suporte offline (Service Worker) — ~125 KB de precache.
+- **PWA instalável** e com suporte offline (Service Worker) — 264 KB de precache em
+  disco, ~149 KB transferidos (o gzip do servidor comprime os textos; as imagens já
+  chegam comprimidas).
 - **Conteúdo criptografado no banco** (AES-256-GCM): o título das tarefas e o nome da usuária são ilegíveis para quem acessa o banco por fora da API.
 
 ---
@@ -225,7 +227,13 @@ Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [
 - Sprint 4: feedback sonoro (com opção de silenciar) e correções no Service Worker
 - Sprint 5: criptografia do conteúdo em repouso (AES-256-GCM)
 
-Histórico detalhado das sprints em [`docs/roadmap-sprints-menteleve.md`](docs/roadmap-sprints-menteleve.md).
+📍 **[`docs/estado-atual.md`](docs/estado-atual.md)** — o que funciona hoje, o que é
+fachada, decisões de arquitetura e pendências.
+🗺️ **[`docs/historico-sprints.md`](docs/historico-sprints.md)** — resumo de todas as
+sprints (MVP, migração e evolução).
+
+Detalhamento completo de cada sprint em
+[`docs/roadmap-sprints-menteleve.md`](docs/roadmap-sprints-menteleve.md).
 
 **Próximos passos:**
 - [ ] **Limite de tentativas de login** — hoje `/auth/login` aceita tentativas infinitas

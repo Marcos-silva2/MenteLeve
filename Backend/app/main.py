@@ -29,6 +29,12 @@ async def lifespan(_app: FastAPI):
             "PURO. Quem tiver acesso ao banco lê tudo. Gere uma chave com "
             "`python -c \"import secrets; print(secrets.token_hex(32))\"`."
         )
+    if settings.SIMULATED_CHECKOUT:
+        log.warning(
+            "SIMULATED_CHECKOUT ligado: qualquer conta autenticada pode ativar o "
+            "Premium sem pagar (POST /auth/me/premium/simulate). É o esperado no "
+            "MVP; defina SIMULATED_CHECKOUT=false antes de cobrar de verdade."
+        )
     yield
 
 

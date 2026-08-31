@@ -4,7 +4,7 @@
    Backend: POST /ai/chat (Gemini). Fallback gentil se offline.
    ============================================================ */
 
-import { h, $, $$, icons } from '../ui.js';
+import { h, $, $$, icons, pulseBrandLogo } from '../ui.js';
 import { getUser, restoreSession, upsertTasks } from '../store.js';
 import { apiChat, wakeBackend, isOnline } from '../api.js';
 import { playMessage } from '../sound.js';
@@ -60,7 +60,7 @@ export function renderChat(app) {
           <div id="suggestions" class="flex flex-wrap gap-2 mb-2"></div>
           <form id="chat-form" class="flex items-end gap-2">
             <textarea id="chat-input" rows="1" maxlength="2000"
-              class="flex-1 resize-none px-4 py-3 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-soft-300
+              class="flex-1 resize-none px-4 py-3 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                      focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px] max-h-32"
               placeholder="Escreva pra Bruna…"></textarea>
             <button id="send" type="submit"
@@ -137,10 +137,12 @@ export function renderChat(app) {
     const result = await withTimeout(apiChat(conversation), budget);
 
     let reply = result && result.reply;
+    let agiu = false;
     if (result) {
       // Reflete na Home/Agenda o que a Bruna acabou de fazer, sem recarregar
       // a lista inteira (ver upsertTasks).
       upsertTasks(result.tasks);
+      agiu = !!(result.tasks && result.tasks.length);
     }
 
     if (!reply) {
@@ -156,6 +158,19 @@ export function renderChat(app) {
     conversation.push({ role: 'assistant', content: reply });
     renderMessages();
     playMessage();
+
+    // Ela não só respondeu: criou ou concluiu tarefa de verdade. O brilho no
+    // avatar (e no logotipo, no desktop) é a confirmação disso onde o olhar já
+    // está — sem ele, a única prova da ação ficava em outra aba.
+    if (agiu) {
+      pulseBrandLogo();
+      const avatar = messagesEl.lastElementChild &&
+        messagesEl.lastElementChild.querySelector('span.rounded-full');
+      if (avatar) {
+        avatar.classList.add('bruna-glow');
+        setTimeout(() => avatar.classList.remove('bruna-glow'), 1600);
+      }
+    }
   }
 
   function autosize() {

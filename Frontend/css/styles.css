@@ -12,6 +12,7 @@
   --color-accent: #ff4d6d;
   --color-accent-hover: #ff758f;
   --color-soft-300: #ff8fa3;
+  --color-muted: #836169;   /* texto secundário legível — ver index.html */
   --color-soft-200: #ffb3c1;
   --color-soft-100: #ffccd5;
   --color-surface: #ffffff;
@@ -24,7 +25,9 @@
 html, body {
   margin: 0;
   height: 100%;
-  font-family: 'Inter', system-ui, sans-serif;
+  /* Fonte do sistema: zero download, zero bloqueio de render, e o texto do
+     corpo continua idêntico quando o app está offline. Ver index.html. */
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 body {
@@ -141,6 +144,20 @@ body {
 /* ---------- Tipografia ---------- */
 .font-serif { font-family: 'Playfair Display', Georgia, serif; }
 
+/* Ritmo de leitura.
+   1.5 é o respiro do texto corrido; títulos ficam mais fechados porque a
+   altura da própria letra já os separa. Onde uma tela precisa de outro valor,
+   os utilitários do Tailwind (leading-tight, leading-none) continuam vencendo,
+   por serem classe contra seletor de elemento. */
+html, body { line-height: 1.5; }
+h1, h2, h3, h4 { line-height: 1.25; }
+
+/* Hanging bullets: NÃO existe utilitário aqui de propósito. O app não tem um
+   único <ul>/<li> — toda "lista" é flex com o ícone em `shrink-0` ao lado do
+   texto (paywall, subtarefas, benefícios). Nesse arranjo a segunda linha já
+   alinha com a primeira letra, que é exatamente o efeito procurado. Um
+   `.hang` com ::before seria CSS morto. */
+
 /* ---------- View transitions ---------- */
 .view-enter {
   animation: viewEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -163,6 +180,43 @@ body {
 @keyframes riseIn {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Entrada escalonada de conteúdo DINÂMICO ----------
+   O `.stagger` acima só toca no mount da view, com atrasos fixos por posição.
+   Não serve para o que a IA injeta depois — as subtarefas apareciam todas de
+   uma vez, e a decomposição, que é o trabalho da Bruna, não era vista
+   acontecendo. Aqui o atraso vem do índice (`--i`), então funciona para
+   qualquer quantidade de itens e a qualquer momento. */
+.reveal {
+  animation: riseIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* ---------- Esqueleto de carregamento ----------
+   Mostrado só quando não há nada em cache E o sync está em andamento: a tela
+   parada em rede lenta parecia app travado. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-soft-100);
+  border-radius: 1rem;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: skeletonSweep 1.4s ease-in-out infinite;
+}
+@keyframes skeletonSweep {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: none !important; }
+  .skeleton::after { animation: none !important; }
 }
 
 /* ---------- Lift sutil ao passar o mouse (desktop) ---------- */
@@ -257,6 +311,25 @@ body {
   0%   { opacity: 1; }
   60%  { opacity: 0.4; transform: scale(0.98); }
   100% { opacity: 0; transform: scale(0.96); max-height: 0; margin: 0; padding: 0; }
+}
+
+/* Exclusão. Concluir tinha a sua saída (`taskDone`, que desbota no lugar);
+   excluir não tinha nenhuma — o card sumia entre um render e outro, e a linha
+   de baixo saltava para cima sem explicação. Aqui a tarefa sai PARA O LADO
+   antes de a lista fechar o vão: o movimento lateral diz "foi embora", que é
+   diferente de "foi feita". Mais rápido que a conclusão de propósito — não há
+   nada a celebrar. */
+.task-remove {
+  animation: taskRemove 0.32s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+@keyframes taskRemove {
+  0%   { opacity: 1; transform: translateX(0); }
+  35%  { opacity: 0.6; transform: translateX(14px); }
+  100% { opacity: 0; transform: translateX(-40px); max-height: 0; margin: 0; padding: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-remove { animation-duration: 0.01s; }
 }
 
 /* checkbox tick pop */
@@ -424,6 +497,41 @@ body {
   40%           { opacity: 1;  transform: translateY(-3px); }
 }
 
+/* ---------- Botão à espera da IA ----------
+   A análise leva de 1,5 s a 10 s (a primeira chamada do dia acorda o modelo).
+   Um rótulo parado nesse tempo passa por travamento. Aqui uma faixa de luz
+   atravessa o botão continuamente: enquanto ela anda, algo está acontecendo.
+   `background-size` maior que o botão é o que dá o percurso à faixa. */
+.is-thinking {
+  position: relative;
+  overflow: hidden;
+  cursor: progress;
+}
+.is-thinking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg,
+    transparent 20%, rgba(255, 255, 255, 0.38) 50%, transparent 80%);
+  background-size: 220% 100%;
+  animation: thinkingSweep 1.4s linear infinite;
+}
+@keyframes thinkingSweep {
+  from { background-position: 160% 0; }
+  to   { background-position: -60% 0; }
+}
+/* A faísca pulsa junto, para o movimento não ficar só no fundo. */
+.is-thinking .icon-spark { animation: sparkPulse 1.4s ease-in-out infinite; }
+@keyframes sparkPulse {
+  0%, 100% { opacity: .55; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-thinking::after,
+  .is-thinking .icon-spark { animation: none; }
+  .is-thinking::after { opacity: .25; }
+}
+
 /* ---------- Ilustração do onboarding: float suave ---------- */
 .onboard-float {
   animation: onboardFloat 5.5s ease-in-out infinite;
@@ -435,6 +543,105 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .onboard-float { animation: none; }
+}
+
+/* ---------- Isotipo: a lótus desabrocha ----------
+   Cada pétala é traçada da base para a ponta, uma depois da outra. Só funciona
+   porque o desenho é um traço vetorial: `pathLength="1"` normaliza o
+   comprimento das cinco, então o mesmo `stroke-dashoffset` vale para todas,
+   apesar de terem tamanhos diferentes.
+
+   Usado só onde é a primeira impressão (onboarding). Na navegação, o logotipo
+   entra pronto — repetir a animação a cada troca de aba viraria ruído. */
+/* O isotipo é um bitmap, então não dá para "desenhar" o traço como se fazia
+   com os paths da lótus. A entrada agora é de escala: a marca chega pequena e
+   assenta, com um leve overshoot no fim da curva. Mesma duração de antes, para
+   não descompassar do texto que entra junto. */
+.logo-bloom {
+  animation: logoBloom 0.7s cubic-bezier(0.34, 1.4, 0.44, 1) 0.1s both;
+  transform-origin: center bottom;
+  will-change: transform, opacity;
+}
+@keyframes logoBloom {
+  from { opacity: 0; transform: scale(0.72); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-bloom { animation: none !important; opacity: 1; transform: none; }
+}
+
+/* ---------- Ilustração do onboarding: entrada + respiração + parallax ----------
+   A primeira impressão do produto era a única imagem grande sem vida nenhuma.
+   Nada aqui pesa um byte: são as mesmas curvas já usadas no resto do app.
+
+   `onboard-breathe` = entrada (uma vez) e depois respiração (infinita). O
+   atraso de 0,6 s no segundo passo é exatamente a duração do primeiro, para a
+   respiração começar de onde a entrada parou, sem salto. */
+.onboard-breathe {
+  animation:
+    riseIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both,
+    onboardBreathe 6s ease-in-out 0.6s infinite;
+  will-change: transform;
+}
+@keyframes onboardBreathe {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+/* O contêiner recebe o deslocamento do arraste — mais lento que o texto, o
+   que cria profundidade. Sem transição durante o gesto (acompanha o dedo);
+   com transição ao soltar (volta suave). */
+.onboard-parallax {
+  will-change: transform;
+}
+.onboard-parallax.settling {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-breathe { animation: none !important; }
+  .onboard-parallax { transform: none !important; }
+}
+
+/* ---------- Onboarding, slide da rede de apoio ----------
+   Os dois cartões balançam em CONTRATEMPO: o atraso negativo no segundo faz
+   ele começar no meio do ciclo, então um sobe enquanto o outro desce. É o que
+   dá a leitura de "peso sendo dividido" em vez de dois adesivos tremendo
+   juntos. A inclinação está dentro do keyframe porque `transform` é uma
+   propriedade só — separá-la em classe do Tailwind faria uma apagar a outra. */
+.share-card {
+  animation: shareSway 5s ease-in-out infinite;
+  will-change: transform;
+}
+/* Espelhado: o segundo cartão tomba para o outro lado, como no desenho
+   original, e ainda começa no meio do ciclo. */
+.share-card-b {
+  animation-name: shareSwayB;
+  animation-delay: -2.5s;
+}
+@keyframes shareSway {
+  0%, 100% { transform: rotate(-6deg) translateY(0); }
+  50%      { transform: rotate(-2deg) translateY(-6px); }
+}
+@keyframes shareSwayB {
+  0%, 100% { transform: rotate(6deg) translateY(0); }
+  50%      { transform: rotate(2deg) translateY(-6px); }
+}
+
+/* O selo de concluído entra por último: primeiro os dois lados, depois a
+   confirmação de que a tarefa foi dividida. */
+.share-seal {
+  animation: shareSeal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.55s both;
+}
+@keyframes shareSeal {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-card   { animation: none !important; transform: rotate(-6deg); }
+  .share-card-b { transform: rotate(6deg); }
+  .share-seal   { animation: none !important; }
 }
 
 /* ---------- Carrossel onboarding ---------- */

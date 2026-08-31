@@ -167,8 +167,6 @@ quebrada e nenhuma requisição com erro.
 
 ---
 
----
-
 ### 🎵 Sprint 4: Feedback Multissensorial e Ajustes Finos ✅ CONCLUÍDA
 **Foco:** Adicionar diversão e leveza por meio de áudio e fazer um controle rigoroso de qualidade.
 

@@ -2,7 +2,7 @@
    app.js — Bootstrap + mini-router
    ============================================================ */
 
-import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession, onSessionCleared } from './store.js';
+import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession, onSessionCleared, endBootSync } from './store.js';
 import { toast, renderNav } from './ui.js';
 import { wakeBackend } from './api.js';
 
@@ -123,13 +123,17 @@ function start() {
   // Quando ele responder, revalida o token/sincroniza e re-renderiza a aba atual.
   // Isso evita o erro de cold start ("não consegui falar com a IA").
   wakeBackend()
-    .then((ok) => {
-      if (!ok || !hasSession()) return;
-      return restoreSession().then((updated) => {
-        if (updated && TAB_ROUTES.includes(app.current)) app.refresh();
-      });
-    })
-    .catch(() => {});
+    .then((ok) => (ok && hasSession() ? restoreSession() : false))
+    .catch(() => false)
+    .then((updated) => {
+      // Encerra o estado de "sincronizando" mesmo quando falhou — senão a Home
+      // ficaria exibindo o esqueleto para sempre em quem está offline.
+      endBootSync();
+      // Re-renderiza se algo mudou OU se a tela ainda mostra o esqueleto (o
+      // sync terminou sem novidade, mas a lista precisa sair do placeholder).
+      const comEsqueleto = !!document.querySelector('[data-skeleton]');
+      if ((updated || comEsqueleto) && TAB_ROUTES.includes(app.current)) app.refresh();
+    });
 
   const hashRoute = location.hash.slice(1);
   if (!isOnboardingSeen()) {

@@ -177,16 +177,24 @@ export async function apiMe() {
   return request('/auth/me', { headers: headers() });
 }
 
+/**
+ * Ativa ou cancela o Premium. Devolve o usuário atualizado pelo servidor.
+ *
+ * Ativar e cancelar são rotas distintas de propósito. A ativação passa por
+ * `/auth/me/premium/simulate`, que o servidor pode recusar (403) quando a
+ * cobrança real estiver ligada — o cliente não decide mais quem é Premium.
+ * O cancelamento é sempre da própria usuária, e continua permitido.
+ *
+ * Retorna `null` quando não há sessão ou o backend está fora do ar (nada foi
+ * decidido). Uma RECUSA do servidor é propagada como erro com `.status`, e não
+ * pode ser confundida com estar offline — quem chama precisa dessa diferença
+ * para saber se mantém o estado otimista ou o reverte.
+ */
 export async function apiSetPremium(isPremium) {
   if (!_token || !(await ensureOnline())) return null;
-  try {
-    return await request(`/auth/me/premium?is_premium=${isPremium}`, {
-      method: 'POST',
-      headers: headers(),
-    });
-  } catch (_) {
-    return null;
-  }
+  return isPremium
+    ? request('/auth/me/premium/simulate', { method: 'POST', headers: headers() })
+    : request('/auth/me/premium', { method: 'DELETE', headers: headers() });
 }
 
 // ----------------------- Tasks -----------------------
@@ -241,6 +249,13 @@ export async function apiSmartTask(text) {
       headers: headers(),
       body: JSON.stringify({ text, today: todayKey() }),
     });
+    // O servidor tem um fallback próprio: quando a IA não responde, devolve 200
+    // com o título normalizado, categoria "casa" e sem data. Aceitar isso como
+    // análise desliga a heurística local — que, para "dentista sexta 15h", ao
+    // menos acha a data e a categoria. `ai: false` é o servidor dizendo que não
+    // analisou; devolvemos null para o chamador usar decomposeTask().
+    if (r.ai === false) return null;
+
     const act = r.suggestion && r.suggestion.action;
     return {
       title: r.title || text,

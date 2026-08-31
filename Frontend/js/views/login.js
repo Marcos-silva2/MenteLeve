@@ -3,8 +3,9 @@
    O cadastro fica na tela própria (views/register.js).
    ============================================================ */
 
-import { h, $, icons } from '../ui.js';
+import { h, $, icons, logoMark, attachPasswordToggle } from '../ui.js';
 import { login } from '../store.js';
+import { playError } from '../sound.js';
 
 export function renderLogin(app) {
   const view = h(`
@@ -12,7 +13,7 @@ export function renderLogin(app) {
       <!-- logo -->
       <div class="flex flex-col items-center text-center mb-10">
         <div class="flex items-center gap-2 text-bordeaux-900 mb-8">
-          ${icons.logoImg}
+          ${logoMark('h-9 w-auto', true)}
           <span class="font-serif font-bold text-xl">MenteLeve</span>
         </div>
         <h1 class="font-serif font-bold text-bordeaux-900 text-[28px] leading-tight">
@@ -24,13 +25,13 @@ export function renderLogin(app) {
       <form id="form" class="flex flex-col gap-3.5" novalidate>
         <div>
           <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="Seu e-mail"
-            class="w-full px-4 py-3.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-soft-300
+            class="w-full px-4 py-3.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                    focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition" />
           <p data-err="email" class="hidden text-xs text-bordeaux-600 mt-1 ml-1"></p>
         </div>
         <div>
           <input id="password" type="password" autocomplete="current-password" placeholder="Sua senha"
-            class="w-full px-4 py-3.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-soft-300
+            class="w-full px-4 py-3.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                    focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition" />
           <p data-err="password" class="hidden text-xs text-bordeaux-600 mt-1 ml-1"></p>
         </div>
@@ -49,23 +50,26 @@ export function renderLogin(app) {
       <!-- divisor -->
       <div class="flex items-center gap-3 my-6">
         <span class="flex-1 h-px bg-soft-100"></span>
-        <span class="text-xs text-soft-300">ou continue com</span>
+        <span class="text-xs text-muted">ou continue com</span>
         <span class="flex-1 h-px bg-soft-100"></span>
       </div>
 
-      <!-- social (ainda não implementado — ver Roadmap) -->
+      <!-- social (ainda não implementado — ver Roadmap)
+           O botão dizia duas coisas ao mesmo tempo: cursor-not-allowed (não
+           clique) e um toast explicativo ao clicar (pode clicar). E o texto a
+           50% rendia 3,2:1, ilegível. Agora o selo "em breve" diz o estado por
+           escrito, o clique segue explicando, e aria-disabled conta o mesmo a
+           quem usa leitor de tela — a quem o cursor nunca disse nada. -->
       <div class="flex flex-col gap-3">
-        <button data-social="apple"
-          class="w-full py-3.5 rounded-full bg-white border border-soft-100 text-bordeaux-900/50 font-medium flex items-center justify-center gap-2 transition cursor-not-allowed">
-          ${icons.apple} Entrar com Apple
-        </button>
-        <button data-social="google"
-          class="w-full py-3.5 rounded-full bg-white border border-soft-100 text-bordeaux-900/50 font-medium flex items-center justify-center gap-2 transition cursor-not-allowed">
-          ${icons.google} Entrar com Google
-        </button>
+        ${[['apple', 'Apple'], ['google', 'Google']].map(([id, nome]) => `
+          <button data-social="${id}" aria-disabled="true"
+            class="w-full py-3.5 rounded-full bg-white border border-soft-100 text-muted font-medium flex items-center justify-center gap-2 transition hover:border-soft-200">
+            ${icons[id]} Entrar com ${nome}
+            <span class="text-[10px] font-semibold uppercase tracking-wide bg-soft-100 text-bordeaux-700 rounded-full px-2 py-0.5">em breve</span>
+          </button>`).join('')}
       </div>
 
-      <p class="mt-auto text-center text-[11px] text-soft-300 pt-8">
+      <p class="mt-auto text-center text-[11px] text-muted pt-8">
         Ao continuar você concorda com os Termos e a Política de Privacidade.
       </p>
     </div>
@@ -74,6 +78,7 @@ export function renderLogin(app) {
   const form = $('#form', view);
   const emailEl = $('#email', view);
   const passEl = $('#password', view);
+  attachPasswordToggle(passEl);
 
   function showErr(field, msg) {
     const p = view.querySelector(`[data-err="${field}"]`);
@@ -122,9 +127,15 @@ export function renderLogin(app) {
       submitBtn.textContent = original;
       submitBtn.disabled = false;
       view.dataset.loading = '0';
+      playError();
       if (err && err.status === 401) {
         // Mensagem genérica de propósito: não revela se o e-mail tem conta.
         showErr('password', 'E-mail ou senha incorretos.');
+      } else if (err && err.status === 429) {
+        // Limite de tentativas do backend. Sem esta mensagem, o genérico
+        // "tente novamente" convidaria a usuária a fazer exatamente o que
+        // está bloqueado.
+        showErr('password', 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');
       } else {
         app.toast('Não foi possível entrar. Tente novamente.');
       }

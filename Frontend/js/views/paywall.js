@@ -69,7 +69,7 @@ export function renderPaywall(app, params = {}) {
               class="cta-lift hidden lg:block w-full mt-6 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
               Desbloquear MenteLeve Premium
             </button>
-            <p class="hidden lg:block text-center text-[11px] text-soft-300 mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
+            <p class="hidden lg:block text-center text-[11px] text-muted mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
           </div>
         </div>
       </div>
@@ -80,7 +80,7 @@ export function renderPaywall(app, params = {}) {
           class="cta-lift w-full py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
           Desbloquear MenteLeve Premium
         </button>
-        <p class="text-center text-[11px] text-soft-300 mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
+        <p class="text-center text-[11px] text-muted mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
       </div>
     </div>
   `);
@@ -97,11 +97,22 @@ export function renderPaywall(app, params = {}) {
 
   $('#close', view).addEventListener('click', () => app.navigate(backTarget(params)));
 
-  const subscribe = () => {
-    // MVP: simula compra
-    setPremium(true);
-    toast('Recurso disponível na versão final ✨');
-    setTimeout(() => app.navigate('home'), 800);
+  let assinando = false;
+  const subscribe = async () => {
+    if (assinando) return;   // dois toques na mesma compra = uma chamada só
+    assinando = true;
+    try {
+      // MVP: compra simulada. O servidor pode recusar (403) quando a cobrança
+      // real estiver ligada — só comemora e navega se o Premium valeu mesmo.
+      if (!(await setPremium(true))) {
+        toast('Não foi possível ativar agora. Tente novamente em instantes.');
+        return;
+      }
+      toast('Recurso disponível na versão final ✨');
+      setTimeout(() => app.navigate('home'), 800);
+    } finally {
+      assinando = false;
+    }
   };
   $$('#subscribe, #subscribe-m', view).forEach((b) => b.addEventListener('click', subscribe));
 

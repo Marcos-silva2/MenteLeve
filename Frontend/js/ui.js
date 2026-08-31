@@ -2,6 +2,8 @@
    ui.js — Helpers de UI: criação de DOM, ícones, toast, navbar
    ============================================================ */
 
+import { playTap } from './sound.js';
+
 /** Cria um elemento a partir de uma string HTML (primeiro nó). */
 export function h(html) {
   const tpl = document.createElement('template');
@@ -25,6 +27,8 @@ export const icons = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M15 18l-6-6 6-6"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M9 18l6-6-6-6"/></svg>',
   crown: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7"><path d="M3 7l4 4 5-7 5 7 4-4-2 12H5L3 7z"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M10.6 6.2A9.9 9.9 0 0 1 12 6c6.4 0 10 7 10 7a17.7 17.7 0 0 1-3.2 4.1M6.5 7.9A17.6 17.6 0 0 0 2 13s3.6 7 10 7a9.8 9.8 0 0 0 4.3-.9"/><path d="M9.9 10a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>',
   apple: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.8-3.5.8s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.3 5.9c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>',
   google: '<svg viewBox="0 0 24 24" class="w-5 h-5"><path fill="#4285F4" d="M22.5 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.9c-.3 1.4-1 2.5-2.2 3.3v2.7h3.6c2.1-1.9 3.2-4.8 3.2-7.8z"/><path fill="#34A853" d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.7c-1 .7-2.3 1.1-3.6 1.1-2.8 0-5.1-1.9-6-4.4H2.3v2.8C4.1 20.6 7.8 23 12 23z"/><path fill="#FBBC05" d="M6 14.4c-.2-.7-.4-1.4-.4-2.4s.1-1.6.4-2.4V6.8H2.3C1.5 8.4 1 10.1 1 12s.5 3.6 1.3 5.2L6 14.4z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1C17.4 2.1 14.9 1 12 1 7.8 1 4.1 3.4 2.3 6.8L6 9.6c.9-2.5 3.2-4.2 6-4.2z"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
@@ -32,12 +36,75 @@ export const icons = {
   cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7.7 1.6 1.6 0 0 0-1 1.5V22a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H2a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H8a1.6 1.6 0 0 0 1-1.5V2a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V8a1.6 1.6 0 0 0 1.5 1H22a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>',
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 2.5"/><path d="M12 17h.01"/></svg>',
-  logo: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 2C8 2 5 5 5 9c0 3.5 2.5 5.8 4.5 7.5L12 22l2.5-5.5C16.5 14.8 19 12.5 19 9c0-4-3-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>',
-  // Isotipo oficial da marca (lótus "ML") — substitui o antigo pin de localização.
-  logoImg: '<img src="assets/ML.webp" alt="MenteLeve" class="h-9 w-auto object-contain select-none" draggable="false" />',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.7L3 21l1.8-5.8A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M3.4 20.4l17.4-7.5c.9-.4.9-1.6 0-2L3.4 3.6c-.7-.3-1.5.3-1.4 1.1L3.2 11l9 1-9 1-1.2 5.3c-.1.8.7 1.4 1.4 1.1z"/></svg>',
 };
+
+/**
+ * Isotipo da marca — a borboleta com o rosto (`assets/isotipo.webp`).
+ *
+ * Aqui havia uma lótus: primeiro `assets/ML.webp`, depois um redesenho dela em
+ * SVG. Nítida, leve, e **marca errada** — o ícone do app, o `manifest.json` e a
+ * splash sempre mostraram a borboleta. Quem instalava via a borboleta na tela
+ * inicial e encontrava uma flor ao abrir o app.
+ *
+ * Ficamos com a marca de verdade. É o mesmo arquivo que a splash já usa, então
+ * já está no precache do service worker e vem do cache — nenhuma requisição
+ * nova. O preço é ser bitmap: não herda `currentColor` (o desenho tem a cor da
+ * marca embutida, que é o certo para uma assinatura visual) e o "desabrochar"
+ * do traço deixa de existir; `.logo-bloom` virou uma entrada em escala.
+ *
+ * `width`/`height` são os pixels reais do arquivo (323×300). Não definem o
+ * tamanho na tela — quem faz isso é `cls` — mas dão a proporção ao navegador
+ * antes do download, o que impede o texto ao lado de pular quando a imagem
+ * chega.
+ *
+ * @param {string} cls    classes de tamanho (ex.: 'h-9 w-auto')
+ * @param {boolean} bloom true = entra crescendo
+ */
+export function logoMark(cls = 'h-9 w-auto', bloom = false) {
+  return `<img src="assets/isotipo.webp" alt="MenteLeve" width="323" height="300"
+    class="${cls} ${bloom ? 'logo-bloom' : ''} object-contain select-none shrink-0"
+    draggable="false" />`;
+}
+
+/**
+ * Acopla o olho de mostrar/ocultar a um campo de senha.
+ *
+ * Digitar senha às cegas no celular, com teclado que erra e mensagem de erro
+ * genérica de propósito ("e-mail ou senha incorretos"), deixa quem errou uma
+ * letra sem nenhuma forma de descobrir isso. Some com o limite de tentativas
+ * do backend e o erro vira bloqueio.
+ *
+ * Envolve o input num contêiner relativo para ancorar o botão — por isso não
+ * exige nenhuma marcação especial na tela que chama. O alvo tem 36px, acima do
+ * mínimo confortável para o polegar.
+ *
+ * @param {HTMLInputElement} input campo `type="password"`
+ */
+export function attachPasswordToggle(input) {
+  input.classList.add('pr-12');
+  const wrap = document.createElement('div');
+  wrap.className = 'relative';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+
+  const btn = h(`<button type="button" aria-label="Mostrar senha" aria-pressed="false"
+    class="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full
+           text-muted hover:text-bordeaux-700 hover:bg-bg focus-visible:ring-4 focus-visible:ring-accent/15
+           outline-none transition">${icons.eye}</button>`);
+  wrap.appendChild(btn);
+
+  btn.addEventListener('click', () => {
+    const revelar = input.type === 'password';
+    input.type = revelar ? 'text' : 'password';
+    btn.innerHTML = revelar ? icons.eyeOff : icons.eye;
+    btn.setAttribute('aria-label', revelar ? 'Ocultar senha' : 'Mostrar senha');
+    btn.setAttribute('aria-pressed', String(revelar));
+    input.focus();
+  });
+  return btn;
+}
 
 /** Toast efêmero dentro da moldura do device. */
 export function toast(message, ms = 2200) {
@@ -85,8 +152,8 @@ export function renderNav(active, onNavigate, opts = {}) {
   // ---- Sidebar (desktop) ----
   side.innerHTML = `
     <div class="flex items-center gap-2 px-2 mb-8">
-      <span class="grid place-items-center w-10 h-10 rounded-xl bg-white shadow-fab">
-        <img src="assets/ML.webp" alt="" class="h-7 w-auto select-none" draggable="false" />
+      <span class="js-logo grid place-items-center w-10 h-10 rounded-xl bg-white shadow-fab text-bordeaux-900">
+        ${logoMark('h-6 w-auto')}
       </span>
       <span class="font-serif font-bold text-xl text-white">MenteLeve</span>
     </div>
@@ -105,7 +172,7 @@ export function renderNav(active, onNavigate, opts = {}) {
     </div>`;
 
   $$('[data-tab]', side).forEach((b) =>
-    b.addEventListener('click', () => onNavigate(b.dataset.tab))
+    b.addEventListener('click', () => { playTap(); onNavigate(b.dataset.tab); })
   );
   const up = side.querySelector('[data-side-action="upgrade"]');
   if (up && opts.onUpgrade) up.addEventListener('click', opts.onUpgrade);
@@ -115,14 +182,32 @@ export function renderNav(active, onNavigate, opts = {}) {
     <div class="flex items-center justify-around px-2 py-2">
       ${NAV_ITEMS.map((it) => `
         <button data-tab="${it.id}"
-          class="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-soft-300'}">
+          class="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
           ${it.icon}
           <span class="text-[10px] font-medium">${it.label}</span>
         </button>`).join('')}
     </div>`;
   $$('[data-tab]', bottom).forEach((b) =>
-    b.addEventListener('click', () => onNavigate(b.dataset.tab))
+    b.addEventListener('click', () => { playTap(); onNavigate(b.dataset.tab); })
   );
+}
+
+/**
+ * Brilho curto no logotipo da marca.
+ *
+ * Disparado quando a Bruna executa uma ação de verdade (criar/concluir tarefa
+ * por *function calling*) — é a confirmação de que ela agiu, no lugar onde o
+ * olhar já está. Decorativo não é: sem isto, a única prova da ação ficava numa
+ * outra aba.
+ *
+ * O logotipo só existe na sidebar (desktop). No mobile a confirmação vem pelo
+ * avatar da própria Bruna, no chat.
+ */
+export function pulseBrandLogo(ms = 1600) {
+  const logo = document.querySelector('.js-logo');
+  if (!logo) return;
+  logo.classList.add('bruna-glow');
+  setTimeout(() => logo.classList.remove('bruna-glow'), ms);
 }
 
 function navSideItem(it, active) {

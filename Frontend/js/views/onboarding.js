@@ -2,7 +2,7 @@
    Onboarding — Carrossel de 3 slides (Tela 1)
    ============================================================ */
 
-import { h, $, $$, icons } from '../ui.js';
+import { h, $, $$, icons, logoMark } from '../ui.js';
 import { markOnboardingSeen } from '../store.js';
 
 const SLIDES = [
@@ -31,7 +31,7 @@ export function renderOnboarding(app) {
       <!-- topo -->
       <div class="flex items-center justify-between px-6 pt-12 pb-2">
         <div class="flex items-center gap-2 text-bordeaux-900">
-          ${icons.logoImg}
+          ${logoMark('h-9 w-auto', true)}
           <span class="font-serif font-bold text-lg">MenteLeve</span>
         </div>
         <button id="skip" class="text-sm font-medium text-bordeaux-700">Pular</button>
@@ -104,11 +104,33 @@ export function renderOnboarding(app) {
   nextCircle.addEventListener('click', () => { index = Math.min(index + 1, SLIDES.length - 1); update(); });
   prevBtn.addEventListener('click', () => { index = Math.max(index - 1, 0); update(); });
 
-  // swipe básico
+  // swipe básico + parallax da ilustração
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const parallaxEls = $$('.onboard-parallax', view);
   let startX = 0;
-  track.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, { passive: true });
+
+  // A ilustração acompanha o dedo a 40% da velocidade do slide. É o bastante
+  // para dar profundidade e pouco para virar deslize independente.
+  function parallax(dx, soltando) {
+    if (semMovimento) return;
+    for (const el of parallaxEls) {
+      el.classList.toggle('settling', soltando);
+      el.style.transform = soltando ? '' : `translateX(${dx * 0.4}px)`;
+    }
+  }
+
+  track.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    parallax(0, false);
+  }, { passive: true });
+
+  track.addEventListener('touchmove', (e) => {
+    parallax(e.touches[0].clientX - startX, false);
+  }, { passive: true });
+
   track.addEventListener('touchend', (e) => {
     const dx = e.changedTouches[0].clientX - startX;
+    parallax(0, true);
     if (dx < -40) index = Math.min(index + 1, SLIDES.length - 1);
     else if (dx > 40) index = Math.max(index - 1, 0);
     update();
@@ -120,11 +142,16 @@ export function renderOnboarding(app) {
 
 /* ---------- Ilustrações ---------- */
 function artWoman() {
-  // Ilustração estática (mulher pensativa + balões), sem animação.
+  // Dois elementos, e a separação é o que faz a coisa funcionar: o de FORA
+  // recebe o parallax (transform escrito por JS durante o arraste), o de
+  // DENTRO respira sozinho (animação CSS infinita). Num elemento só, as duas
+  // transformações brigariam — a última a escrever apagaria a outra.
   return `
-  <img src="assets/mulher-onboard.webp" alt="Mulher pensativa com tarefas ao redor"
-       class="h-[44vh] max-h-[400px] w-auto max-w-full object-contain select-none pointer-events-none mx-auto"
-       decoding="async" fetchpriority="high" draggable="false" />`;
+  <div class="onboard-parallax">
+    <img src="assets/mulher-onboard.webp" alt="Mulher pensativa com tarefas ao redor"
+         class="onboard-breathe h-[44vh] max-h-[400px] w-auto max-w-full object-contain select-none pointer-events-none mx-auto"
+         decoding="async" fetchpriority="high" draggable="false" />
+  </div>`;
 }
 function artAI() {
   // Fluxo vertical: pensamento (nota) → IA (faísca) → tarefas organizadas (chips).
@@ -149,20 +176,27 @@ function artAI() {
   </div>`;
 }
 function artShare() {
+  // Este slide era o único totalmente parado — os outros dois já respiravam, e
+  // a diferença aparecia justo no slide que fala de "dividir a carga". Os dois
+  // cartões balançam em contratempo (um sobe enquanto o outro desce), a faísca
+  // pulsa entre eles e o selo de concluído entra por último.
   return `
   <div class="relative w-60 h-48 flex items-center justify-center gap-6">
-    ${avatarCard('#ff8fa3', '-rotate-6')}
-    <div class="text-accent">${icons.spark}</div>
-    ${avatarCard('#c9184a', 'rotate-6')}
-    <div class="absolute -top-1 right-8 w-9 h-9 rounded-full bg-accent grid place-items-center text-white shadow-fab">${icons.check}</div>
+    ${avatarCard('#ff8fa3', 'share-card')}
+    <div class="text-accent onboard-float">${icons.spark}</div>
+    ${avatarCard('#c9184a', 'share-card share-card-b')}
+    <div class="share-seal absolute -top-1 right-8 w-9 h-9 rounded-full bg-accent grid place-items-center text-white shadow-fab">${icons.check}</div>
   </div>`;
 }
 
 function chip(label) {
   return `<div class="flex-1 bg-white text-bordeaux-800 text-[11px] font-medium px-2 py-2 rounded-xl shadow-card text-center leading-tight">${label}</div>`;
 }
-function avatarCard(color, rot) {
-  return `<div class="bg-white p-2 rounded-2xl shadow-card ${rot}">
+function avatarCard(color, cls) {
+  // A inclinação vem da animação em CSS, não das classes `rotate-*` do
+  // Tailwind: as duas escrevem `transform`, e a última a valer apagaria a
+  // outra — os cartões ficariam retos ou parados.
+  return `<div class="bg-white p-2 rounded-2xl shadow-card ${cls}">
     <div class="w-16 h-16 rounded-xl grid place-items-center" style="background:${color}22;color:${color}">
       <svg viewBox="0 0 24 24" fill="currentColor" class="w-9 h-9"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7z"/></svg>
     </div>

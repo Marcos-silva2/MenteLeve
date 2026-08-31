@@ -11,10 +11,22 @@
   <link rel="icon" type="image/png" href="assets/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="assets/icon-192.png" />
 
-  <!-- Fonts -->
+  <!-- Fonts
+       O corpo do texto usa a fonte do sistema: nada para baixar, nada que
+       bloqueie a renderização, e o app se parece com um app do aparelho.
+
+       Playfair Display fica só nos títulos — é a assinatura da marca — e
+       carrega FORA do caminho crítico (media="print" até o load). O `display=swap`
+       mostra o texto de imediato em Georgia e troca quando a fonte chega.
+       Isso importa porque a fonte NÃO está no precache do Service Worker: no
+       modo offline os títulos caem em Georgia, nunca numa sans genérica. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
+  </noscript>
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -27,10 +39,17 @@
             bordeaux: { 900: '#590d22', 800: '#800f2f', 700: '#a4133c', 600: '#c9184a' },
             accent: { DEFAULT: '#ff4d6d', hover: '#ff758f' },
             soft: { 300: '#ff8fa3', 200: '#ffb3c1', 100: '#ffccd5' },
+            // Texto secundário. O rosa `soft-300` vinha fazendo esse papel e
+            // rende 1,96:1 sobre o fundo do app — abaixo dos 4,5:1 do WCAG AA,
+            // em rótulos de 10-11px e na navegação inferior. Este bordô
+            // dessaturado dá 4,90:1 sobre o fundo e 5,41:1 sobre o branco,
+            // e continua bem mais leve que o `bordeaux-900` do texto principal.
+            // `soft-300` fica para o que é decoração, não leitura.
+            muted: '#836169',
             surface: '#ffffff',
           },
           fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
+            sans: ['system-ui', '-apple-system', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
             serif: ['"Playfair Display"', 'Georgia', 'serif'],
           },
           boxShadow: {

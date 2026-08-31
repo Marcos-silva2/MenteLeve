@@ -7,6 +7,7 @@ import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
 import { CATEGORIES, PRIORITIES, addTask, reachedFreeLimit } from '../store.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
 import { todayKey, resolveDue } from '../dates.js';
+import { playAha, playTap, playAdd } from '../sound.js';
 
 /**
  * Abre o bottom sheet de nova tarefa.
@@ -22,7 +23,12 @@ export function openTaskSheet(app, onDone) {
 
   const host = document.getElementById('device');
   const desktop = isDesktop();
-  let selectedCat = 'casa';
+  // null = a usuária ainda não escolheu, então o palpite da IA vale. Era
+  // 'casa', que é também uma categoria de verdade: quem escolhia "Casa" de
+  // propósito ficava indistinguível de quem não escolheu nada, e a IA
+  // sobrescrevia a escolha. Um valor que significa "não escolhido" não pode
+  // ser um valor válido.
+  let selectedCat = null;
   let due = '';
   let selectedPriority = 'media';
   // Data mínima do seletor = hoje (evita agendar no passado).
@@ -44,12 +50,14 @@ export function openTaskSheet(app, onDone) {
       </div>
 
       <textarea id="task-input" rows="2"
-        class="w-full px-4 py-3 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-soft-300
+        class="w-full px-4 py-3 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition resize-none text-[15px]"
         placeholder="Ex: Vacina do Léo dia 15 ou Comprar presentes de aniversário amanhã..."></textarea>
 
       <!-- categorias -->
-      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Categoria</p>
+      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
+        Categoria <span id="cat-hint" class="font-normal text-muted">— a IA escolhe se você não marcar</span>
+      </p>
       <div class="flex flex-wrap gap-2">
         ${CATEGORIES.map((c) => `
           <button data-cat="${c.id}"
@@ -95,7 +103,7 @@ export function openTaskSheet(app, onDone) {
         class="mt-6 w-full py-3.5 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab
                active:scale-[.98] transition flex items-center justify-center gap-2">
         <span id="save-label">Salvar</span>
-        ${icons.spark}
+        <span class="icon-spark grid place-items-center">${icons.spark}</span>
       </button>
     </div>
   `);
@@ -109,7 +117,11 @@ export function openTaskSheet(app, onDone) {
   // seleção de categoria
   $$('[data-cat]', sheet).forEach((b) =>
     b.addEventListener('click', () => {
-      selectedCat = b.dataset.cat;
+      // Tocar de novo no chip marcado desmarca — é como se devolve a escolha
+      // para a IA depois de ter marcado algo.
+      selectedCat = selectedCat === b.dataset.cat ? null : b.dataset.cat;
+      const hint = $('#cat-hint', sheet);
+      if (hint) hint.classList.toggle('hidden', selectedCat !== null);
       $$('[data-cat]', sheet).forEach((x) => {
         const on = x.dataset.cat === selectedCat;
         x.className = `flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
@@ -165,11 +177,29 @@ export function openTaskSheet(app, onDone) {
     const text = input.value.trim();
     if (!text) { input.focus(); return; }
 
+    playTap();
     const btn = $('#save-task', sheet);
     const label = $('#save-label', sheet);
     btn.disabled = true;
-    label.textContent = 'Pensando…';
-    btn.classList.add('opacity-80');
+    btn.classList.add('is-thinking');
+
+    // A espera medida vai de ~1,5 s a ~10 s (a primeira análise acorda o
+    // modelo). Um texto só, parado por dez segundos, é lido como travamento;
+    // um texto que avança conta o que está acontecendo. Os tempos são
+    // deliberadamente maiores que o caso rápido: quem esperou 1,5 s vê apenas
+    // "Pensando…" e nunca chega ao segundo estágio.
+    const estagios = [
+      [0, 'Pensando…'],
+      [2600, 'Organizando os passos…'],
+      [6000, 'Quase lá…'],
+    ];
+    const timers = estagios.map(([ms, txt]) =>
+      ms === 0 ? (label.textContent = txt, null) : setTimeout(() => { label.textContent = txt; }, ms)
+    );
+    const pararEspera = () => {
+      timers.forEach((t) => t && clearTimeout(t));
+      btn.classList.remove('is-thinking');
+    };
 
     // Aha Moment: usa a IA real do backend (/tasks/smart). Se estiver
     // offline ou a IA falhar, cai na heurística client-side decomposeTask().
@@ -181,12 +211,13 @@ export function openTaskSheet(app, onDone) {
       try {
         result = decomposeTask(text);
       } catch (_) {
-        result = { title: text, category: selectedCat, due, subtasks: [], suggestion: null };
+        result = { title: text, category: selectedCat || 'casa', due, subtasks: [], suggestion: null };
       }
     }
+    pararEspera();
 
     // A escolha manual do usuário tem prioridade sobre o palpite da IA.
-    const category = selectedCat !== 'casa' ? selectedCat : (result.category || 'casa');
+    const category = selectedCat || result.category || 'casa';
     // Data: escolha no calendário > atalho rápido > palpite da IA.
     const finalDueDate =
       dateInput.value || (due ? resolveDue(due) : null) || result.dueDate || null;
@@ -216,6 +247,9 @@ export function openTaskSheet(app, onDone) {
         parentId: parent.id,
       }, onDone), 300);
     } else {
+      // Sem Aha Moment não há playAha; este é o único retorno sonoro do
+      // registro. Quando o modal abre, o playAha dele já cumpre esse papel.
+      playAdd();
       toast('Tarefa adicionada ✨');
     }
   });
@@ -238,8 +272,8 @@ function openAiModal(app, result, onDone) {
       ${subs.length ? `
         <p class="text-sm text-bordeaux-700 mb-2">Posso dividir em passos menores:</p>
         <div class="flex flex-col gap-2 mb-4">
-          ${subs.map((s) => `
-            <label class="flex items-center gap-3 bg-bg rounded-2xl px-3 py-2.5 cursor-pointer">
+          ${subs.map((s, i) => `
+            <label class="reveal flex items-center gap-3 bg-bg rounded-2xl px-3 py-2.5 cursor-pointer" style="--i:${i}">
               <input type="checkbox" data-sub="${encodeURIComponent(s)}" checked
                 class="w-5 h-5 accent-accent rounded" />
               <span class="text-sm text-bordeaux-900">${s}</span>
@@ -247,7 +281,7 @@ function openAiModal(app, result, onDone) {
         </div>` : ''}
 
       ${sug ? `
-        <div class="bg-soft-100/60 rounded-2xl p-3 mb-4">
+        <div class="reveal bg-soft-100/60 rounded-2xl p-3 mb-4" style="--i:${subs.length}">
           <p class="text-sm text-bordeaux-800">${sug.text}</p>
         </div>` : ''}
 
@@ -266,6 +300,9 @@ function openAiModal(app, result, onDone) {
 
   scrim.appendChild(card);
   host.appendChild(scrim);
+  // O som do Aha Moment acompanha a revelação dos passos, não a abertura do
+  // modal: é a decomposição que vale a recompensa.
+  playAha();
 
   function close() {
     scrim.style.animation = 'fadeOut .2s ease both';
@@ -278,21 +315,26 @@ function openAiModal(app, result, onDone) {
     btn.disabled = true;
     btn.classList.add('opacity-80');
 
+    // Ids do que foi criado agora: a Home usa para revelar essas linhas uma a
+    // uma, em vez de fazê-las aparecer todas de vez no meio da lista.
+    const criadas = [];
+
     // adiciona as subtarefas marcadas, FIXADAS como filhas da tarefa-mãe
     // (herdam a data da mãe, para caírem no mesmo dia do calendário)
     for (const cb of $$('[data-sub]:checked', card)) {
-      await addTask({
+      const nova = await addTask({
         title: decodeURIComponent(cb.dataset.sub),
         category: result.category,
         dueDate: result.dueDate || null,
         dueTime: result.dueTime || null,
         parentId: result.parentId,
       });
+      criadas.push(nova.id);
     }
     // adiciona a sugestão preventiva (também como subtarefa da tarefa-mãe).
     // Ela tem data própria — é o lembrete ANTES/DEPOIS do evento.
     if (sug && sug.action) {
-      await addTask({
+      const nova = await addTask({
         title: sug.action.title,
         category: sug.action.category || result.category,
         dueDate: sug.action.dueDate || null,
@@ -300,9 +342,10 @@ function openAiModal(app, result, onDone) {
         due: sug.action.due || '',
         parentId: result.parentId,
       });
+      criadas.push(nova.id);
     }
     close();
-    onDone && onDone();
+    onDone && onDone(criadas);
     toast('Pronto, deixei tudo organizado ✨');
   });
 }

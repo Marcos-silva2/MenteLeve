@@ -47,6 +47,25 @@ class Settings:
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 30)))
 
+    # --- Limite de tentativas de login ---
+    # Janela deslizante em memória, contando apenas as FALHAS (ver app/ratelimit.py).
+    # Um acerto zera a contagem. Vale por e-mail e, com teto mais folgado, por IP —
+    # um IP compartilhado (rede de operadora, escritório) não pode travar todo mundo.
+    LOGIN_MAX_ATTEMPTS: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "8"))
+    LOGIN_ATTEMPT_WINDOW_SECONDS: int = int(os.getenv("LOGIN_ATTEMPT_WINDOW_SECONDS", "900"))
+    LOGIN_MAX_ATTEMPTS_PER_IP: int = int(os.getenv("LOGIN_MAX_ATTEMPTS_PER_IP", "30"))
+
+    # --- Assinatura Premium ---
+    # Enquanto o pagamento é SIMULADO, a usuária ativa o Premium pelo próprio app
+    # (é assim que se mede interesse no MVP). Com isto em `false`, a rota de
+    # simulação passa a responder 403 e a concessão só pode vir de uma confirmação
+    # de pagamento no servidor.
+    #
+    # PRECISA virar "false" no dia em que houver cobrança de verdade.
+    SIMULATED_CHECKOUT: bool = os.getenv("SIMULATED_CHECKOUT", "true").strip().lower() not in (
+        "0", "false", "no", "off",
+    )
+
     # --- Criptografia do conteúdo em repouso (AES-256-GCM) ---
     # 32 bytes em hexadecimal (64 caracteres). Gere com:
     #   python -c "import secrets; print(secrets.token_hex(32))"

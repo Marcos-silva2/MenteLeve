@@ -12,6 +12,7 @@ import {
 } from '../store.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 import { resolveTime } from '../dates.js';
+import { playCycle, playTap } from '../sound.js';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -47,7 +48,7 @@ export function renderAgenda(app) {
         <div class="px-5 lg:px-0">
           <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-3">
             <div class="grid grid-cols-7 mb-1">
-              ${WEEKDAYS.map((w) => `<div class="text-center text-[10px] font-semibold text-soft-300 py-1">${w}</div>`).join('')}
+              ${WEEKDAYS.map((w) => `<div class="text-center text-[10px] font-semibold text-muted py-1">${w}</div>`).join('')}
             </div>
             <div id="grid" class="grid grid-cols-7 gap-1"></div>
           </div>
@@ -145,7 +146,7 @@ export function renderAgenda(app) {
              <p class="text-sm text-bordeaux-700">Nada agendado para este dia. Aproveite para respirar. 🌸</p>
            </div>`}
       ${undated.length
-        ? `<h3 class="text-xs font-semibold text-soft-300 uppercase tracking-wide mb-2">Sem data definida</h3>
+        ? `<h3 class="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Sem data definida</h3>
            <div class="flex flex-col gap-2 pb-4">${undated.slice().sort((a, b) => Number(a.done) - Number(b.done)).map(taskRow).join('')}</div>`
         : ''}
     `;
@@ -185,6 +186,7 @@ export function renderAgenda(app) {
         const cycleLength = clampNum($('#cy-cycle', cycleEl).value, 20, 45, 28);
         const periodLength = clampNum($('#cy-period', cycleEl).value, 2, 10, 5);
         setCycle({ enabled: true, lastStart: last, cycleLength, periodLength });
+        playCycle();
         cycleEdit = false;
         render();
       });
@@ -217,13 +219,15 @@ export function renderAgenda(app) {
       </div>`;
 
     $('#cy-edit', cycleEl).addEventListener('click', () => { cycleEdit = true; render(); });
-    $('#cy-log', cycleEl).addEventListener('click', () => { logPeriodToday(); cycleEdit = false; render(); app.toast('Menstruação registrada 🌸'); });
+    // Timbre próprio, grave e longo: registro íntimo, não conquista de
+    // produtividade. Soar como "tarefa concluída" leria mal o momento.
+    $('#cy-log', cycleEl).addEventListener('click', () => { logPeriodToday(); playCycle(); cycleEdit = false; render(); app.toast('Menstruação registrada 🌸'); });
   }
 
   // eventos de navegação
-  $('#prev', view).addEventListener('click', () => { viewM--; if (viewM < 0) { viewM = 11; viewY--; } render(); });
-  $('#next', view).addEventListener('click', () => { viewM++; if (viewM > 11) { viewM = 0; viewY++; } render(); });
-  $('#today-btn', view).addEventListener('click', () => { viewY = today.getFullYear(); viewM = today.getMonth(); selectedKey = todayKey; render(); });
+  $('#prev', view).addEventListener('click', () => { playTap(); viewM--; if (viewM < 0) { viewM = 11; viewY--; } render(); });
+  $('#next', view).addEventListener('click', () => { playTap(); viewM++; if (viewM > 11) { viewM = 0; viewY++; } render(); });
+  $('#today-btn', view).addEventListener('click', () => { playTap(); viewY = today.getFullYear(); viewM = today.getMonth(); selectedKey = todayKey; render(); });
   toggleBtn.addEventListener('click', () => { showCycle = !showCycle; setCycle({ enabled: showCycle }); cycleEdit = false; render(); });
   $('#fab', view).addEventListener('click', () => openTaskSheet(app, render));
 
@@ -251,7 +255,7 @@ function taskRow(t) {
     <div class="lift flex items-center gap-3 bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3">
       <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : '#ff4d6d'}"></span>
       <div class="min-w-0 flex-1">
-        <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-soft-300' : 'text-bordeaux-900'}">${t.title}</p>
+        <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
         <p class="text-xs text-bordeaux-700 mt-0.5">${cat ? cat.label : ''}${t.parentId ? ' • subtarefa' : ''}</p>
       </div>
       ${time ? `<span class="shrink-0 text-xs font-semibold text-bordeaux-700">${time}</span>` : ''}
