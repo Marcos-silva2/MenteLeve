@@ -58,6 +58,7 @@ _ADDITIVE_COLUMNS = (
     ("users", "hashed_password", "VARCHAR(255)"),
     ("tasks", "due_date", "DATE"),
     ("tasks", "due_time", "VARCHAR(5)"),
+    ("tasks", "reminder_sent_at", "TIMESTAMPTZ"),
 )
 
 
@@ -73,19 +74,24 @@ def _ensure_columns() -> None:
 
     from sqlalchemy import inspect, text
 
+    logger = logging.getLogger("uvicorn.error")
     inspector = inspect(engine)
     for table, column, sql_type in _ADDITIVE_COLUMNS:
+        if not inspector.has_table(table):
+            continue  # tabela ainda não existe (create_all cuidou) — nada a fazer
+
         try:
             cols = {c["name"] for c in inspector.get_columns(table)}
         except Exception:
-            continue  # tabela ainda não existe (create_all cuidou) — nada a fazer
+            logger.warning("Não foi possível inspecionar colunas de %s.", table)
+            continue
 
         if column not in cols:
             try:
                 with engine.begin() as conn:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
             except Exception:
-                logging.getLogger("uvicorn.error").warning(
+                logger.warning(
                     "Não foi possível adicionar a coluna %s.%s — siga com a migração manual.",
                     table, column,
                 )
@@ -117,12 +123,17 @@ def _widen_columns() -> None:
     from sqlalchemy import inspect, text
     from sqlalchemy.types import Text as SAText
 
+    logger = logging.getLogger("uvicorn.error")
     inspector = inspect(engine)
     for table, column in _WIDENED_COLUMNS:
+        if not inspector.has_table(table):
+            continue  # tabela ainda não existe
+
         try:
             cols = {c["name"]: c["type"] for c in inspector.get_columns(table)}
         except Exception:
-            continue  # tabela ainda não existe
+            logger.warning("Não foi possível inspecionar colunas de %s.", table)
+            continue
 
         atual = cols.get(column)
         if atual is None or isinstance(atual, SAText):
@@ -132,7 +143,7 @@ def _widen_columns() -> None:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE TEXT"))
         except Exception:
-            logging.getLogger("uvicorn.error").warning(
+            logger.warning(
                 "Não foi possível converter %s.%s para TEXT — títulos longos podem "
                 "falhar ao gravar. Rode manualmente: "
                 "ALTER TABLE %s ALTER COLUMN %s TYPE TEXT;",

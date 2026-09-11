@@ -1,6 +1,7 @@
 """Rota de conversa com a Bruna (IA), com execução de ações nas tarefas."""
 from __future__ import annotations
 
+import asyncio
 import unicodedata
 from datetime import date
 from difflib import SequenceMatcher
@@ -140,26 +141,16 @@ def _mensagem_pronta(results: list[dict]) -> str | None:
     return " ".join(partes)
 
 
-@router.post("/chat", response_model=schemas.ChatOut)
-def chat(
-    data: schemas.ChatIn,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Conversa com a Bruna — e executa ações quando ela decide usar uma função.
+def _execute_calls(
+    calls: list[dict], user: User, db: Session, today: date
+) -> tuple[list[dict], list[Task]]:
+    """Executa as funções pedidas pelo modelo (síncrono: toca o banco via crud).
 
-    Sem `GOOGLE_AI_API_KEY` (ou em falha da IA), devolve uma mensagem de
-    fallback gentil para a conversa não quebrar.
+    Isolado numa função própria para poder rodar em `asyncio.to_thread` — a
+    rota é `async` por causa da IA (ver ai.py), mas SQLAlchemy aqui não é
+    assíncrono, e chamar `db.commit()` direto no event loop bloquearia todas
+    as outras requisições em andamento no processo.
     """
-    history = [{"role": m.role, "content": m.content} for m in data.messages]
-    today = data.today or date.today()
-
-    text, calls, contents = ai.chat_turn(history, today=today)
-
-    if not calls:
-        return schemas.ChatOut(reply=text or _FALLBACK)
-
-    # Executa as funções pedidas (o modelo pode pedir mais de uma).
     results: list[dict] = []
     afetadas: list[Task] = []
     for call in calls:
@@ -172,11 +163,39 @@ def chat(
         results.append(result)
         if task is not None:
             afetadas.append(task)
+    return results, afetadas
+
+
+@router.post("/chat", response_model=schemas.ChatOut)
+async def chat(
+    data: schemas.ChatIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Conversa com a Bruna — e executa ações quando ela decide usar uma função.
+
+    Sem `GOOGLE_AI_API_KEY` (ou em falha da IA), devolve uma mensagem de
+    fallback gentil para a conversa não quebrar.
+
+    `async`: até duas idas à IA (ai.chat_turn / ai.chat_followup), cada uma
+    podendo levar segundos — ver app/ai.py sobre por que isso não pode
+    bloquear uma thread do pool.
+    """
+    history = [{"role": m.role, "content": m.content} for m in data.messages]
+    today = data.today or date.today()
+
+    text, calls, contents = await ai.chat_turn(history, today=today)
+
+    if not calls:
+        return schemas.ChatOut(reply=text or _FALLBACK)
+
+    results, afetadas = await asyncio.to_thread(_execute_calls, calls, user, db, today)
 
     reply = _mensagem_pronta(results)
     if reply is None:
         # Caminho que precisa de nuance (desempate, limite): deixa o modelo redigir.
-        reply = ai.chat_followup(contents, calls, results, today=today) or text or _FALLBACK
+        followup = await ai.chat_followup(contents, calls, results, today=today)
+        reply = followup or text or _FALLBACK
 
     return schemas.ChatOut(
         reply=reply,

@@ -5,6 +5,7 @@
 import { h, $, $$, icons, toast } from '../ui.js';
 import { getUser, logout, isPremium, getSoundLevel, setSoundLevel, SOUND_LEVELS } from '../store.js';
 import { playTap, playComplete } from '../sound.js';
+import * as push from '../push.js';
 
 export function renderProfile(app) {
   const user = getUser() || { name: 'Você', email: '' };
@@ -70,6 +71,22 @@ export function renderProfile(app) {
           </div>
         </div>
 
+        <!-- lembrete de tarefas (push) -->
+        <div class="px-6 mb-4" id="push-card" hidden>
+          <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4 flex items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <p class="flex items-center gap-2 text-sm text-bordeaux-900 mb-1">
+                <span class="text-bordeaux-700">${icons.bell}</span> Lembrete de tarefas
+              </p>
+              <p class="text-xs text-bordeaux-700">Um aviso no aparelho perto do horário da tarefa.</p>
+            </div>
+            <button id="push-toggle" aria-checked="false"
+              class="relative w-12 h-7 rounded-full shrink-0 transition-colors bg-soft-200">
+              <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all"></span>
+            </button>
+          </div>
+        </div>
+
         <!-- menu -->
         <div class="px-6">
           <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden">
@@ -123,6 +140,44 @@ export function renderProfile(app) {
     if (nivel === 'tudo') playTap();
     else if (nivel === 'conclusoes') playComplete();
   });
+
+  // Lembrete de tarefas (push) — só aparece se o navegador suportar; o estado
+  // real (assinado ou não) é assíncrono, então a checagem chega depois do
+  // primeiro paint e ajusta o toggle sem bloquear a tela.
+  const pushCard = $('#push-card', view);
+  const pushToggle = $('#push-toggle', view);
+  if (push.isPushSupported()) {
+    pushCard.hidden = false;
+    push.isEnabled().then(setPushToggle);
+  }
+  pushToggle.addEventListener('click', async () => {
+    const ligado = pushToggle.getAttribute('aria-checked') === 'true';
+    pushToggle.disabled = true;
+    if (ligado) {
+      await push.disable();
+      setPushToggle(false);
+      toast('Lembretes desativados');
+    } else {
+      const resultado = await push.enable();
+      if (resultado === 'enabled') {
+        setPushToggle(true);
+        toast('Lembretes ativados 🔔');
+      } else if (resultado === 'denied') {
+        toast('Permissão de notificação negada no navegador');
+      } else if (resultado === 'unavailable') {
+        toast('Recurso ainda não disponível');
+      } else {
+        toast('Não foi possível ativar agora');
+      }
+    }
+    pushToggle.disabled = false;
+  });
+  function setPushToggle(on) {
+    pushToggle.setAttribute('aria-checked', String(on));
+    pushToggle.className = `relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-soft-200'}`;
+    pushToggle.querySelector('span').className =
+      `absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`;
+  }
 
   $$('[data-menu]', view).forEach((b) =>
     b.addEventListener('click', () => toast('Recurso disponível na versão final ✨'))

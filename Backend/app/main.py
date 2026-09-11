@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.crypto import encryption_active
 from app.database import init_db
-from app.routers import ai_chat, auth, tasks
+from app.routers import ai_chat, auth, push, tasks
 
 
 @asynccontextmanager
@@ -35,6 +35,12 @@ async def lifespan(_app: FastAPI):
             "Premium sem pagar (POST /auth/me/premium/simulate). É o esperado no "
             "MVP; defina SIMULATED_CHECKOUT=false antes de cobrar de verdade."
         )
+    if not settings.push_enabled:
+        log.warning(
+            "VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY não definidas: notificações push "
+            "desligadas (o Perfil não oferece a opção). Gere um par com "
+            "`python scripts/generate_vapid_keys.py`."
+        )
     yield
 
 
@@ -56,6 +62,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(ai_chat.router)
+app.include_router(push.router)
 
 
 @app.get("/health", tags=["health"])

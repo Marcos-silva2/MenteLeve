@@ -336,6 +336,45 @@ export async function apiDeleteTask(id) {
   }
 }
 
+// ----------------------- Push (lembrete de tarefa) -----------------------
+/** { public_key, enabled } — enabled=false quando o servidor não tem VAPID configurada. */
+export async function apiPushPublicKey() {
+  if (!_token || !(await ensureOnline())) return null;
+  try {
+    return await request('/push/public-key', { headers: headers() });
+  } catch (_) {
+    return null;
+  }
+}
+
+export async function apiPushSubscribe(subscriptionJSON) {
+  if (!_token || !(await ensureOnline())) return false;
+  try {
+    await request('/push/subscribe', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(subscriptionJSON),
+    });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function apiPushUnsubscribe(endpoint) {
+  if (!_token || !(await ensureOnline())) return false;
+  try {
+    await request('/push/unsubscribe', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ endpoint }),
+    });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ============================================================
 // "IA temporária" — decomposição client-side (Aha Moment)
 // Até a IA ser plugada no backend (/tasks/smart), o app gera as

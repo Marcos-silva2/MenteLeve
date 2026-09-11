@@ -97,6 +97,26 @@ class Settings:
     # Modelos disponíveis variam por conta — confira em /openai/v1/models.
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
+    # --- Notificações push (lembrete de tarefa) ---
+    # Par de chaves VAPID — identifica o servidor perante o serviço de push do
+    # navegador (FCM no Chrome/Android, Apple Push no Safari/iOS). Gere com
+    # `python scripts/generate_vapid_keys.py`. Sem elas, a rota /push/* fica
+    # desligada e o app não oferece a opção de lembrete na tela de Perfil.
+    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "")
+    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "")
+    # E-mail de contato exigido pelo protocolo Web Push (vai no claim `sub`, como
+    # `mailto:`), para o provedor do navegador poder contatar o operador do
+    # servidor em caso de abuso.
+    VAPID_CONTACT_EMAIL: str = os.getenv("VAPID_CONTACT_EMAIL", "")
+    # Segredo compartilhado com o cron externo que chama POST /push/scan (mesmo
+    # padrão do ping em /health — ver docs/README.md). Sem ele, a rota de
+    # varredura fica fechada: preferimos negar por padrão a expor um jeito de
+    # qualquer um disparar notificação para todas as usuárias.
+    PUSH_SCAN_SECRET: str = os.getenv("PUSH_SCAN_SECRET", "")
+    # Janela, em minutos, à frente do horário atual em que uma tarefa é
+    # considerada "prestes a vencer" e dispara o lembrete.
+    PUSH_REMINDER_WINDOW_MINUTES: int = int(os.getenv("PUSH_REMINDER_WINDOW_MINUTES", "10"))
+
     # Metadados
     APP_NAME: str = "MenteLeve API"
     APP_VERSION: str = "0.3.0"
@@ -113,6 +133,10 @@ class Settings:
     def secret_key_is_ephemeral(self) -> bool:
         """True quando SECRET_KEY não veio do ambiente (fallback aleatório)."""
         return not os.getenv("SECRET_KEY", "").strip()
+
+    @property
+    def push_enabled(self) -> bool:
+        return bool(self.VAPID_PUBLIC_KEY.strip() and self.VAPID_PRIVATE_KEY.strip())
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -6,7 +6,7 @@
 
 import { h, $, $$, icons, toast, logoMark } from '../ui.js';
 import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, isSyncing, CATEGORIES } from '../store.js';
-import { formatDue, isOverdue } from '../dates.js';
+import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey } from '../dates.js';
 import { playComplete, playUndo, playTap, playDelete, playAllDone } from '../sound.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 
@@ -55,8 +55,9 @@ export function renderHome(app) {
       </div>
 
       <!-- FAB -->
-      <button id="fab"
-        class="fab absolute right-5 bottom-24 lg:bottom-10 w-16 h-16 rounded-full bg-accent text-white grid place-items-center shadow-fab fab-pulse active:scale-95 transition-transform z-30">
+      <button id="fab" aria-label="Adicionar nova tarefa"
+        class="fab absolute right-5 bottom-24 lg:bottom-10 w-16 h-16 rounded-full bg-accent text-white grid place-items-center shadow-fab fab-pulse active:scale-95 transition-transform z-30
+               focus-visible:ring-4 focus-visible:ring-accent/30 outline-none">
         ${icons.plus}
       </button>
     </div>
@@ -86,12 +87,14 @@ export function renderHome(app) {
   listEl.addEventListener('touchmove', cancelLp, { passive: true });
 
   function renderFilters() {
+    filtersEl.setAttribute('role', 'group');
+    filtersEl.setAttribute('aria-label', 'Filtrar por categoria');
     const all = [{ id: 'tudo', label: 'Tudo' }, ...CATEGORIES];
     filtersEl.innerHTML = all.map((c) => {
       const on = c.id === filter;
       const dot = c.dot ? `<span class="w-1.5 h-1.5 rounded-full" style="background:${c.dot}"></span>` : '';
-      return `<button data-filter="${c.id}"
-        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
+      return `<button data-filter="${c.id}" aria-pressed="${on}"
+        class="inline-flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
                ${on ? 'bg-bordeaux-700 text-white shadow-card' : 'bg-white text-bordeaux-700 border border-soft-100 hover:border-soft-200'}">
         ${dot}${c.label}</button>`;
     }).join('');
@@ -114,7 +117,9 @@ export function renderHome(app) {
         <span class="text-xs font-medium text-bordeaux-700">${msg}</span>
         <span class="text-xs font-bold text-accent">${pct}%</span>
       </div>
-      <div class="h-2 rounded-full bg-soft-100 overflow-hidden">
+      <div class="h-2 rounded-full bg-soft-100 overflow-hidden"
+        role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
+        aria-label="Progresso de tarefas de hoje">
         <div class="h-full rounded-full bg-gradient-to-r from-accent to-soft-300 transition-all duration-700 ease-out" style="width:${pct}%"></div>
       </div>`;
   }
@@ -152,14 +157,17 @@ export function renderHome(app) {
   function renderWeekPanel() {
     const panel = $('#week-panel', view);
     if (!panel) return;
-    const today = new Date();
     const wd = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const pending = getTasks().filter((t) => !t.done);
+    const hoje = todayKey();
+    // Só tarefas com data estruturada contam aqui — a mesma fonte de verdade
+    // que o calendário usa (ver dates.js). Substitui a contagem anterior, que
+    // jogava toda tarefa pendente em "Hoje" e nada nos demais dias.
+    const pendentesComData = getTasks().filter((t) => !t.done && t.dueDate);
     panel.innerHTML = Array.from({ length: 5 }).map((_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
+      const key = addDaysKey(hoje, i);
+      const d = dateFromKey(key);
       const label = i === 0 ? 'Hoje' : i === 1 ? 'Amanhã' : `${wd[d.getDay()]} ${d.getDate()}`;
-      const count = i === 0 ? pending.length : 0; // MVP: tarefas concentradas em "hoje"
+      const count = pendentesComData.filter((t) => t.dueDate === key).length;
       return `
         <div class="flex items-center justify-between rounded-2xl px-3 py-2.5 ${i === 0 ? 'bg-soft-100/70' : 'bg-bg'}">
           <span class="text-sm font-medium text-bordeaux-900">${label}</span>
@@ -246,27 +254,33 @@ export function renderHome(app) {
 }
 
 /* ---------------- helpers de render ---------------- */
+/** Escapa para uso dentro de um atributo HTML (ex.: aria-label com o título da tarefa). */
+function escAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function taskCard(t, sub = { total: 0, done: 0 }) {
   const cat = getCategory(t.category);
   const done = t.done;
   // Prioridade: deriva de `priority` (fallback p/ tarefas antigas via `important`).
   const prio = getPriority(t.priority || (t.important ? 'alta' : 'media'));
   const hasSubs = sub.total > 0;
+  const acao = done ? 'Reabrir' : 'Concluir';
   return `
   <div data-card="${t.id}"
     style="border-left:4px solid ${cat ? cat.dot : '#ffb3c1'}"
     class="lift group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 ${hasSubs ? 'mb-1' : 'mb-3'} flex items-center gap-3 select-none hover:border-soft-200">
-    <button data-check="${t.id}"
-      class="shrink-0 w-7 h-7 rounded-full border-2 grid place-items-center transition
+    <button data-check="${t.id}" aria-label="${acao} tarefa ${escAttr(t.title)}"
+      class="shrink-0 w-11 h-11 rounded-full border-2 grid place-items-center transition
              ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent hover:border-accent'}">
       <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
     </button>
     <div class="min-w-0 flex-1">
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
-        ${formatDue(t) ? `<span class="text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-accent font-semibold' : 'text-bordeaux-700')}">${formatDue(t)}</span>` : ''}
+        ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-accent font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
-          <span class="w-1.5 h-1.5 rounded-full" style="background:${prio.dot}"></span>${prio.label}</span>` : ''}
+          <span style="color:${prio.dot}">${icons.flag}</span>${prio.label}</span>` : ''}
         ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-accent">✨ ${sub.done}/${sub.total} passos</span>` : ''}
       </div>
     </div>
@@ -296,10 +310,11 @@ function subtaskGroup(subs, revealIds = []) {
 function subtaskRow(t, revealIndex = null) {
   const done = t.done;
   const anima = revealIndex != null;
+  const acao = done ? 'Reabrir' : 'Concluir';
   return `
   <div data-card="${t.id}"${anima ? ` style="--i:${revealIndex}"` : ''}
     class="${anima ? 'reveal ' : ''}group relative flex items-center gap-2.5 bg-white/70 rounded-xl border border-soft-100 px-3 py-2 select-none hover:border-soft-200 transition">
-    <button data-check="${t.id}"
+    <button data-check="${t.id}" aria-label="${acao} tarefa ${escAttr(t.title)}"
       class="shrink-0 w-5 h-5 rounded-full border-2 grid place-items-center transition
              ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent hover:border-accent'}">
       <span class="${done ? 'check-pop' : ''}">${icons.check}</span>

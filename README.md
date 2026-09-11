@@ -71,7 +71,7 @@ MenteLeve/
 │   ├── requirements.txt · Procfile · runtime.txt
 │   └── .env.example
 │
-└── docs/                     # contexto, estilo, roteiro de telas
+└── docs/                     # documentação consolidada (docs/README.md) + contexto de produto
 ```
 
 ---
@@ -147,6 +147,8 @@ Detalhes da troca entre provedores em [`Backend/README.md`](Backend/README.md).
 | `PUT` | `/tasks/{id}/complete` · `/uncomplete` | Concluir / reabrir |
 | `DELETE` | `/tasks/{id}` | Excluir (remove subtarefas) |
 | `POST` | `/ai/chat` | Conversa com a **Bruna** — pode criar/concluir tarefas (function calling) |
+| `GET` | `/push/public-key` · `POST` `/push/subscribe` · `/push/unsubscribe` | Lembrete de tarefa por notificação push (opt-in, no Perfil) |
+| `POST` | `/push/scan` | Varredura de tarefas prestes a vencer — chamada por cron externo, não pela usuária (requer `X-Scan-Secret`) |
 
 Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend devolve um **token JWT** que o frontend envia no header **`Authorization: Bearer <token>`**. Limite freemium: 50 tarefas → `HTTP 402` (dispara o Paywall).
 
@@ -213,35 +215,33 @@ python scripts/encrypt_existing.py --aplicar  # grava
 - **Framework Preset:** Other (sem build — HTML/JS puro).
 - Deploy automático a cada push em `main` (via integração Vercel ↔ GitHub).
 
-Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [`docs/Roadmap.md`](docs/Roadmap.md).
+Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [`docs/README.md`](docs/README.md#série-b--migração-para-a-nuvem-27082026-concluída).
 
 ---
 
 ## 🗺️ Roadmap
 
 **Concluído:**
-- Migração para Supabase + Vercel — [`docs/Roadmap.md`](docs/Roadmap.md)
+- Migração para Supabase + Vercel
 - Sprint 1: autenticação real (JWT + senha com bcrypt)
 - Sprint 2: prazo estruturado (data/horário) e a **Bruna executando ações** pelo chat
 - Sprint 3: responsividade em tablet e imagens otimizadas (precache −90%)
 - Sprint 4: feedback sonoro (com opção de silenciar) e correções no Service Worker
 - Sprint 5: criptografia do conteúdo em repouso (AES-256-GCM)
+- Sprints 6–8: fila de escrita offline → online, rate limit no login, fim da
+  escalada de privilégio no Premium, e polimento de percepção/presença
+- IA assíncrona (`httpx`) com circuit breaker no Gemini, para não travar o backend
+  sob falha do provedor
 
-📍 **[`docs/estado-atual.md`](docs/estado-atual.md)** — o que funciona hoje, o que é
-fachada, decisões de arquitetura e pendências.
-🗺️ **[`docs/historico-sprints.md`](docs/historico-sprints.md)** — resumo de todas as
-sprints (MVP, migração e evolução).
-
-Detalhamento completo de cada sprint em
-[`docs/roadmap-sprints-menteleve.md`](docs/roadmap-sprints-menteleve.md).
+📍 **[`docs/README.md`](docs/README.md)** — documentação consolidada: estado atual,
+o que é fachada, design system, diretrizes de UX e histórico completo de sprints.
 
 **Próximos passos:**
-- [ ] **Limite de tentativas de login** — hoje `/auth/login` aceita tentativas infinitas
-- [ ] Sincronização offline → online das tarefas criadas localmente (não há fila de escrita)
+- [ ] **Recuperação de senha** — hoje não há caminho de autoatendimento para quem esquece a senha
+- [ ] **Revogação de sessão** — sem forma de invalidar um token antes de expirar (30 dias)
 - [ ] OAuth real (Apple / Google) e notificações da rede de apoio
-- [ ] Recorrência de tarefas (precisa de coluna própria — ver Sprint 2)
-- [ ] **Corrigir antes de haver cobrança real:** `POST /auth/me/premium` permite que
-      qualquer usuária autenticada se conceda Premium
+- [ ] Recorrência de tarefas (precisa de coluna própria — ver `docs/README.md`)
+- [ ] Suíte de testes automatizados e CI
 
 ---
 

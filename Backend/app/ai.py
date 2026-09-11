@@ -4,19 +4,25 @@ Responsável pelo "Aha Moment" do MenteLeve: a partir de um texto livre,
 a IA normaliza a tarefa (NLP), extrai data/categoria, sugere subtarefas e
 um lembrete preventivo (mapeamento de dependências) — conforme docs/IA.md.
 
-Usa apenas a biblioteca padrão (urllib) para evitar dependências extras e
-problemas de wheels no Python 3.14. Qualquer falha (sem chave, rede, parsing)
-retorna ``None`` para que a rota caia em um fallback gracioso.
+Assíncrono (httpx.AsyncClient): as chamadas ao Gemini/Groq podem levar
+segundos, e um servidor Uvicorn com um único worker (ver Procfile) roda rotas
+`def` síncronas no threadpool compartilhado — uma IA lenta consumiria threads
+que `/auth` e `/tasks` também precisam. Sendo `async`, a espera de rede libera
+o event loop em vez de segurar uma thread.
+
+Qualquer falha (sem chave, rede, parsing) retorna ``None`` para que a rota
+caia em um fallback gracioso.
 """
 from __future__ import annotations
 
 import json
 import logging
 import re
-import urllib.error
-import urllib.request
 from datetime import date
 
+import httpx
+
+from app.circuit import CircuitBreaker
 from app.config import settings
 
 # Categorias válidas (espelham o design system / schemas).
@@ -28,6 +34,13 @@ _ENDPOINT = (
 )
 
 _GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+
+# Abre depois de 3 falhas seguidas do Gemini (timeout, 429, erro de rede) e
+# fica fechado por 30s — tempo de sobra para uma cota por minuto liberar uma
+# fresta, sem fazer toda requisição nesse meio-tempo pagar o timeout inteiro
+# só para falhar do mesmo jeito. Aplicado só ao Gemini: o Groq já É a reserva,
+# não precisa de uma reserva da reserva.
+_gemini_breaker = CircuitBreaker(fail_threshold=3, cooldown_seconds=30)
 
 _SYSTEM = (
     "Você é a inteligência do MenteLeve, um app que reduz a carga mental de "
@@ -152,61 +165,68 @@ def _groq_tools() -> list[dict]:
     return [{"type": "function", "function": spec} for spec in _TOOL_SPECS]
 
 
-def _post(body: dict, timeout: float) -> dict | None:
+async def _post(body: dict, timeout: float) -> dict | None:
     """POST ao Gemini. Devolve o payload ou None em qualquer falha.
 
     Registra o motivo no log: sem isso, uma cota estourada (429) fica
     indistinguível de "a IA não quis responder" — a usuária vê a mensagem de
     fallback e não há como diagnosticar. O plano gratuito do Gemini limita a
     ~20 requisições/minuto, o que é fácil de atingir com poucas usuárias.
+
+    Gated pelo circuit breaker: com ele aberto, nem tenta — vai direto para
+    quem chamou tratar como falha (e cair no Groq).
     """
-    url = _ENDPOINT.format(model=settings.AI_MODEL, key=settings.GOOGLE_AI_API_KEY)
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     log = logging.getLogger("uvicorn.error")
+    if not _gemini_breaker.allow():
+        log.info("IA: Gemini em cooldown (circuit breaker) — pulando para a reserva.")
+        return None
+
+    url = _ENDPOINT.format(model=settings.AI_MODEL, key=settings.GOOGLE_AI_API_KEY)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(url, json=body, headers={"Content-Type": "application/json"})
+            resp.raise_for_status()
+            _gemini_breaker.record(True)
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        _gemini_breaker.record(False)
+        if e.response.status_code == 429:
             log.warning("Gemini: cota excedida (429) — verifique o plano da GOOGLE_AI_API_KEY.")
         else:
-            log.warning("Gemini: erro HTTP %s.", e.code)
+            log.warning("Gemini: erro HTTP %s.", e.response.status_code)
         return None
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:
+    except (httpx.HTTPError, ValueError, OSError) as e:
+        _gemini_breaker.record(False)
         log.warning("Gemini indisponível: %s", type(e).__name__)
         return None
 
 
-def _post_groq(body: dict, timeout: float) -> dict | None:
-    """POST ao Groq (API compatível com OpenAI). Mesmo contrato de _post."""
-    req = urllib.request.Request(
-        _GROQ_ENDPOINT,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            # Sem User-Agent explícito o Cloudflare do Groq bloqueia o
-            # "Python-urllib/3.x" padrão com HTTP 403 (erro 1010).
-            "User-Agent": "MenteLeve/1.0",
-        },
-        method="POST",
-    )
+async def _post_groq(body: dict, timeout: float) -> dict | None:
+    """POST ao Groq (API compatível com OpenAI). Mesmo contrato de _post.
+
+    Sem circuit breaker: já é a reserva do Gemini, não precisa de uma reserva
+    da reserva. Uma falha aqui já cai no fallback de texto do chamador.
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+        # Sem User-Agent explícito o Cloudflare do Groq bloqueia o
+        # cliente HTTP padrão com HTTP 403 (erro 1010).
+        "User-Agent": "MenteLeve/1.0",
+    }
     log = logging.getLogger("uvicorn.error")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(_GROQ_ENDPOINT, json=body, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
             log.warning("Groq: cota excedida (429).")
         else:
-            log.warning("Groq: erro HTTP %s.", e.code)
+            log.warning("Groq: erro HTTP %s.", e.response.status_code)
         return None
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:
+    except (httpx.HTTPError, ValueError, OSError) as e:
         log.warning("Groq indisponível: %s", type(e).__name__)
         return None
 
@@ -286,7 +306,7 @@ def _chat_system(today: date) -> str:
 # `calls` é normalizado como [{name, args, id}]. O `id` só existe no Groq
 # (padrão OpenAI exige devolvê-lo no turno seguinte); no Gemini fica None.
 # ------------------------------------------------------------------
-def _gemini_chat(
+async def _gemini_chat(
     messages: list[dict], calls: list[dict], results: list[dict], today: date, timeout: float
 ) -> tuple[str, list[dict]] | None:
     contents = []
@@ -311,7 +331,7 @@ def _gemini_chat(
             ],
         })
 
-    payload = _post(
+    payload = await _post(
         {
             "system_instruction": {"parts": [{"text": _chat_system(today)}]},
             "contents": contents,
@@ -327,7 +347,7 @@ def _gemini_chat(
     return (text, parsed) if (text or parsed) else None
 
 
-def _groq_chat(
+async def _groq_chat(
     messages: list[dict], calls: list[dict], results: list[dict], today: date, timeout: float
 ) -> tuple[str, list[dict]] | None:
     msgs: list[dict] = [{"role": "system", "content": _chat_system(today)}]
@@ -358,7 +378,7 @@ def _groq_chat(
                 "content": json.dumps(r, ensure_ascii=False),
             })
 
-    payload = _post_groq(
+    payload = await _post_groq(
         {
             "model": settings.GROQ_MODEL,
             "messages": msgs,
@@ -372,21 +392,21 @@ def _groq_chat(
     return (text, parsed) if (text or parsed) else None
 
 
-def chat_turn(messages: list[dict], today: date | None = None) -> tuple[str, list[dict], list[dict]]:
+async def chat_turn(messages: list[dict], today: date | None = None) -> tuple[str, list[dict], list[dict]]:
     """Primeira ida ao modelo (Gemini; Groq como reserva).
 
     Devolve (texto, chamadas, histórico) — o histórico volta em `chat_followup`
     quando a segunda ida for necessária.
     """
     today = today or date.today()
-    out = _chat_with_fallback(messages, [], [], today)
+    out = await _chat_with_fallback(messages, [], [], today)
     if out is None:
         return "", [], []
     text, calls = out
     return text, calls, messages
 
 
-def chat_followup(
+async def chat_followup(
     messages: list[dict], calls: list[dict], results: list[dict], today: date | None = None
 ) -> str:
     """Segunda ida: devolve ao modelo o resultado das funções para ele redigir a
@@ -395,32 +415,32 @@ def chat_followup(
     """
     if not calls:
         return ""
-    out = _chat_with_fallback(messages, calls, results, today or date.today())
+    out = await _chat_with_fallback(messages, calls, results, today or date.today())
     return out[0] if out else ""
 
 
-def _chat_with_fallback(
+async def _chat_with_fallback(
     messages: list[dict], calls: list[dict], results: list[dict], today: date
 ) -> tuple[str, list[dict]] | None:
     """Tenta o Gemini; se ele falhar (cota, timeout, resposta vazia), usa o Groq."""
     timeout = settings.AI_CHAT_TIMEOUT
     if settings.ai_enabled:
-        out = _gemini_chat(messages, calls, results, today, timeout)
+        out = await _gemini_chat(messages, calls, results, today, timeout)
         if out is not None:
             return out
     if settings.groq_enabled:
         logging.getLogger("uvicorn.error").info("IA: usando o provedor de reserva (Groq).")
-        return _groq_chat(messages, calls, results, today, timeout)
+        return await _groq_chat(messages, calls, results, today, timeout)
     return None
 
 
-def chat(messages: list[dict]) -> str | None:
+async def chat(messages: list[dict]) -> str | None:
     """Conversa simples (sem ações). Mantida para compatibilidade."""
-    text, _, _ = chat_turn(messages)
+    text, _, _ = await chat_turn(messages)
     return text or None
 
 
-def analyze(text: str, today: date | None = None) -> dict | None:
+async def analyze(text: str, today: date | None = None) -> dict | None:
     """Analisa o texto livre e devolve a estrutura do 'Aha Moment'.
 
     `today` é a data local da usuária (o servidor roda em UTC). Sem ela,
@@ -437,7 +457,7 @@ def analyze(text: str, today: date | None = None) -> dict | None:
 
     raw = None
     if settings.ai_enabled:
-        payload = _post(
+        payload = await _post(
             {
                 "system_instruction": {"parts": [{"text": _SYSTEM}]},
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -456,7 +476,7 @@ def analyze(text: str, today: date | None = None) -> dict | None:
 
     if not raw and settings.groq_enabled:
         logging.getLogger("uvicorn.error").info("IA: usando o provedor de reserva (Groq).")
-        payload = _post_groq(
+        payload = await _post_groq(
             {
                 "model": settings.GROQ_MODEL,
                 "messages": [

@@ -155,3 +155,25 @@ class SmartTaskOut(BaseModel):
     # cliente, vendo um objeto válido, deixa de usar a própria heurística, que
     # ao menos extrai data e categoria do texto. Ver Frontend/js/api.js.
     ai: bool = True
+
+
+# ------------------- Notificações push -------------------
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionIn(BaseModel):
+    """Espelha o formato de `PushSubscription.toJSON()` do navegador."""
+
+    endpoint: str = Field(..., max_length=500)
+    keys: PushSubscriptionKeys
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str = Field(..., max_length=500)
+
+
+class PushPublicKeyOut(BaseModel):
+    public_key: str = ""
+    enabled: bool = False

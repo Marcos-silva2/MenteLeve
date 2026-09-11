@@ -65,5 +65,28 @@ class Task(Base):
     done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     important: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    # Quando o lembrete push desta tarefa foi enviado (None = ainda não). Evita
+    # reenviar a cada rodada da varredura — ver app/push.py.
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="tasks")
+
+
+class PushSubscription(Base):
+    """Uma inscrição de notificação push (um navegador/aparelho instalado).
+
+    Uma usuária pode ter mais de uma (celular + desktop instalado); o `endpoint`
+    identifica o par navegador+serviço de push e é único por natureza — é o que
+    permite reassinar sem duplicar linha (ver crud.upsert_push_subscription).
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    # Chaves públicas da assinatura (fornecidas pelo navegador), necessárias
+    # para cifrar o payload do Web Push — não são segredo do servidor.
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

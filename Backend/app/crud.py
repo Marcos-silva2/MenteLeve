@@ -147,3 +147,81 @@ def delete_task(db: Session, task: models.Task) -> None:
     # (FK de tasks.parent_id) — ver database.py para o equivalente no SQLite.
     db.delete(task)
     db.commit()
+
+
+def tasks_due_for_reminder(
+    db: Session, today: date, not_before: str, not_after: str
+) -> list[models.Task]:
+    """Tarefas em aberto, com horário definido, vencendo dentro da janela e sem
+    lembrete enviado ainda. `due_time` é "HH:MM" (zero-padded): comparar como
+    string funciona porque a ordem lexicográfica coincide com a cronológica.
+    """
+    stmt = select(models.Task).where(
+        models.Task.done.is_(False),
+        models.Task.due_date == today,
+        models.Task.due_time.isnot(None),
+        models.Task.due_time >= not_before,
+        models.Task.due_time <= not_after,
+        models.Task.reminder_sent_at.is_(None),
+    )
+    return list(db.scalars(stmt))
+
+
+def mark_reminder_sent(db: Session, task: models.Task) -> None:
+    task.reminder_sent_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+# ----------------------- Push subscriptions -----------------------
+def upsert_push_subscription(
+    db: Session, user_id: int, endpoint: str, p256dh: str, auth: str
+) -> models.PushSubscription:
+    """Grava a inscrição; se o `endpoint` já existir (reassinatura, ou troca de
+    conta no mesmo aparelho), atualiza no lugar de duplicar — `endpoint` é único.
+    """
+    existing = db.scalar(
+        select(models.PushSubscription).where(models.PushSubscription.endpoint == endpoint)
+    )
+    if existing:
+        existing.user_id = user_id
+        existing.p256dh = p256dh
+        existing.auth = auth
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    sub = models.PushSubscription(user_id=user_id, endpoint=endpoint, p256dh=p256dh, auth=auth)
+    db.add(sub)
+    db.commit()
+    db.refresh(sub)
+    return sub
+
+
+def list_push_subscriptions(db: Session, user_id: int) -> list[models.PushSubscription]:
+    stmt = select(models.PushSubscription).where(models.PushSubscription.user_id == user_id)
+    return list(db.scalars(stmt))
+
+
+def delete_push_subscription(db: Session, user_id: int, endpoint: str) -> bool:
+    sub = db.scalar(
+        select(models.PushSubscription).where(
+            models.PushSubscription.user_id == user_id,
+            models.PushSubscription.endpoint == endpoint,
+        )
+    )
+    if sub is None:
+        return False
+    db.delete(sub)
+    db.commit()
+    return True
+
+
+def delete_push_subscription_by_endpoint(db: Session, endpoint: str) -> None:
+    """Usado quando o provedor de push diz que o endpoint não existe mais
+    (410/404) — a inscrição está morta independente de quem a possui."""
+    db.execute(
+        models.PushSubscription.__table__.delete().where(
+            models.PushSubscription.endpoint == endpoint
+        )
+    )
+    db.commit()

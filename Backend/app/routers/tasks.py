@@ -1,6 +1,8 @@
 """Rotas de tarefas (CRUD + criação inteligente)."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -48,7 +50,7 @@ def create_task(
 
 
 @router.post("/smart", response_model=schemas.SmartTaskOut)
-def analyze_smart_task(
+async def analyze_smart_task(
     data: schemas.SmartTaskIn,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -62,10 +64,15 @@ def analyze_smart_task(
 
     Sem `GOOGLE_AI_API_KEY` configurada (ou em caso de falha da IA), devolve
     um fallback que apenas normaliza o título.
-    """
-    _enforce_free_limit(user, db)
 
-    result = ai.analyze(data.text, today=data.today)
+    `async`: a chamada à IA (ai.analyze) é assíncrona (ver app/ai.py) para não
+    prender uma thread do pool durante a espera de rede. `_enforce_free_limit`
+    continua síncrona (SQLAlchemy não é assíncrono aqui) — vai para uma thread
+    à parte via `asyncio.to_thread` para não bloquear o event loop.
+    """
+    await asyncio.to_thread(_enforce_free_limit, user, db)
+
+    result = await ai.analyze(data.text, today=data.today)
 
     if result is None:
         # Fallback do servidor: só normaliza o título. `ai=False` avisa o cliente

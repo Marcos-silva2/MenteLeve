@@ -63,6 +63,7 @@ export function renderConnections(app) {
     t.addEventListener('click', () => {
       const on = t.getAttribute('aria-checked') === 'true';
       setToggle(t, !on);
+      toast('Recurso disponível na versão final ✨');
     })
   );
 

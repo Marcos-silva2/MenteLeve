@@ -51,6 +51,22 @@ create index if not exists ix_tasks_due_date on tasks (due_date);
 alter table tasks add column if not exists due_date date;
 alter table tasks add column if not exists due_time varchar(5);
 
+-- Para bancos criados antes do lembrete push (idempotente):
+alter table tasks add column if not exists reminder_sent_at timestamptz;
+
+-- Inscrições de notificação push (um navegador/aparelho instalado por linha).
+-- As chaves (p256dh, auth) vêm do navegador e não são segredo do servidor.
+create table if not exists push_subscriptions (
+    id          bigint generated always as identity primary key,
+    user_id     bigint not null references users (id) on delete cascade,
+    endpoint    varchar(500) not null unique,
+    p256dh      varchar(255) not null,
+    auth        varchar(255) not null,
+    created_at  timestamptz not null default now()
+);
+
+create index if not exists ix_push_subscriptions_user_id on push_subscriptions (user_id);
+
 -- Para bancos criados antes da criptografia (idempotente): o ciphertext em
 -- base64 não cabe no varchar original. O backend também faz isso no boot
 -- (database._widen_columns), mas rodar aqui é mais previsível.

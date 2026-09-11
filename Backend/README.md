@@ -69,7 +69,7 @@ Requer a variável de ambiente **`SECRET_KEY`** (ver `.env.example`). Sem ela, o
 backend usa uma chave aleatória por processo e derruba todas as sessões a cada
 restart — no Render free isso acontece a cada cold start.
 
-OAuth real (Google/Apple) ainda não está implementado — ver `docs/roadmap-sprints-menteleve.md`.
+OAuth real (Google/Apple) ainda não está implementado — ver `docs/README.md`.
 
 > Não há limite de tentativas de login. O custo do bcrypt (~250 ms por tentativa)
 > freia força bruta na prática, mas não é uma trava — está na lista de próximos passos.
@@ -199,7 +199,7 @@ a criação retorna **HTTP 402** (gatilho do Paywall no frontend).
 - **Importante:** aponte `DATABASE_URL` para o Postgres do Supabase — use a connection
   string do **"Session pooler"** (IPv4), não a "Direct connection" (IPv6-only, não
   resolve em muitos hosts/redes). Ver [`supabase_schema.sql`](supabase_schema.sql) para
-  criar as tabelas e [`docs/Roadmap.md`](../docs/Roadmap.md) para o histórico completo.
+  criar as tabelas e [`docs/README.md`](../docs/README.md) para o histórico completo.
 - **Variáveis obrigatórias:** `DATABASE_URL`, `SECRET_KEY`, `ENCRYPTION_KEY`.
   As duas últimas são valores **diferentes**, geradas com
   `python -c "import secrets; print(secrets.token_hex(32))"`.

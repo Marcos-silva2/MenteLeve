@@ -2,7 +2,7 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v39';
+const CACHE = 'menteleve-v40';
 const ASSETS = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ const ASSETS = [
   './js/api.js',
   './js/dates.js',
   './js/sound.js',
+  './js/push.js',
   './js/ui.js',
   './js/components/taskSheet.js',
   './js/views/onboarding.js',
@@ -96,6 +97,39 @@ self.addEventListener('fetch', (e) => {
         // `catch(() => cached)`, mas aqui `cached` é sempre indefinido — o
         // respondWith recebia undefined e estourava.
         .catch(() => new Response('', { status: 504, statusText: 'Offline' }));
+    })
+  );
+});
+
+// ---- Notificações push (lembrete de tarefa) ----
+// O payload vem de app/push.py como JSON: { title, body, tag }.
+self.addEventListener('push', (e) => {
+  let data = { title: 'MenteLeve', body: 'Você tem uma tarefa pendente.', tag: '' };
+  try {
+    if (e.data) data = { ...data, ...e.data.json() };
+  } catch (_) { /* payload não veio como JSON — usa o texto padrão acima */ }
+
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      tag: data.tag || undefined,
+      icon: './assets/icon-192.webp',
+      badge: './assets/icon-192.webp',
+      data: { url: './' },
+    })
+  );
+});
+
+// Toque na notificação: foca uma aba já aberta do app, ou abre uma nova.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if (c.url.includes(self.registration.scope) && 'focus' in c) return c.focus();
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

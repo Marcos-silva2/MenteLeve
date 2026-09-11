@@ -38,6 +38,8 @@ export const icons = {
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 2.5"/><path d="M12 17h.01"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.7L3 21l1.8-5.8A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M3.4 20.4l17.4-7.5c.9-.4.9-1.6 0-2L3.4 3.6c-.7-.3-1.5.3-1.4 1.1L3.2 11l9 1-9 1-1.2 5.3c-.1.8.7 1.4 1.4 1.1z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M5 21V4"/><path d="M5 4h13l-3 4.5L18 13H5"/></svg>',
 };
 
 /**
@@ -181,7 +183,7 @@ export function renderNav(active, onNavigate, opts = {}) {
   bottom.innerHTML = `
     <div class="flex items-center justify-around px-2 py-2">
       ${NAV_ITEMS.map((it) => `
-        <button data-tab="${it.id}"
+        <button data-tab="${it.id}" ${it.id === active ? 'aria-current="page"' : ''}
           class="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
           ${it.icon}
           <span class="text-[10px] font-medium">${it.label}</span>
@@ -213,7 +215,7 @@ export function pulseBrandLogo(ms = 1600) {
 function navSideItem(it, active) {
   const on = it.id === active;
   return `
-    <button data-tab="${it.id}"
+    <button data-tab="${it.id}" ${on ? 'aria-current="page"' : ''}
       class="flex items-center gap-3 px-3 py-3 rounded-2xl text-sm font-medium transition
              ${on ? 'bg-accent text-white shadow-fab' : 'text-soft-100 hover:bg-white/10'}">
       ${it.icon}<span>${it.label}</span>
