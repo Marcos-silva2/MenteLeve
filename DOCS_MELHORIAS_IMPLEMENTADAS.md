@@ -1,13 +1,15 @@
 # MenteLeve — Melhorias implementadas
 
-- **Parte 1 — TA-01 a TA-04** (testes, recuperação de senha, tarefas recorrentes, UX Writing): logo abaixo.
+- **Parte 1 — TA-01, TA-03 e TA-04** (testes, tarefas recorrentes, UX Writing). O TA-02 (recuperação de senha) foi implementado e depois **removido a pedido** — ver o aviso logo abaixo.
 - **Parte 2 — V-01 a V-05** (melhorias visuais e de UI/UX): ao final do arquivo.
 
 ---
 
-## PARTE 1 — TA-01 a TA-04
+> **Aviso:** a recuperação de senha (TA-02) foi removida a pedido, por completo. As seções abaixo já refletem isso.
 
-Escopo: suíte de testes, recuperação de senha com invalidação de sessão, tarefas recorrentes e
+## PARTE 1 — TA-01, TA-03 e TA-04
+
+Escopo: suíte de testes, tarefas recorrentes e
 UX Writing empático. Tudo foi feito sobre o código real do repositório; onde o prompt e o código
 divergiam, a decisão está registrada na seção 3.
 
@@ -17,8 +19,8 @@ divergiam, a decisão está registrada na seção 3.
 
 | Item | O que passou a existir |
 |---|---|
-| **TA-01 Testes** | Backend: 135 testes `pytest` (auth, tarefas, crypto, recorrência, migração). Frontend: 85 testes com o runner nativo do Node (`dates.js`, `store.js`, mensagens de erro). Sem build e sem dependência nova no frontend. |
-| **TA-02 Senha** | `POST /auth/forgot-password` e `POST /auth/reset-password`; token de uso único, 30 min, só o SHA-256 vai ao banco; `users.token_version` derruba os JWTs antigos; e-mail pelo Resend (HTTP). Telas "Esqueceu sua senha?" → pedido de link → nova senha. |
+| **TA-01 Testes** | Backend: 119 testes `pytest` (auth, tarefas, crypto, recorrência, migração). Frontend: 100 testes com o runner nativo do Node (`dates.js`, `store.js`, mensagens de erro, agrupamento da Home). Sem build e sem dependência nova no frontend. |
+| **TA-02 Senha** | **Removido a pedido.** Recuperação de senha (rotas, e-mail, telas, token de sessão, testes, variáveis) foi apagada por inteiro; nada dela ficou no código. Login, cadastro e JWT voltaram ao que eram. |
 | **TA-03 Recorrência** | `is_recurring` + `recurrence_pattern` (`daily`/`weekly`/`monthly`) no banco, API, IA (`/tasks/smart` e Bruna), `localStorage` e fila offline. Seletor "Repetir" no `taskSheet` e indicador "↻ Todo dia" na Home. |
 | **TA-04 UX Writing** | `friendlyError()` distingue conexão, servidor indisponível, autenticação e validação. Fallback da Bruna reescrito (servidor e cliente) com alternativas manuais. Toasts genéricos trocados. |
 
@@ -38,15 +40,13 @@ de "feito ontem".
 | Arquivo | Descrição |
 |---|---|
 | `Backend/app/recurrence.py` | `next_occurrence`, `detect_recurrence` ("todo dia", "toda segunda", "todo dia 10"…), `first_occurrence`, `clean_pattern`. |
-| `Backend/app/mailer.py` | Envio do e-mail de recuperação via Resend (HTTP). Nunca lança; nunca loga token nem e-mail. |
 | `Backend/pytest.ini` | `testpaths`, `pythonpath`. |
-| `Backend/tests/conftest.py` | Isolamento: SQLite temporário, chaves de teste, IA/e-mail desligados, trava que aborta se o banco não for o temporário. |
-| `Backend/tests/test_auth.py` | Cadastro, login, JWT, recuperação de senha, invalidação de sessão (28 testes). |
+| `Backend/tests/conftest.py` | Isolamento: SQLite temporário, chaves de teste, IA desligada, trava que aborta se o banco não for o temporário. |
+| `Backend/tests/test_auth.py` | Cadastro, login e JWT (13 testes). |
 | `Backend/tests/test_tasks.py` | CRUD, limite de 50, `/tasks/smart`, recorrência (37 testes). |
 | `Backend/tests/test_crypto.py` | AES-256-GCM (13 testes). |
 | `Backend/tests/test_recurrence.py` | Cálculo e detecção de recorrência (54 testes). |
-| `Backend/tests/test_migrations.py` | Banco antigo ganha as colunas novas sem perder dados (3 testes). |
-| `Frontend/js/views/recover.js` | Telas "recuperar acesso" e "nova senha". Carregada sob demanda. |
+| `Backend/tests/test_migrations.py` | Banco antigo ganha as colunas novas sem perder dados (2 testes). |
 | `Frontend/tests/dates.test.mjs`, `store.test.mjs`, `errors.test.mjs` | Testes do frontend. |
 | `DOCS_MELHORIAS_IMPLEMENTADAS.md` | Este relatório. |
 
@@ -54,27 +54,22 @@ de "feito ontem".
 
 | Arquivo | Alteração |
 |---|---|
-| `Backend/app/models.py` | `User.token_version`; `Task.is_recurring`/`recurrence_pattern`; tabela `PasswordResetToken`. |
-| `Backend/app/database.py` | 3 colunas novas em `_ADDITIVE_COLUMNS` (migração aditiva, idempotente). |
-| `Backend/app/schemas.py` | Campos de recorrência + validador de coerência; schemas de forgot/reset. |
-| `Backend/app/crud.py` | Criar/consumir token de reset (atômico); `set_task_done` rola o prazo de recorrentes; `update_task` mantém os campos coerentes. |
-| `Backend/app/security.py` | Claim `tv` no JWT, `decode_token`, geração e hash do token de reset. |
-| `Backend/app/dependencies.py` | Rejeita JWT cuja versão difere de `users.token_version`. |
-| `Backend/app/routers/auth.py` | As duas rotas novas + rate limit próprio. |
+| `Backend/app/models.py` | `Task.is_recurring`/`recurrence_pattern`. |
+| `Backend/app/database.py` | 2 colunas novas em `_ADDITIVE_COLUMNS` (migração aditiva, idempotente). |
+| `Backend/app/schemas.py` | Campos de recorrência + validador de coerência. |
+| `Backend/app/crud.py` | `set_task_done` rola o prazo de recorrentes; `update_task` mantém os campos coerentes. |
 | `Backend/app/routers/tasks.py` | `/tasks/smart` devolve recorrência (inclusive no fallback sem IA); `PUT /complete?today=`. |
 | `Backend/app/routers/ai_chat.py` | `criar_tarefa` aceita `recorrencia`; conclusão recorrente; novo texto de fallback. |
 | `Backend/app/ai.py` | Prompt e sanitização com recorrência; tool `criar_tarefa` com `recorrencia`. |
-| `Backend/app/config.py` | Variáveis de reset e de e-mail. |
 | `Backend/requirements.txt` | `pytest` (o `httpx` já estava). |
-| `Backend/supabase_schema.sql`, `Backend/.env.example`, `Backend/README.md` | Novas colunas/tabela, variáveis, seções novas. |
+| `Backend/supabase_schema.sql`, `Backend/README.md` | Novas colunas de recorrência; seções de recorrência e testes. |
 | `Frontend/js/dates.js` | `nextOccurrence`, `detectRecurrence`, `firstOccurrence`, `cleanPattern`, `RECURRENCE_LABELS`. |
-| `Frontend/js/api.js` | `NetworkError`/`ApiError`; campos de recorrência; `apiForgotPassword`/`apiResetPassword`; `apiSetDone(id, done, today)`. |
+| `Frontend/js/api.js` | `NetworkError`/`ApiError`; campos de recorrência; `apiSetDone(id, done, today)`. |
 | `Frontend/js/store.js` | Persiste recorrência; `toggleTask` rola o prazo; a fila offline adota a data do servidor. |
 | `Frontend/js/ui.js` | `friendlyError()` e ícone `repeat`. |
-| `Frontend/js/app.js` | Rota do link `#reset=<token>`; rotas `forgot`/`reset` sob demanda. |
 | `Frontend/js/components/taskSheet.js` | Seletor "Repetir"; recorrente sempre nasce datada. |
 | `Frontend/js/views/home.js` | Indicador de recorrência; conclusão de recorrente. |
-| `Frontend/js/views/login.js`, `register.js`, `paywall.js`, `profile.js`, `chat.js` | Link "Esqueceu sua senha?"; mensagens novas; alternativa manual no fallback da Bruna. |
+| `Frontend/js/views/register.js`, `paywall.js`, `profile.js`, `chat.js`, `login.js` | Mensagens de erro novas; alternativa manual no fallback da Bruna. |
 | `Frontend/sw.js` | `CACHE` v40 → v41 (força a atualização do código). |
 | `Frontend/README.md` | Como rodar os testes. |
 
@@ -87,17 +82,8 @@ Nenhum.
 ### 3. Explicação técnica
 
 ### Banco e migração
-- **Colunas novas** (`tasks.is_recurring BOOLEAN NOT NULL DEFAULT FALSE`, `tasks.recurrence_pattern VARCHAR(10)`, `users.token_version INTEGER NOT NULL DEFAULT 0`) entram pelo `_ensure_columns` que já existia: roda no boot, é idempotente, e o `DEFAULT` faz as linhas antigas nascerem com valor válido. `supabase_schema.sql` traz o equivalente para rodar à mão.
-- **Tabela nova** `password_reset_tokens` (`token_hash` único, `expires_at`, `used_at`) é criada pelo `create_all`.
+- **Colunas novas** (`tasks.is_recurring BOOLEAN NOT NULL DEFAULT FALSE`, `tasks.recurrence_pattern VARCHAR(10)`) entram pelo `_ensure_columns` que já existia: roda no boot, é idempotente, e o `DEFAULT` faz as linhas antigas nascerem com valor válido. `supabase_schema.sql` traz o equivalente para rodar à mão.
 - `EncryptedText`, `crypto.py`, as chaves do `.env` e o `styles.css` **não foram tocados**.
-
-### Recuperação de senha e sessão
-- `forgot-password` responde **202 com a mesma mensagem** exista a conta ou não, e o e-mail sai em `BackgroundTasks` (o tempo de resposta também não denuncia). Limite: 3 pedidos/h por e-mail e 10/h por IP — aqui todo pedido conta, não só falha, porque cada um dispara um e-mail.
-- **Token**: `secrets.token_urlsafe(32)` (256 bits). No banco vai só o SHA-256. Um novo pedido invalida os anteriores.
-- `reset-password`: o consumo é um `UPDATE … WHERE used_at IS NULL` (atômico — dois pedidos simultâneos com o mesmo link não passam os dois). Token inexistente, expirado e usado dão **a mesma resposta 400**. Ao concluir: senha em bcrypt, `token_version += 1` e demais links pendentes da conta morrem.
-- **Invalidação de JWT**: o token leva o claim `tv`; `get_current_user` compara com `users.token_version`. JWTs antigos sem o claim valem como versão 0, a mesma das contas migradas — **ninguém é deslogado pelo deploy**.
-- **Link do e-mail**: `<FRONTEND_URL>/#reset=<token>`. Fragmento (`#`) e não query, para o token não chegar aos logs de acesso da Vercel; o `app.js` lê e remove da barra de endereço.
-- **E-mail**: Resend por HTTP (não SMTP, porque o Render free bloqueia portas SMTP de saída). Sem `RESEND_API_KEY` **nada é enviado** e o log diz isso — não há modo que finja o envio.
 
 ### Recorrência
 - **Regra** (`nextOccurrence`, idêntica em Python e JS): primeira data estritamente depois de *hoje* e do prazo atual. Em dia/adiantada → prazo + 1 ciclo; atrasada → pula os ciclos perdidos mantendo o dia da semana/mês; sem prazo → conta de hoje. Mensal limita ao último dia do mês (31/jan → 28/fev).
@@ -110,34 +96,22 @@ Nenhum.
 - `friendlyError(err, ctx)` devolve **texto fixo** por tipo (conexão / servidor 5xx / 401 / 429 com minutos / 400-422 / genérico) — nunca repassa o `detail` do servidor, que iria para o `innerHTML` do toast.
 - Bruna: o `_FALLBACK` do servidor agora tranquiliza ("nada se perdeu") e aponta o `+` e a Home. No cliente, se a IA não respondeu e a usuária pediu uma ação ("anota…", "marca como feita…"), a resposta acrescenta que **nada foi feito** e como fazer à mão — antes, a resposta carinhosa parecia confirmação. A conversa nunca é apagada e a lista de tarefas segue utilizável.
 
-### Frontend / PWA
-- `recover.js` fica **fora do precache** e é carregado por `import()` só quando a usuária abre a recuperação (que exige internet de qualquer forma). Um import estático dele quebraria o boot offline. Confirmado no E2E.
-
 ---
 
 ### 4. Testes realizados e resultados
 
 | Verificação | Comando / método | Resultado |
 |---|---|---|
-| Backend | `cd Backend; .venv\Scripts\python -m pytest` | **135 passed** (~42 s) |
-| Frontend | `node --test "Frontend/tests/*.test.mjs"` | **85 pass, 0 fail** |
-| Mutação (sanidade) | desligar a checagem de `token_version` | o teste de invalidação **falha**; restaurado, passa |
-| E2E real | Chrome headless via DevTools Protocol + backend com SQLite temporário, IA e e-mail desligados | **31/31** |
+| Backend | `cd Backend; .venv\Scripts\python -m pytest` | **119 passed** |
+| Frontend | `node --test "Frontend/tests/*.test.mjs"` | **100 pass, 0 fail** |
+| Regressão no navegador (após a remoção do TA-02) | Chrome headless + backend com SQLite temporário: os 45 checks da Parte 2 (login, Home, Agenda, Chat, Conexões, Paywall) | **45/45**; `POST /auth/forgot-password` responde **404** |
 
-O E2E (script descartável, fora do repositório) exercitou: registro do SW e cache `menteleve-v41` completo; login pela UI; criar "Tomar vitamina todo dia às 08:00" (servidor persistiu `is_recurring=true`, `daily`, `08:00`; `localStorage` também); indicador "↻ Todo dia"; concluir → **1 tarefa só**, `done=false`, prazo 21/09 → 22/09, aparelho e servidor iguais; fluxo forgot → link `#reset=` → nova senha → senha antiga 401 / nova 200 / **JWT antigo 401** / token reutilizado 400; mensagem de link usado; app abre **offline** a partir do cache; nenhuma exceção JS não tratada.
+Antes da remoção do TA-02, um E2E de 31 verificações exercitou a recorrência de ponta a ponta: criar "Tomar vitamina todo dia às 08:00" (servidor persistiu `is_recurring=true`, `daily`, `08:00`; `localStorage` também), indicador "↻ Todo dia", concluir → **1 tarefa só**, `done=false`, prazo 21/09 → 22/09 com aparelho e servidor iguais, e abertura **offline** pelo cache do SW. Os passos do fluxo de senha foram descartados junto com a funcionalidade. O script é descartável e não está no repositório.
 
-**Precache** (soma dos 24 itens de `ASSETS`, texto comprimido, WebP como está):
-
-| | HEAD | Agora |
-|---|---|---|
-| Brotli (o que a Vercel serve aos navegadores) | 145,6 KB | **149,7 KB** (limite 150) |
-| Gzip nível 9 | 154,0 KB | 158,7 KB |
-
-Cabe no limite pela medida em brotli, mas com **0,3 KB de folga**; em gzip o baseline já passava de 150 KB antes das mudanças. Para chegar aqui foi preciso enxugar comentários e tirar `recover.js` do precache.
+**Precache:** ver a Parte 2 (o `recover.js` que pesava no precache não existe mais).
 
 **Não executado / não verificável neste ambiente**
-- **Envio real de e-mail** (chamada HTTP ao Resend): sem chave, não foi executado. Testado: o transporte é acionado com o token certo (transporte substituído nos testes) e o caminho "sem chave" (retorna `False`, log sem token e sem e-mail).
-- **Postgres/Supabase**: migrações e testes rodaram só em SQLite. O DDL usado é portável (`BOOLEAN NOT NULL DEFAULT FALSE`, `INTEGER NOT NULL DEFAULT 0`) e o SQL equivalente está em `supabase_schema.sql`, mas não foi executado contra um Postgres.
+- **Postgres/Supabase**: migrações e testes rodaram só em SQLite. O DDL usado é portável (`BOOLEAN NOT NULL DEFAULT FALSE`) e o SQL equivalente está em `supabase_schema.sql`, mas não foi executado contra um Postgres.
 - **Gemini/Groq reais**: nenhuma chamada. A resposta do modelo foi simulada; a rede de segurança por regra cobre o caso de ele não seguir o novo formato, mas o prompt novo não foi validado contra saídas reais.
 - Só Chrome; nada em iOS/Safari ou em aparelho físico.
 
@@ -150,34 +124,20 @@ Cabe no limite pela medida em brotli, mas com **0,3 KB de folga**; em gzip o bas
 3. **Subtarefas de recorrente** (as sugeridas pela IA) não são reabertas nem reagendadas quando a mãe rola.
 4. **Detecção offline (JS) × servidor (Python)**: JS reconhece um subconjunto ("toda semana/manhã/segunda", "todo dia 10", "todo mês"). Para "toda segunda" dita numa segunda-feira, o JS marca a *próxima* segunda; o Python marca hoje.
 5. **Não existe edição de tarefa na interface** — então a recorrência só se define ao criar. `PATCH /tasks/{id}` já aceita os campos.
-6. **Precache com pouca folga** (0,3 KB). Recomendação: tirar `mulher-onboard.webp` (48 KB, só aparece no onboarding) do `ASSETS`; foi deixado como está por mudar o comportamento offline do primeiro acesso e estar fora do escopo. **Atualização:** a Parte 2 fez essa retirada (precache agora em ~106 KB).
+6. **Precache**: a folga apertada da primeira versão foi resolvida na Parte 2 (tirou `mulher-onboard.webp` do precache; ~105 KB).
 7. **`Frontend/tests/` é publicado pela Vercel** junto com o site (inofensivo, mas público). Um `.vercelignore` resolveria; não foi criado.
 8. Achados **preexistentes**, sem alteração: (a) `resolveDue('Esta semana')` ancora no **sábado** (`6 - getDay()`), embora o comentário diga domingo — o teste documenta o comportamento real; (b) `requirements.txt` limita `cryptography<47`, mas o venv local tem 50.0.1 (os testes rodaram com ela).
-9. Uma sessão aberta na mesma aba durante a redefinição só cai quando a próxima chamada receber 401 (mesmo caminho da expiração de sessão já existente).
 
 ---
 
 ### 6. Configurações necessárias
 
-**Backend (variáveis de ambiente — sem valores aqui):**
-
-| Variável | Obrigatória | Para quê |
-|---|---|---|
-| `RESEND_API_KEY` | Sim, para o e-mail sair | Chave da API do Resend. Sem ela, "esqueci a senha" responde igual mas **nenhum e-mail é enviado** (o log avisa). |
-| `MAIL_FROM` | Recomendada | Remetente. Padrão: `MenteLeve <onboarding@resend.dev>`. |
-| `FRONTEND_URL` | Sim em produção | URL pública do frontend (ex.: a da Vercel), usada no link. Padrão `http://localhost:5500`. |
-| `PASSWORD_RESET_TOKEN_MINUTES` | Não | Validade do link (padrão 30). |
-| `RESET_MAX_REQUESTS`, `RESET_MAX_REQUESTS_PER_IP`, `RESET_WINDOW_SECONDS` | Não | Limites de pedidos (padrão 3 / 10 / 3600 s). |
-
-**Resend — passo a passo e limites do plano gratuito** (100 e-mails/dia, 3.000/mês):
-1. Criar conta em resend.com e gerar uma API Key → colocar em `RESEND_API_KEY` no Render.
-2. **Sem domínio verificado**, só `onboarding@resend.dev` funciona e ele entrega **apenas para o e-mail dono da conta Resend** — serve para testar, não para usuárias reais.
-3. Para enviar a qualquer usuária, verificar um domínio próprio em Resend → Domains e definir `MAIL_FROM` com ele.
+Nenhuma variável de ambiente nova é necessária. (As de e-mail e de recuperação de senha existiram enquanto o TA-02 esteve no código e foram removidas com ele.)
 
 **Deploy:**
 - Suba o **backend antes** do frontend. Ordem inversa é tolerada (o servidor antigo ignora os campos novos), mas a recorrência só persiste com o backend novo.
 - As colunas são criadas sozinhas no boot. Opcionalmente rode os `alter table … if not exists` novos de `supabase_schema.sql` no SQL Editor do Supabase antes do deploy (mais previsível que o boot).
-- O Service Worker passou para `menteleve-v41`; quem já usa o app recebe a versão nova e recarrega uma vez.
+- O Service Worker vai para `menteleve-v42` (Parte 2); quem já usa o app recebe a versão nova e recarrega uma vez.
 
 **Rodar os testes:**
 ```
@@ -210,7 +170,7 @@ Só frontend. Nenhuma alteração em `store.js`, `sound.js` nem no backend.
 | `Frontend/js/views/home.js` | `sectionOf`/`groupTasks` (exportadas), accordions, esqueleto, estados vazios, exclusão com confirmação, alvos de 44 px, `aposSaida()`. |
 | `Frontend/js/views/chat.js` | Balão-esqueleto; `try/finally` garante que o esqueleto saia mesmo em erro. |
 | `Frontend/js/ui.js` | `confirmDialog()`; pílula na bottom bar e na sidebar; botão de senha de 44 px. |
-| `Frontend/js/components/taskSheet.js`, `views/paywall.js`, `agenda.js`, `connections.js`, `login.js`, `register.js`, `recover.js`, `profile.js` | Botões padronizados; `aria-busy` nos estados de carregamento; controles de 44 px; estado vazio em Conexões; `role="switch"`; links em `text-bordeaux-600`. |
+| `Frontend/js/components/taskSheet.js`, `views/paywall.js`, `agenda.js`, `connections.js`, `login.js`, `register.js`, `profile.js` | Botões padronizados; `aria-busy` nos estados de carregamento; controles de 44 px; estado vazio em Conexões; `role="switch"`; links em `text-bordeaux-600`. |
 | `Frontend/sw.js` | `CACHE` v41 → v42; `mulher-onboard.webp` fora do precache (ver seção 5). |
 | `Frontend/tests/home.test.mjs` (novo) | 15 testes do agrupamento. |
 
@@ -231,9 +191,9 @@ Só frontend. Nenhuma alteração em `store.js`, `sound.js` nem no backend.
 | Verificação | Resultado |
 |---|---|
 | `node --test "Frontend/tests/*.test.mjs"` | **100 pass, 0 fail** (eram 85; +15 do agrupamento) |
-| `pytest` (backend, sem alterações nesta parte) | **135 passed** |
+| `pytest` (backend, sem alterações visuais nesta parte) | **119 passed** (após a remoção do TA-02) |
 | Navegador real (Chrome headless via DevTools Protocol, backend isolado com SQLite temporário; 390×844 mobile com toque e 1280×800 desktop) | **45/45 verificações** |
-| Precache do Service Worker (23 itens) | **105,9 KB em brotli** / 115,4 KB em gzip (limite 150 KB; antes desta parte: 149,7 / 158,7) |
+| Precache do Service Worker (23 itens) | **105,2 KB em brotli** / 114,7 KB em gzip (limite 150 KB; antes da Parte 2: 149,7 / 158,7) |
 | Erros JS no console durante os fluxos | Nenhuma exceção não tratada |
 
 O que as 45 verificações do navegador cobriram: 4 seções na ordem certa com as contagens esperadas (2/1/2/1) e sem tarefa duplicada; badge `rgb(255,204,213)` com texto `rgb(89,13,34)`; accordion fecha por clique, por **Enter/Espaço** e por **toque**, altura anima (182 → ~60 → 0 px), duração 0,3 s, recolhido = `visibility:hidden`, contorno de foco de 3 px; estado aberto sobrevive ao re-render; diálogo de exclusão (foco em "Manter", Esc cancela sem apagar, confirmar apaga; botão destrutivo transparente com texto `#c9184a`); botão primário `#ff4d6d`/branco/sombra/≥44 px; **medição de todos os `button`/`a`/`switch` em Home, Sheet, Agenda, Conexões, Chat e desktop: nenhum abaixo de 44 px** (contando a área transparente); pílula ativa na bottom bar e na sidebar; Conexões com estado vazio e `role="switch"`; Paywall e convite continuam navegando; skeleton do chat (3 barras, `role=status`, some ao responder); skeleton da Home (3 cartões, `aria-busy`, pulso ativo, 74 px de altura como o cartão real, sem "Tudo tranquilo" durante o carregamento); depois de a sincronização falhar, "Sem conexão por enquanto" + *Tentar de novo*; vazio de verdade com container `#fff0f3`, ícone `#ff8fa3`, botão que abre o formulário; movimento reduzido sem transições. Os screenshots foram inspecionados à mão (Home, Agenda, Sheet, Conexões, Chat, vazios, esqueleto, confirmação, desktop).

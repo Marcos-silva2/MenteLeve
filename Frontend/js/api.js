@@ -206,26 +206,6 @@ export async function apiMe() {
   return request('/auth/me', { headers: headers() });
 }
 
-/** Pede o link de recuperação. Sem rede LANÇA NetworkError (não devolve null): a tela precisa dizer que o pedido não saiu. */
-export async function apiForgotPassword(email) {
-  if (!(await ensureOnline(true))) throw new NetworkError();
-  return request('/auth/forgot-password', {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ email }),
-  });
-}
-
-/** Define a nova senha com o token do e-mail. 400 = link expirado/já usado. */
-export async function apiResetPassword(token, newPassword) {
-  if (!(await ensureOnline(true))) throw new NetworkError();
-  return request('/auth/reset-password', {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ token, new_password: newPassword }),
-  });
-}
-
 /**
  * Ativa ou cancela o Premium. Devolve o usuário atualizado pelo servidor.
  *

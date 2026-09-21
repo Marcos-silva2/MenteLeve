@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession, onSessionCleared, endBootSync } from './store.js';
-import { toast, renderNav, friendlyError } from './ui.js';
+import { toast, renderNav } from './ui.js';
 import { wakeBackend } from './api.js';
 
 import { renderOnboarding } from './views/onboarding.js';
@@ -27,10 +27,6 @@ const routes = {
   paywall: renderPaywall,
   profile: renderProfile,
 };
-
-// Recuperação de senha: só faz sentido com internet, então fica FORA do precache
-// (sw.js) e é carregada sob demanda — um import estático quebraria o boot offline.
-const lazyRoutes = { forgot: 'renderForgot', reset: 'renderReset' };
 
 const appEl = document.getElementById('app');
 
@@ -71,16 +67,8 @@ window.addEventListener('appinstalled', () => {
 // Abas que podem ser refletidas na URL (deep-link / restaurar ao recarregar).
 const TAB_ROUTES = ['home', 'agenda', 'bruna', 'connections', 'profile'];
 
-async function navigate(route, params = {}) {
-  let render = routes[route];
-  if (!render && lazyRoutes[route]) {
-    try {
-      render = (await import('./views/recover.js'))[lazyRoutes[route]];
-    } catch (_) {
-      toast(friendlyError({ kind: 'network' }, 'reset'), 4200);
-      return;
-    }
-  }
+function navigate(route, params = {}) {
+  const render = routes[route];
   if (!render) {
     console.warn('Rota desconhecida:', route);
     return;
@@ -113,19 +101,9 @@ async function navigate(route, params = {}) {
   }
 }
 
-/** Link `<app>/#reset=<token>`: lê o token e o tira da URL. */
-function takeResetToken() {
-  const m = location.hash.match(/^#reset=([\w-]{10,200})$/);
-  if (!m) return null;
-  try { history.replaceState(null, '', location.pathname + location.search); } catch (_) { /* ignore */ }
-  return m[1];
-}
-
 let suppressHash = false;
 window.addEventListener('hashchange', () => {
   if (suppressHash) { suppressHash = false; return; }
-  const token = takeResetToken();
-  if (token) { navigate('reset', { token }); return; }
   const route = location.hash.slice(1);
   if (TAB_ROUTES.includes(route) && getUser()) navigate(route);
 });
@@ -157,12 +135,8 @@ function start() {
       if ((updated || comEsqueleto) && TAB_ROUTES.includes(app.current)) app.refresh();
     });
 
-  // O link do e-mail vem primeiro: sem introdução nem sessão antiga no caminho.
-  const resetToken = takeResetToken();
   const hashRoute = location.hash.slice(1);
-  if (resetToken) {
-    navigate('reset', { token: resetToken });
-  } else if (!isOnboardingSeen()) {
+  if (!isOnboardingSeen()) {
     navigate('onboarding');
   } else if (!getUser()) {
     navigate('login');

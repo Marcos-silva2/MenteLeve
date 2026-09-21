@@ -129,7 +129,7 @@ export function toast(message, ms = 2200) {
  * api.js (NetworkError, AuthError, ApiError) e devolve texto FIXO — nunca o
  * `detail` do servidor, que iria para o innerHTML do toast.
  * Distingue conexão, servidor (5xx), autenticação (401) e validação (400/402/409/422).
- * @param {'auth'|'reset'|'register'|'geral'} [ctx] onde o erro aconteceu
+ * @param {'auth'|'register'|'geral'} [ctx] onde o erro aconteceu
  */
 export function friendlyError(err, ctx = 'geral') {
   const status = err && err.status;
@@ -142,19 +142,14 @@ export function friendlyError(err, ctx = 'geral') {
   }
   if (status === 401) {
     return ctx === 'auth'
-      ? 'E-mail ou senha não conferem. Confira os dados ou use “Esqueceu sua senha?”.'
+      ? 'E-mail ou senha não conferem. Confira os dados e tente de novo.'
       : 'Por segurança, sua sessão terminou. Entre de novo para continuar 💗';
   }
   if (status === 429) {
     const min = err.retryAfter ? Math.max(1, Math.ceil(err.retryAfter / 60)) : 0;
     return `Muitas tentativas por agora. Respire fundo e tente de novo ${min ? `em cerca de ${min} min` : 'em alguns minutos'}.`;
   }
-  if (status === 400 && ctx === 'reset') return 'Este link expirou ou já foi usado. Peça um novo link para continuar.';
-  if (status === 400 || status === 422) {
-    return ctx === 'reset'
-      ? 'A nova senha precisa ter ao menos 6 caracteres. Confira e tente de novo.'
-      : 'Confira os dados preenchidos e tente de novo.';
-  }
+  if (status === 400 || status === 422) return 'Confira os dados preenchidos e tente de novo.';
   if (kind === 'server') return 'Nosso servidor está indisponível no momento. Tente de novo em instantes — o que você já tem aqui continua salvo.';
   return 'Algo não saiu como esperado. Tente de novo em instantes.';
 }

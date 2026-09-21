@@ -1,10 +1,10 @@
 """Rotas de autenticação (cadastro e login com senha + token JWT)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app import crud, mailer, schemas, security
+from app import crud, schemas, security
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -25,18 +25,6 @@ _login_by_ip = SlidingWindowLimiter(
 )
 
 
-# Recuperação de senha: aqui todo PEDIDO conta (não só falhas), porque cada um
-# pode disparar um e-mail — ver settings.RESET_MAX_REQUESTS.
-_reset_by_email = SlidingWindowLimiter(settings.RESET_MAX_REQUESTS, settings.RESET_WINDOW_SECONDS)
-_reset_by_ip = SlidingWindowLimiter(settings.RESET_MAX_REQUESTS_PER_IP, settings.RESET_WINDOW_SECONDS)
-
-# Resposta única para "pedi a recuperação", exista a conta ou não.
-_FORGOT_MESSAGE = (
-    "Se este e-mail tiver uma conta, enviaremos um link para criar uma nova senha. "
-    "Confira também a caixa de spam."
-)
-
-
 def _client_ip(request: Request) -> str:
     """IP de origem, respeitando o proxy do Render (`X-Forwarded-For`)."""
     fwd = request.headers.get("x-forwarded-for", "")
@@ -48,7 +36,7 @@ def _client_ip(request: Request) -> str:
 
 def _token_response(user: User) -> schemas.TokenOut:
     return schemas.TokenOut(
-        access_token=security.create_access_token(user.id, user.token_version),
+        access_token=security.create_access_token(user.id),
         user=schemas.UserOut.model_validate(user),
     )
 
@@ -101,60 +89,6 @@ def login(
     _login_by_email.reset(email_key)
     _login_by_ip.reset(ip_key)
     return _token_response(user)
-
-
-@router.post(
-    "/forgot-password",
-    response_model=schemas.MessageOut,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def forgot_password(
-    data: schemas.ForgotPasswordIn,
-    request: Request,
-    background: BackgroundTasks,
-    db: Session = Depends(get_db),
-) -> schemas.MessageOut:
-    """Pede o link de recuperação de senha.
-
-    Responde igual exista a conta ou não (não revela quais e-mails têm cadastro).
-    O e-mail sai em segundo plano para o tempo de resposta também não denunciar.
-    """
-    email_key = f"email:{data.email.strip().lower()}"
-    ip_key = f"ip:{_client_ip(request)}"
-
-    espera = max(_reset_by_email.retry_after(email_key), _reset_by_ip.retry_after(ip_key))
-    if espera:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Você já pediu o link algumas vezes. Aguarde um pouco e tente de novo.",
-            headers={"Retry-After": str(espera)},
-        )
-    _reset_by_email.record(email_key)
-    _reset_by_ip.record(ip_key)
-
-    user = crud.get_user_by_email(db, data.email)
-    if user is not None:
-        token = crud.create_password_reset_token(db, user)
-        background.add_task(mailer.send_password_reset, user.email, token)
-    return schemas.MessageOut(message=_FORGOT_MESSAGE)
-
-
-@router.post("/reset-password", response_model=schemas.MessageOut)
-def reset_password(
-    data: schemas.ResetPasswordIn, db: Session = Depends(get_db)
-) -> schemas.MessageOut:
-    """Define a nova senha a partir do token recebido por e-mail.
-
-    Token inexistente, expirado e já usado dão a MESMA resposta (400). Ao
-    concluir, todas as sessões anteriores da conta deixam de valer.
-    """
-    user = crud.reset_password_with_token(db, data.token, data.new_password)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este link expirou ou já foi usado. Peça um novo link para continuar.",
-        )
-    return schemas.MessageOut(message="Senha atualizada. Entre com a nova senha.")
 
 
 @router.get("/me", response_model=schemas.UserOut)

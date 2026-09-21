@@ -63,7 +63,6 @@ _ADDITIVE_COLUMNS = (
     # UPDATE separado. `FALSE`/`0` são aceitos igualmente por SQLite e Postgres.
     ("tasks", "is_recurring", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("tasks", "recurrence_pattern", "VARCHAR(10)"),
-    ("users", "token_version", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 

@@ -72,27 +72,28 @@ create index if not exists ix_push_subscriptions_user_id on push_subscriptions (
 alter table tasks add column if not exists is_recurring boolean not null default false;
 alter table tasks add column if not exists recurrence_pattern varchar(10);
 
--- Versão da sessão: trocar a senha a incrementa e invalida os JWTs antigos.
-alter table users add column if not exists token_version integer not null default 0;
-
--- Tokens de recuperação de senha. Guarda só o SHA-256 do token (nunca o valor
--- enviado por e-mail); uso único (used_at) e com validade (expires_at).
-create table if not exists password_reset_tokens (
-    id          bigint generated always as identity primary key,
-    user_id     bigint not null references users (id) on delete cascade,
-    token_hash  varchar(64) not null unique,
-    expires_at  timestamptz not null,
-    used_at     timestamptz,
-    created_at  timestamptz not null default now()
-);
-
-create index if not exists ix_password_reset_tokens_user_id on password_reset_tokens (user_id);
-
 -- Para bancos criados antes da criptografia (idempotente): o ciphertext em
 -- base64 não cabe no varchar original. O backend também faz isso no boot
 -- (database._widen_columns), mas rodar aqui é mais previsível.
 alter table tasks alter column title type text;
 alter table users alter column name type text;
+
+-- Segurança: o Supabase expõe as tabelas de `public` numa API pública (PostgREST,
+-- chave `anon`). O MenteLeve NÃO usa essa API — o backend conecta direto no Postgres
+-- como dono das tabelas, e o dono ignora o RLS. Ativar o RLS SEM policies fecha a API
+-- pública para tudo e não afeta o app. Idempotente; cobre também tabelas futuras
+-- se este bloco for rodado de novo.
+do $$
+declare r record;
+begin
+    for r in select tablename from pg_tables where schemaname = 'public' loop
+        execute format('alter table public.%I enable row level security', r.tablename);
+    end loop;
+end $$;
+
+-- Defesa em profundidade: as roles da API pública não precisam de acesso nenhum.
+revoke all on all tables in schema public from anon, authenticated;
+alter default privileges in schema public revoke all on tables from anon, authenticated;
 
 -- De-para de tipos (SQLite -> Postgres):
 --   INTEGER (PK, autoincrement) -> bigint generated always as identity

@@ -34,10 +34,6 @@ export function renderLogin(app) {
             class="w-full px-4 py-3.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                    focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition" />
           <p data-err="password" class="hidden text-xs text-bordeaux-600 mt-1 ml-1"></p>
-          <div class="flex justify-end mt-1.5">
-            <button type="button" id="go-forgot"
-              class="text-xs font-semibold text-bordeaux-600 hover:underline min-h-11 px-1">Esqueceu sua senha?</button>
-          </div>
         </div>
 
         <button type="submit"
@@ -143,7 +139,6 @@ export function renderLogin(app) {
   });
 
   $('#go-register', view).addEventListener('click', () => app.navigate('register'));
-  $('#go-forgot', view).addEventListener('click', () => app.navigate('forgot'));
 
   view.querySelectorAll('[data-social]').forEach((b) =>
     b.addEventListener('click', () => app.toast('Login social em breve. Use e-mail e senha por enquanto.'))

@@ -3,7 +3,7 @@
 ISOLAMENTO: o `Backend/.env` real pode apontar para o Supabase e trazer chaves de
 IA de verdade. `app.config` só usa o `.env` para variáveis AUSENTES do ambiente
 (`os.environ.setdefault`), então definimos tudo aqui, ANTES de importar o app:
-banco SQLite num arquivo temporário, chaves de teste e IA/e-mail desligados.
+banco SQLite num arquivo temporário, chaves de teste e IA desligada.
 Nenhum teste toca o banco de produção nem faz chamada externa.
 """
 from __future__ import annotations
@@ -20,13 +20,11 @@ os.environ["ENCRYPTION_KEY"] = "ab" * 32  # 32 bytes em hex — só para testes
 # Vazio (e não ausente): o setdefault do .env não sobrescreve valor já presente.
 os.environ["GOOGLE_AI_API_KEY"] = ""
 os.environ["GROQ_API_KEY"] = ""
-os.environ["RESEND_API_KEY"] = ""
-os.environ["FRONTEND_URL"] = "http://frontend.test"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import database, mailer  # noqa: E402
+from app import database  # noqa: E402
 from app.database import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.routers import auth as auth_router  # noqa: E402
@@ -45,8 +43,6 @@ def _banco_limpo():
     for limiter in (
         auth_router._login_by_email,
         auth_router._login_by_ip,
-        auth_router._reset_by_email,
-        auth_router._reset_by_ip,
     ):
         limiter._hits.clear()
     yield
@@ -56,23 +52,6 @@ def _banco_limpo():
 def client():
     with TestClient(app) as c:
         yield c
-
-
-@pytest.fixture()
-def emails_enviados(monkeypatch):
-    """Captura os e-mails de recuperação no lugar de enviá-los.
-
-    Substitui APENAS o transporte (mailer.send_password_reset); a rota, a criação
-    do token e o agendamento em segundo plano rodam de verdade.
-    """
-    enviados: list[dict] = []
-
-    def _captura(email: str, token: str) -> bool:
-        enviados.append({"email": email, "token": token, "link": mailer.build_reset_link(token)})
-        return True
-
-    monkeypatch.setattr(mailer, "send_password_reset", _captura)
-    return enviados
 
 
 # ----------------------- helpers -----------------------

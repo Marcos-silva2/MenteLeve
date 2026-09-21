@@ -193,15 +193,6 @@ Detalhes que economizam depuração:
 Usuários não-Premium têm limite de **50 tarefas** (`FREE_TASK_LIMIT`). Ao exceder,
 a criação retorna **HTTP 402** (gatilho do Paywall no frontend).
 
-## Recuperação de senha e sessões
-
-`POST /auth/forgot-password` (sempre 202, exista a conta ou não) e `POST /auth/reset-password`
-(400 para token inexistente, expirado ou já usado). O token vale 30 min, é de uso único e só o
-SHA-256 dele fica no banco. Redefinir a senha incrementa `users.token_version`, o que invalida
-todos os JWTs emitidos antes. O e-mail sai pelo Resend (HTTP): configure `RESEND_API_KEY`,
-`MAIL_FROM` e `FRONTEND_URL` — sem a chave nada é enviado e o log avisa. Detalhes em
-`DOCS_MELHORIAS_IMPLEMENTADAS.md`.
-
 ## Tarefas recorrentes
 
 `is_recurring` + `recurrence_pattern` (`daily` | `weekly` | `monthly`). Concluir uma recorrente

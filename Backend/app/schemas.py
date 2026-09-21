@@ -59,20 +59,6 @@ class TokenOut(BaseModel):
     user: UserOut
 
 
-class ForgotPasswordIn(BaseModel):
-    email: EmailStr
-
-
-class ResetPasswordIn(BaseModel):
-    # Limite generoso: o token tem 43 caracteres; o teto só barra lixo enorme.
-    token: str = Field(..., min_length=10, max_length=200)
-    new_password: Password
-
-
-class MessageOut(BaseModel):
-    message: str
-
-
 # ----------------------- Task -----------------------
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
