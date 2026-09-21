@@ -33,6 +33,15 @@ export function renderConnections(app) {
           </button>
         </div>
 
+        <!-- estado vazio: ainda não há ninguém na rede. Não é erro nem carregamento —
+             é o começo; a orientação é convidar. -->
+        <div class="flex flex-col items-center text-center px-6 py-8 mb-7 bg-bg border border-soft-100 rounded-xl2">
+          <div class="w-16 h-16 rounded-full bg-white grid place-items-center mb-3 text-soft-300 [&>svg]:w-8 [&>svg]:h-8" aria-hidden="true">${icons.users}</div>
+          <h2 class="font-serif font-bold text-bordeaux-900 text-lg mb-1">Sua rede de apoio começa aqui</h2>
+          <p class="text-sm text-bordeaux-700 max-w-[280px] mb-4">Ainda não há ninguém conectado. Convide seu parceiro(a) ou alguém de confiança para dividir a carga.</p>
+          <button id="invite" class="btn btn-primary cta-lift">Convidar Parceiro(a)</button>
+        </div>
+
         <!-- configurações -->
         <h2 class="font-serif font-bold text-bordeaux-900 text-lg mb-3">Configurações de Partilha</h2>
         <div class="flex flex-col gap-1 bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden mb-6">
@@ -42,13 +51,6 @@ export function renderConnections(app) {
         </div>
       </div>
 
-      <!-- CTA -->
-      <div class="px-6 lg:px-0 pb-24 lg:pb-8 pt-2 bg-gradient-to-t from-bg to-transparent">
-        <button id="invite"
-          class="cta-lift w-full lg:w-auto lg:px-10 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
-          Convidar Parceiro(a)
-        </button>
-      </div>
       </div>
     </div>
   `);
@@ -74,7 +76,7 @@ function toggleRow(label, on) {
   return `
   <div class="flex items-center justify-between px-4 py-3.5 border-b border-soft-100 last:border-0">
     <span class="text-sm text-bordeaux-900 pr-4">${label}</span>
-    <button data-toggle aria-checked="${on}"
+    <button data-toggle role="switch" aria-checked="${on}" aria-label="${label}"
       class="relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-soft-200'}">
       <span class="absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}"></span>
     </button>

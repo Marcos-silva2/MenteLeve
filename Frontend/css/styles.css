@@ -194,29 +194,24 @@ h1, h2, h3, h4 { line-height: 1.25; }
 }
 
 /* ---------- Esqueleto de carregamento ----------
-   Mostrado só quando não há nada em cache E o sync está em andamento: a tela
-   parada em rede lenta parecia app travado. */
-.skeleton {
-  position: relative;
-  overflow: hidden;
-  background: var(--color-soft-100);
-  border-radius: 1rem;
+   Só aparece com carregamento real (sem cache + sync em andamento; Bruna
+   pensando). O pulso vai de Lavender Blush a Pastel Petal. `.skeleton-wrap`
+   nasce invisível e só aparece após 200 ms: operação rápida termina antes e
+   nunca pisca um esqueleto. */
+.skeleton-pulse {
+  background: #fff0f3;
+  border-radius: 9999px;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
 }
-.skeleton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
-  animation: skeletonSweep 1.4s ease-in-out infinite;
+@keyframes skeletonPulse {
+  0%, 100% { background-color: #fff0f3; }
+  50%      { background-color: #ffccd5; }
 }
-@keyframes skeletonSweep {
-  to { transform: translateX(100%); }
-}
-
+.skeleton-wrap { animation: fadeIn 0.2s ease 0.2s both; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none !important; }
-  .skeleton::after { animation: none !important; }
+  .skeleton-pulse { animation: none; background: #ffe3e8; }
+  .skeleton-wrap { animation: none; }
 }
 
 /* ---------- Lift sutil ao passar o mouse (desktop) ---------- */
@@ -484,19 +479,6 @@ h1, h2, h3, h4 { line-height: 1.25; }
   .particle, .splash-iso, .splash-name, .splash-tagline, .splash-spark, .splash { animation-duration: 0.01s; }
 }
 
-/* ---------- Chat da Bruna: indicador "digitando…" ---------- */
-.typing-dot {
-  width: 7px; height: 7px; border-radius: 9999px;
-  background: #ff8fa3;
-  animation: typingBlink 1.2s infinite ease-in-out both;
-}
-.typing-dot:nth-child(2) { animation-delay: .15s; }
-.typing-dot:nth-child(3) { animation-delay: .3s; }
-@keyframes typingBlink {
-  0%, 80%, 100% { opacity: .3; transform: translateY(0); }
-  40%           { opacity: 1;  transform: translateY(-3px); }
-}
-
 /* ---------- Botão à espera da IA ----------
    A análise leva de 1,5 s a 10 s (a primeira chamada do dia acorda o modelo).
    Um rótulo parado nesse tempo passa por travamento. Aqui uma faixa de luz
@@ -654,6 +636,74 @@ h1, h2, h3, h4 { line-height: 1.25; }
   flex: 0 0 100%;
   height: 100%;
 }
+
+/* ---------- Foco visível (teclado) ---------- */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="switch"]:focus-visible {
+  outline: 3px solid var(--color-primary-800);
+  outline-offset: 2px;
+}
+.sidenav button:focus-visible { outline-color: var(--color-soft-100); }
+
+/* ---------- Área de toque de 44 px ----------
+   O controle mantém o tamanho visual; o `::after` transparente estende só a
+   área clicável. `inset` negativo = (44 - altura) / 2. */
+.hit, [data-cat], [data-due], [data-prio], [data-rec], [data-toggle], #push-toggle { position: relative; }
+.hit::after, [data-cat]::after, [data-due]::after, [data-prio]::after, [data-rec]::after {
+  content: ''; position: absolute; inset: -6px;
+}
+[data-toggle]::after, #push-toggle::after { content: ''; position: absolute; inset: -8px 0; }
+
+/* ---------- Botões: primário, secundário, destrutivo ----------
+   Um estado para cada momento: hover, foco (regra global acima), ativo
+   (encolhe 2%), desabilitado e carregando (`aria-busy` + `.is-thinking`). */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: 44px; padding: 0.75rem 1.5rem; border-radius: 9999px;
+  font-weight: 600; line-height: 1.25;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+.btn[aria-busy="true"] { cursor: progress; }
+.btn-primary { background: #ff4d6d; color: #fff; box-shadow: 0 8px 24px rgba(255, 77, 109, 0.35); }
+.btn-primary:hover:not(:disabled) { background: #ff758f; }
+.btn-secondary { background: transparent; color: #800f2f; }
+.btn-secondary:hover:not(:disabled) { background: #ffccd5; }
+.btn-danger { background: transparent; color: #c9184a; }
+.btn-danger:hover:not(:disabled) { background: rgba(201, 24, 74, 0.1); }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:active:not(:disabled) { transform: none; } }
+
+/* ---------- Seções da Home (accordion) ----------
+   `grid-template-rows: 0fr -> 1fr` anima a altura sem medir o conteúdo.
+   `visibility` some ao fim do fechamento: o conteúdo recolhido sai da ordem de
+   tabulação e dos leitores de tela. */
+.acc-panel {
+  display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+  transition: grid-template-rows 0.3s ease, opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+.acc-panel[data-open="true"] {
+  grid-template-rows: 1fr; opacity: 1; visibility: visible;
+  transition: grid-template-rows 0.3s ease, opacity 0.3s ease, visibility 0s;
+}
+.acc-inner { min-height: 0; overflow: hidden; }
+.acc-body { padding-bottom: 4px; }   /* fora do `.acc-inner`: padding no item que colapsa impediria chegar a 0 */
+/* Aberta, a seção deixa de cortar o conteúdo (senão a sombra dos cartões e o
+   contorno de foco são aparados). O corte só é necessário DURANTE a animação de
+   altura: o keyframe mantém `overflow:hidden` pelos 300 ms e depois vale `visible`. */
+.acc-panel[data-open="true"] .acc-inner { overflow: visible; animation: accClip 0.3s; }
+@keyframes accClip { from, to { overflow: hidden; } }
+.acc-chevron { transition: transform 0.3s ease; }
+[aria-expanded="true"] > .acc-chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .acc-panel, .acc-panel[data-open="true"], .acc-chevron { transition: none; }
+}
+
+/* ---------- Navegação: item ativo em pílula ---------- */
+.nav-pill {
+  display: grid; place-items: center; padding: 2px 16px; border-radius: 9999px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.is-active .nav-pill { background: #ffccd5; color: #590d22; }
 
 /* utilidades */
 .no-scrollbar::-webkit-scrollbar { display: none; }

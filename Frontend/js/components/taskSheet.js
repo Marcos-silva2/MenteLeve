@@ -6,7 +6,7 @@
 import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
 import { CATEGORIES, PRIORITIES, addTask, reachedFreeLimit } from '../store.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
-import { todayKey, resolveDue } from '../dates.js';
+import { todayKey, resolveDue, firstOccurrence, RECURRENCE_LABELS } from '../dates.js';
 import { playAha, playTap, playAdd } from '../sound.js';
 
 /**
@@ -31,6 +31,8 @@ export function openTaskSheet(app, onDone) {
   let selectedCat = null;
   let due = '';
   let selectedPriority = 'media';
+  // null = não escolhida: vale o que a IA percebeu
+  let selectedRecurrence = null;
   // Data mínima do seletor = hoje (evita agendar no passado).
   // todayKey() usa o fuso local: toISOString() devolveria o dia seguinte
   // à noite no Brasil, bloqueando a escolha do próprio dia de hoje.
@@ -88,6 +90,18 @@ export function openTaskSheet(app, onDone) {
                  focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
       </div>
 
+      <!-- repetição -->
+      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
+        Repetir <span id="rec-hint" class="font-normal text-muted">— a IA percebe “todo dia”, “toda segunda”…</span>
+      </p>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Repetição da tarefa">
+        ${Object.entries(RECURRENCE_LABELS).map(([id, label]) => `
+          <button type="button" data-rec="${id}" aria-pressed="false"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition bg-white text-bordeaux-700 border-soft-100">
+            ${icons.repeat}${label}
+          </button>`).join('')}
+      </div>
+
       <!-- prioridade -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Prioridade</p>
       <div class="flex gap-2">
@@ -100,8 +114,7 @@ export function openTaskSheet(app, onDone) {
       </div>
 
       <button id="save-task"
-        class="mt-6 w-full py-3.5 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab
-               active:scale-[.98] transition flex items-center justify-center gap-2">
+        class="btn btn-primary mt-6 w-full py-3.5">
         <span id="save-label">Salvar</span>
         <span class="icon-spark grid place-items-center">${icons.spark}</span>
       </button>
@@ -153,6 +166,20 @@ export function openTaskSheet(app, onDone) {
     });
   });
 
+  // repetição — tocar de novo desmarca (volta para a IA)
+  $$('[data-rec]', sheet).forEach((b) =>
+    b.addEventListener('click', () => {
+      selectedRecurrence = selectedRecurrence === b.dataset.rec ? null : b.dataset.rec;
+      const hint = $('#rec-hint', sheet);
+      if (hint) hint.classList.toggle('hidden', selectedRecurrence !== null);
+      $$('[data-rec]', sheet).forEach((x) => {
+        const on = x.dataset.rec === selectedRecurrence;
+        x.setAttribute('aria-pressed', String(on));
+        x.className = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
+      });
+    })
+  );
+
   // seleção de prioridade
   $$('[data-prio]', sheet).forEach((b) =>
     b.addEventListener('click', () => {
@@ -181,6 +208,7 @@ export function openTaskSheet(app, onDone) {
     const btn = $('#save-task', sheet);
     const label = $('#save-label', sheet);
     btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
     btn.classList.add('is-thinking');
 
     // A espera medida vai de ~1,5 s a ~10 s (a primeira análise acorda o
@@ -218,9 +246,11 @@ export function openTaskSheet(app, onDone) {
 
     // A escolha manual do usuário tem prioridade sobre o palpite da IA.
     const category = selectedCat || result.category || 'casa';
-    // Data: escolha no calendário > atalho rápido > palpite da IA.
+    const recurrencePattern = selectedRecurrence || result.recurrencePattern || null;
+    // Data: calendário > atalho > IA. Recorrente sempre nasce datada (1ª ocorrência).
     const finalDueDate =
-      dateInput.value || (due ? resolveDue(due) : null) || result.dueDate || null;
+      dateInput.value || (due ? resolveDue(due) : null) || result.dueDate ||
+      (recurrencePattern ? firstOccurrence(text, recurrencePattern) : null);
     // Horário: escolha manual > palpite da IA.
     const finalDueTime = timeInput.value || result.dueTime || null;
 
@@ -232,6 +262,8 @@ export function openTaskSheet(app, onDone) {
       dueDate: finalDueDate,
       dueTime: finalDueTime,
       priority: selectedPriority,
+      isRecurring: !!recurrencePattern,
+      recurrencePattern,
     });
 
     close();
@@ -250,7 +282,9 @@ export function openTaskSheet(app, onDone) {
       // Sem Aha Moment não há playAha; este é o único retorno sonoro do
       // registro. Quando o modal abre, o playAha dele já cumpre esse papel.
       playAdd();
-      toast('Tarefa adicionada ✨');
+      toast(recurrencePattern
+        ? `Tarefa adicionada ✨ Ela se repete: ${RECURRENCE_LABELS[recurrencePattern].toLowerCase()}`
+        : 'Tarefa adicionada ✨');
     }
   });
 }
@@ -287,13 +321,10 @@ function openAiModal(app, result, onDone) {
 
       <div class="flex flex-col gap-2">
         <button id="ai-accept"
-          class="w-full py-3 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+          class="btn btn-primary w-full py-3">
           Sim, adicionar
         </button>
-        <button id="ai-decline"
-          class="w-full py-3 rounded-full bg-transparent text-bordeaux-700 font-medium active:scale-[.98] transition">
-          Não, obrigada
-        </button>
+        <button id="ai-decline" class="btn btn-secondary w-full">Não, obrigada</button>
       </div>
     </div>
   `);
@@ -313,7 +344,7 @@ function openAiModal(app, result, onDone) {
   $('#ai-accept', card).addEventListener('click', async () => {
     const btn = $('#ai-accept', card);
     btn.disabled = true;
-    btn.classList.add('opacity-80');
+    btn.setAttribute('aria-busy', 'true');
 
     // Ids do que foi criado agora: a Home usa para revelar essas linhas uma a
     // uma, em vez de fazê-las aparecer todas de vez no meio da lista.

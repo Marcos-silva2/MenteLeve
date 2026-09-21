@@ -135,3 +135,57 @@ export function formatDue(task, today = todayKey()) {
 export function isOverdue(task, today = todayKey()) {
   return !!(task && task.dueDate && !task.done && task.dueDate < today);
 }
+
+/* Recorrência — espelha Backend/app/recurrence.py. Concluir NÃO fecha nem copia a
+   tarefa: o prazo rola para a próxima ocorrência (cliente e servidor, mesma data). */
+
+export const RECURRENCE_PATTERNS = ['daily', 'weekly', 'monthly'];
+
+export const RECURRENCE_LABELS = { daily: 'Todo dia', weekly: 'Toda semana', monthly: 'Todo mês' };
+
+/** daily | weekly | monthly, senão null. */
+export function cleanPattern(value) {
+  const v = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return RECURRENCE_PATTERNS.includes(v) ? v : null;
+}
+
+/** Chave + N meses, limitando ao último dia do mês (31/jan + 1 = 28/fev). */
+function addMonthsKey(key, months) {
+  const d = dateFromKey(key);
+  if (!d) return null;
+  const idx = d.getFullYear() * 12 + d.getMonth() + months;
+  const y = Math.floor(idx / 12);
+  const m = idx - y * 12;
+  return keyOf(new Date(y, m, Math.min(d.getDate(), new Date(y, m + 1, 0).getDate())));
+}
+
+/** 1ª ocorrência depois de `today` e do prazo (atrasada pula os ciclos perdidos; sem prazo conta de hoje). */
+export function nextOccurrence(dueDate, pattern, today = todayKey()) {
+  if (!RECURRENCE_PATTERNS.includes(pattern)) return dueDate || null;
+  const start = dueDate || today;
+  const step = (k) => (pattern === 'daily' ? addDaysKey(start, k)
+    : pattern === 'weekly' ? addDaysKey(start, 7 * k) : addMonthsKey(start, k));
+  let k = 1;
+  let next = step(k);
+  while (next <= today) next = step(++k);   // "AAAA-MM-DD" compara certo como texto
+  return next;
+}
+
+const WD = 'segunda|terca|quarta|quinta|sexta|sabado|domingo';
+const RECURRENCE_RES = [
+  ['monthly', /\btod[oa]s?\s+(?:os\s+)?dias?\s+(?:[12]\d|3[01]|[1-9])(?![\d:h]|\s*horas?)|\b(?:todo\s+mes|todos\s+os\s+meses|cada\s+mes|mensal(?:mente)?\b)/],
+  ['weekly', new RegExp(`\\b(?:toda\\s+semana|cada\\s+semana|semanal(?:mente)?\\b|toda\\s+(?:${WD})|todas\\s+as\\s+(?:${WD})s|todo\\s+(?:sabado|domingo)|todos\\s+os\\s+(?:sabados|domingos))`)],
+  ['daily', /\b(?:todo\s+dia|todos\s+os\s+dias|cada\s+dia|diari(?:o|a|amente)\b|toda\s+(?:manha|tarde|noite)|todas\s+as\s+(?:manhas|tardes|noites))/],
+];
+
+/** "todo dia" / "toda segunda" / "todo dia 10" / "todo mês" → daily | weekly | monthly | null. */
+export function detectRecurrence(text) {
+  const t = String(text || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const hit = RECURRENCE_RES.find(([, re]) => re.test(t));
+  return hit ? hit[0] : null;
+}
+
+/** 1ª ocorrência sem data explícita: semanal/mensal usam o dia dito ("segunda", "dia 10"); senão, hoje. */
+export function firstOccurrence(text, pattern, today = todayKey()) {
+  return (pattern !== 'daily' && resolveDue(text, today)) || today;
+}

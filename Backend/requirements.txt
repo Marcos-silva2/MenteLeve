@@ -9,3 +9,6 @@ pywebpush>=2,<3  # notificações push (app/push.py) — protocolo Web Push assi
 bcrypt>=4.0,<5.0
 pyjwt>=2.9,<3.0
 cryptography>=42,<47  # AES-256-GCM do conteúdo em repouso (app/crypto.py) — wheel abi3, sem compilação
+
+# Testes (rodar com `pytest` em Backend/) — não são usados em produção.
+pytest>=8,<10

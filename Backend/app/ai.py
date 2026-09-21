@@ -22,6 +22,7 @@ from datetime import date
 
 import httpx
 
+from app import recurrence
 from app.circuit import CircuitBreaker
 from app.config import settings
 
@@ -53,6 +54,8 @@ _SYSTEM = (
     '  "category": "uma de: casa | filhos | trabalho | saude | financas | relacionamento",\n'
     '  "due_date": "data ISO AAAA-MM-DD, ou null se não houver data",\n'
     '  "due_time": "horário HH:MM em 24h, ou null se não houver horário",\n'
+    '  "is_recurring": "true se a tarefa se repete; false caso contrário",\n'
+    '  "recurrence_pattern": "daily | weekly | monthly, ou null se não se repete",\n'
     '  "subtasks": ["até 3 passos menores; [] se não fizer sentido"],\n'
     '  "suggestion": {\n'
     '     "text": "uma sugestão preventiva gentil (1 frase) ou null",\n'
@@ -65,6 +68,13 @@ _SYSTEM = (
     "correspondente). Nunca devolva texto em due_date — apenas AAAA-MM-DD ou null. "
     "Se a tarefa se repete (ex.: 'toda semana'), devolva a data da PRIMEIRA "
     "ocorrência. Se não houver data alguma, use null.\n"
+    "Regras de recorrência: 'todo dia', 'todos os dias', 'diariamente' -> "
+    "daily; 'toda semana', 'toda segunda-feira' (qualquer dia da semana) -> "
+    "weekly; 'todo mês', 'todo dia 10' (um dia fixo do mês) -> monthly. Nesses "
+    "casos use is_recurring=true e o padrão correspondente; a data é a da "
+    "primeira ocorrência (ex.: 'toda segunda' -> a próxima segunda; 'todo dia' "
+    "-> hoje; 'todo dia 10' -> o próximo dia 10). Se a tarefa não se repete, use "
+    "is_recurring=false e recurrence_pattern=null. Nunca invente recorrência.\n"
     "Demais regras: escolha a categoria mais provável; gere subtarefas apenas "
     "quando houver dependências reais (festa, viagem, consulta, compras, conta a "
     "pagar, reunião); a 'suggestion' deve antecipar algo a preparar ANTES/DEPOIS "
@@ -129,6 +139,15 @@ _TOOL_SPECS = [
                         "due_time": {
                             "type": "string",
                             "description": "Horário HH:MM em 24h. Omita se não houver.",
+                        },
+                        "recorrencia": {
+                            "type": "string",
+                            "enum": list(recurrence.PATTERNS),
+                            "description": (
+                                "Só se a tarefa se repete: daily (todo dia), weekly "
+                                "(toda semana / todo dia da semana) ou monthly (todo mês / "
+                                "todo dia 10). Omita se não se repete."
+                            ),
                         },
                     },
                     "required": ["titulo"],
@@ -500,7 +519,7 @@ async def analyze(text: str, today: date | None = None) -> dict | None:
     if not isinstance(data, dict):
         return None
 
-    return _sanitize(data, fallback_title=text)
+    return _sanitize(data, fallback_title=text, today=today)
 
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -524,8 +543,13 @@ def _clean_time(value: object) -> str | None:
     return value if _TIME_RE.match(value) else None
 
 
-def _sanitize(data: dict, fallback_title: str) -> dict:
-    """Valida/limpa a saída do modelo para o formato esperado pelo app."""
+def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dict:
+    """Valida/limpa a saída do modelo para o formato esperado pelo app.
+
+    `fallback_title` é o texto original da usuária: além de servir de título
+    quando o modelo não dá um, é onde a recorrência é procurada por regra quando o
+    modelo esquece de preenchê-la (ver recurrence.detect_recurrence).
+    """
     title = str(data.get("title") or fallback_title).strip()[:500]
     if title:
         title = title[0].upper() + title[1:]
@@ -536,6 +560,16 @@ def _sanitize(data: dict, fallback_title: str) -> dict:
 
     due_date = _clean_date(data.get("due_date"))
     due_time = _clean_time(data.get("due_time"))
+
+    # O padrão manda; a flag `is_recurring` é derivada dele. Um "is_recurring:
+    # true" sem padrão válido não tem como ser usado (não há ciclo a calcular).
+    pattern = recurrence.clean_pattern(data.get("recurrence_pattern"))
+    if pattern is None:
+        pattern = recurrence.detect_recurrence(fallback_title)
+    if pattern is not None and due_date is None:
+        # Primeira ocorrência: sem data dita, deduz do texto ("toda segunda",
+        # "todo dia 10") e, sem pista, começa hoje.
+        due_date = recurrence.first_occurrence(fallback_title, pattern, today or date.today())
 
     subtasks_raw = data.get("subtasks") or []
     subtasks = [str(s).strip()[:200] for s in subtasks_raw if str(s).strip()][:3]
@@ -564,6 +598,8 @@ def _sanitize(data: dict, fallback_title: str) -> dict:
         # O rótulo livre deixa de ser produzido pela IA: o frontend deriva o
         # texto amigável a partir de due_date/due_time (ver formatDue).
         "due": "",
+        "is_recurring": pattern is not None,
+        "recurrence_pattern": pattern,
         "subtasks": subtasks,
         "suggestion": suggestion,
     }

@@ -59,6 +59,11 @@ _ADDITIVE_COLUMNS = (
     ("tasks", "due_date", "DATE"),
     ("tasks", "due_time", "VARCHAR(5)"),
     ("tasks", "reminder_sent_at", "TIMESTAMPTZ"),
+    # NOT NULL + DEFAULT: as linhas existentes já nascem com o valor certo, sem
+    # UPDATE separado. `FALSE`/`0` são aceitos igualmente por SQLite e Postgres.
+    ("tasks", "is_recurring", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("tasks", "recurrence_pattern", "VARCHAR(10)"),
+    ("users", "token_version", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 

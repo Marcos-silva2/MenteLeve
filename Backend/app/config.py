@@ -55,6 +55,30 @@ class Settings:
     LOGIN_ATTEMPT_WINDOW_SECONDS: int = int(os.getenv("LOGIN_ATTEMPT_WINDOW_SECONDS", "900"))
     LOGIN_MAX_ATTEMPTS_PER_IP: int = int(os.getenv("LOGIN_MAX_ATTEMPTS_PER_IP", "30"))
 
+    # --- Recuperação de senha ---
+    # Validade do link enviado por e-mail. Curta de propósito: o token dá acesso
+    # à conta, então quanto menos tempo vivo, menos tempo para ser interceptado.
+    PASSWORD_RESET_TOKEN_MINUTES: int = int(os.getenv("PASSWORD_RESET_TOKEN_MINUTES", "30"))
+    # Pedidos de recuperação por janela. Diferente do login, aqui TODO pedido
+    # conta (não só falha): cada um dispara um e-mail, e o teto protege tanto a
+    # caixa da usuária (spam) quanto a cota gratuita do provedor de e-mail.
+    RESET_MAX_REQUESTS: int = int(os.getenv("RESET_MAX_REQUESTS", "3"))
+    RESET_MAX_REQUESTS_PER_IP: int = int(os.getenv("RESET_MAX_REQUESTS_PER_IP", "10"))
+    RESET_WINDOW_SECONDS: int = int(os.getenv("RESET_WINDOW_SECONDS", "3600"))
+    # URL pública do frontend, usada para montar o link do e-mail
+    # (`<FRONTEND_URL>/#reset=<token>`). Ex.: https://mente-leve-teal.vercel.app
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5500").rstrip("/")
+
+    # --- E-mail transacional (Resend) ---
+    # Usado só para o e-mail de recuperação de senha. Resend por HTTP (e não SMTP)
+    # porque o plano gratuito do Render bloqueia as portas SMTP de saída. Plano
+    # gratuito do Resend: 100 e-mails/dia, 3.000/mês. Sem a chave, o pedido de
+    # recuperação NÃO envia nada (e o log avisa) — ver app/mailer.py.
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    # Remetente. Sem domínio verificado no Resend só vale `onboarding@resend.dev`,
+    # que entrega apenas para o e-mail dono da conta Resend (uso de teste).
+    MAIL_FROM: str = os.getenv("MAIL_FROM", "MenteLeve <onboarding@resend.dev>")
+
     # --- Assinatura Premium ---
     # Enquanto o pagamento é SIMULADO, a usuária ativa o Premium pelo próprio app
     # (é assim que se mede interesse no MVP). Com isto em `false`, a rota de
@@ -138,6 +162,10 @@ class Settings:
     def secret_key_is_ephemeral(self) -> bool:
         """True quando SECRET_KEY não veio do ambiente (fallback aleatório)."""
         return not os.getenv("SECRET_KEY", "").strip()
+
+    @property
+    def mail_enabled(self) -> bool:
+        return bool(self.RESEND_API_KEY.strip())
 
     @property
     def push_enabled(self) -> bool:

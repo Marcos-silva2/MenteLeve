@@ -27,11 +27,15 @@ def get_current_user(
     if credentials is None:
         raise unauthorized
 
-    user_id = security.decode_access_token(credentials.credentials)
-    if user_id is None:
+    decoded = security.decode_token(credentials.credentials)
+    if decoded is None:
         raise unauthorized
+    user_id, token_version = decoded
 
     user = crud.get_user(db, user_id)
     if user is None:
+        raise unauthorized
+    # Sessão emitida antes de uma troca de senha (ou de outra invalidação).
+    if token_version != user.token_version:
         raise unauthorized
     return user

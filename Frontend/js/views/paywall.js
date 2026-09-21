@@ -24,7 +24,7 @@ export function renderPaywall(app, params = {}) {
   const view = h(`
     <div class="h-full flex flex-col bg-gradient-to-b from-bg to-soft-100 relative">
       <!-- voltar -->
-      <button id="close" class="absolute top-12 left-5 z-10 w-10 h-10 rounded-full bg-white/70 grid place-items-center text-bordeaux-900 active:scale-95 transition">
+      <button id="close" class="absolute top-12 left-5 z-10 w-11 h-11 rounded-full bg-white/70 grid place-items-center text-bordeaux-900 active:scale-95 transition">
         ${icons.back}
       </button>
 
@@ -66,7 +66,7 @@ export function renderPaywall(app, params = {}) {
             </div>
 
             <button id="subscribe"
-              class="cta-lift hidden lg:block w-full mt-6 py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+              class="btn btn-primary cta-lift hidden lg:flex w-full mt-6 py-4">
               Desbloquear MenteLeve Premium
             </button>
             <p class="hidden lg:block text-center text-[11px] text-muted mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
@@ -77,7 +77,7 @@ export function renderPaywall(app, params = {}) {
       <!-- CTA fixo (mobile) -->
       <div class="lg:hidden px-7 pb-10 pt-3">
         <button id="subscribe-m"
-          class="cta-lift w-full py-4 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+          class="btn btn-primary cta-lift w-full py-4">
           Desbloquear MenteLeve Premium
         </button>
         <p class="text-center text-[11px] text-muted mt-3">Cancele a qualquer momento • Faturamento seguro via App Store / Google Play</p>
@@ -101,17 +101,21 @@ export function renderPaywall(app, params = {}) {
   const subscribe = async () => {
     if (assinando) return;   // dois toques na mesma compra = uma chamada só
     assinando = true;
+    // Estado de carregamento visível: os botões ficam ocupados até a resposta.
+    const botoes = $$('#subscribe, #subscribe-m', view);
+    botoes.forEach((b) => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
     try {
       // MVP: compra simulada. O servidor pode recusar (403) quando a cobrança
       // real estiver ligada — só comemora e navega se o Premium valeu mesmo.
       if (!(await setPremium(true))) {
-        toast('Não foi possível ativar agora. Tente novamente em instantes.');
+        toast('Não consegui ativar o Premium agora. Confira sua conexão e tente de novo em instantes 💗', 4200);
         return;
       }
       toast('Recurso disponível na versão final ✨');
       setTimeout(() => app.navigate('home'), 800);
     } finally {
       assinando = false;
+      botoes.forEach((b) => { b.disabled = false; b.removeAttribute('aria-busy'); });
     }
   };
   $$('#subscribe, #subscribe-m', view).forEach((b) => b.addEventListener('click', subscribe));

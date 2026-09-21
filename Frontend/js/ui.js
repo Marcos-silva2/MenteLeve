@@ -40,6 +40,7 @@ export const icons = {
   send: '<svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M3.4 20.4l17.4-7.5c.9-.4.9-1.6 0-2L3.4 3.6c-.7-.3-1.5.3-1.4 1.1L3.2 11l9 1-9 1-1.2 5.3c-.1.8.7 1.4 1.4 1.1z"/></svg>',
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
   flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M5 21V4"/><path d="M5 4h13l-3 4.5L18 13H5"/></svg>',
+  repeat: '<span aria-hidden="true">↻</span>',
 };
 
 /**
@@ -79,8 +80,7 @@ export function logoMark(cls = 'h-9 w-auto', bloom = false) {
  * do backend e o erro vira bloqueio.
  *
  * Envolve o input num contêiner relativo para ancorar o botão — por isso não
- * exige nenhuma marcação especial na tela que chama. O alvo tem 36px, acima do
- * mínimo confortável para o polegar.
+ * exige nenhuma marcação especial na tela que chama. O alvo tem 44px.
  *
  * @param {HTMLInputElement} input campo `type="password"`
  */
@@ -92,7 +92,7 @@ export function attachPasswordToggle(input) {
   wrap.appendChild(input);
 
   const btn = h(`<button type="button" aria-label="Mostrar senha" aria-pressed="false"
-    class="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full
+    class="absolute right-1 top-1/2 -translate-y-1/2 grid place-items-center w-11 h-11 rounded-full
            text-muted hover:text-bordeaux-700 hover:bg-bg focus-visible:ring-4 focus-visible:ring-accent/15
            outline-none transition">${icons.eye}</button>`);
   wrap.appendChild(btn);
@@ -122,6 +122,92 @@ export function toast(message, ms = 2200) {
     el.classList.add('out');
     setTimeout(() => el.remove(), 250);
   }, ms);
+}
+
+/**
+ * Mensagem de erro no tom do app: o que houve e o que fazer. Recebe o erro do
+ * api.js (NetworkError, AuthError, ApiError) e devolve texto FIXO — nunca o
+ * `detail` do servidor, que iria para o innerHTML do toast.
+ * Distingue conexão, servidor (5xx), autenticação (401) e validação (400/402/409/422).
+ * @param {'auth'|'reset'|'register'|'geral'} [ctx] onde o erro aconteceu
+ */
+export function friendlyError(err, ctx = 'geral') {
+  const status = err && err.status;
+  const kind = err && err.kind;
+
+  if (kind === 'network' || (err && err.name === 'TypeError')) {
+    return ctx === 'geral'
+      ? 'Sem conexão agora. Suas tarefas ficam salvas e sincronizam quando a internet voltar 💗'
+      : 'Não consegui falar com o servidor. Confira a internet e tente de novo — se ele estava dormindo, acorda em cerca de 1 minuto.';
+  }
+  if (status === 401) {
+    return ctx === 'auth'
+      ? 'E-mail ou senha não conferem. Confira os dados ou use “Esqueceu sua senha?”.'
+      : 'Por segurança, sua sessão terminou. Entre de novo para continuar 💗';
+  }
+  if (status === 429) {
+    const min = err.retryAfter ? Math.max(1, Math.ceil(err.retryAfter / 60)) : 0;
+    return `Muitas tentativas por agora. Respire fundo e tente de novo ${min ? `em cerca de ${min} min` : 'em alguns minutos'}.`;
+  }
+  if (status === 400 && ctx === 'reset') return 'Este link expirou ou já foi usado. Peça um novo link para continuar.';
+  if (status === 400 || status === 422) {
+    return ctx === 'reset'
+      ? 'A nova senha precisa ter ao menos 6 caracteres. Confira e tente de novo.'
+      : 'Confira os dados preenchidos e tente de novo.';
+  }
+  if (kind === 'server') return 'Nosso servidor está indisponível no momento. Tente de novo em instantes — o que você já tem aqui continua salvo.';
+  return 'Algo não saiu como esperado. Tente de novo em instantes.';
+}
+
+/**
+ * Confirmação de ação destrutiva. Resolve `true` só se a usuária confirmar.
+ * Modal acessível: foco começa em "Cancelar" (o caminho seguro), Tab fica preso
+ * no diálogo, Esc e toque fora cancelam, e o foco volta a quem o abriu.
+ */
+export function confirmDialog({ title, message = '', confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger = false }) {
+  return new Promise((resolve) => {
+    const host = document.getElementById('device');
+    const anterior = document.activeElement;
+    const scrim = h('<div class="scrim grid place-items-center px-6"></div>');
+    const card = h(`
+      <div role="alertdialog" aria-modal="true" aria-labelledby="cd-t" aria-describedby="cd-m"
+        class="modal-card w-full max-w-[340px] bg-white rounded-xl2 p-6 shadow-card">
+        <h3 id="cd-t" class="font-serif font-bold text-bordeaux-900 text-lg mb-1"></h3>
+        <p id="cd-m" class="text-sm text-bordeaux-700 mb-5"></p>
+        <div class="flex flex-col gap-2">
+          <button data-ok class="btn w-full ${danger ? 'btn-danger border border-current' : 'btn-primary'}"></button>
+          <button data-no class="btn btn-secondary w-full"></button>
+        </div>
+      </div>`);
+    card.querySelector('#cd-t').textContent = title;
+    card.querySelector('#cd-m').textContent = message;
+    const ok = card.querySelector('[data-ok]');
+    const no = card.querySelector('[data-no]');
+    ok.textContent = confirmLabel;
+    no.textContent = cancelLabel;
+    scrim.appendChild(card);
+    host.appendChild(scrim);
+    no.focus();
+
+    const fim = (valor) => {
+      document.removeEventListener('keydown', teclas, true);
+      scrim.remove();
+      if (anterior && anterior.focus && document.contains(anterior)) anterior.focus();
+      resolve(valor);
+    };
+    function teclas(e) {
+      if (e.key === 'Escape') { e.preventDefault(); fim(false); }
+      else if (e.key === 'Tab') {
+        // Só dois botões: o foco circula entre eles.
+        e.preventDefault();
+        (document.activeElement === no ? ok : no).focus();
+      }
+    }
+    document.addEventListener('keydown', teclas, true);
+    ok.addEventListener('click', () => fim(true));
+    no.addEventListener('click', () => fim(false));
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) fim(false); });
+  });
 }
 
 export const NAV_ITEMS = [
@@ -184,8 +270,8 @@ export function renderNav(active, onNavigate, opts = {}) {
     <div class="flex items-center justify-around px-2 py-2">
       ${NAV_ITEMS.map((it) => `
         <button data-tab="${it.id}" ${it.id === active ? 'aria-current="page"' : ''}
-          class="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
-          ${it.icon}
+          class="flex flex-col items-center gap-0.5 min-w-11 min-h-11 px-2 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
+          <span class="nav-pill">${it.icon}</span>
           <span class="text-[10px] font-medium">${it.label}</span>
         </button>`).join('')}
     </div>`;
@@ -216,8 +302,8 @@ function navSideItem(it, active) {
   const on = it.id === active;
   return `
     <button data-tab="${it.id}" ${on ? 'aria-current="page"' : ''}
-      class="flex items-center gap-3 px-3 py-3 rounded-2xl text-sm font-medium transition
-             ${on ? 'bg-accent text-white shadow-fab' : 'text-soft-100 hover:bg-white/10'}">
+      class="flex items-center gap-3 px-4 min-h-11 py-3 rounded-full text-sm font-medium transition
+             ${on ? 'bg-soft-100 text-bordeaux-900 font-semibold' : 'text-soft-100 hover:bg-white/10'}">
       ${it.icon}<span>${it.label}</span>
     </button>`;
 }

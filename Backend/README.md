@@ -193,6 +193,30 @@ Detalhes que economizam depuração:
 Usuários não-Premium têm limite de **50 tarefas** (`FREE_TASK_LIMIT`). Ao exceder,
 a criação retorna **HTTP 402** (gatilho do Paywall no frontend).
 
+## Recuperação de senha e sessões
+
+`POST /auth/forgot-password` (sempre 202, exista a conta ou não) e `POST /auth/reset-password`
+(400 para token inexistente, expirado ou já usado). O token vale 30 min, é de uso único e só o
+SHA-256 dele fica no banco. Redefinir a senha incrementa `users.token_version`, o que invalida
+todos os JWTs emitidos antes. O e-mail sai pelo Resend (HTTP): configure `RESEND_API_KEY`,
+`MAIL_FROM` e `FRONTEND_URL` — sem a chave nada é enviado e o log avisa. Detalhes em
+`DOCS_MELHORIAS_IMPLEMENTADAS.md`.
+
+## Tarefas recorrentes
+
+`is_recurring` + `recurrence_pattern` (`daily` | `weekly` | `monthly`). Concluir uma recorrente
+**não a fecha**: o prazo rola para a próxima ocorrência (`app/recurrence.py`), sem criar cópia.
+`PUT /tasks/{id}/complete?today=AAAA-MM-DD` recebe a data local da usuária.
+
+## Testes
+
+```
+pip install -r requirements.txt
+pytest
+```
+
+Usam um SQLite temporário e desligam IA e e-mail — não tocam o `.env` real nem o banco de produção.
+
 ## Deploy (Render)
 - Build: `pip install -r requirements.txt`
 - Start: definido no `Procfile` (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`)

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date as dt_date
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.crypto import EncryptedText
@@ -28,6 +28,11 @@ class User(Base):
     # (ver database.py): contas antigas sem senha não conseguem logar.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Versão da sessão. Vai dentro do JWT (claim `tv`) e é conferida a cada
+    # requisição; incrementá-la invalida todos os tokens já emitidos (ex.: após
+    # redefinir a senha). Contas antigas começam em 0, igual aos tokens antigos
+    # que não têm o claim — ver security.decode_token.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     tasks: Mapped[list["Task"]] = relationship(
@@ -64,12 +69,38 @@ class Task(Base):
     due: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     important: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Recorrência: ao concluir, a tarefa não fecha — o prazo avança para a
+    # próxima ocorrência (ver app/recurrence.py e crud.set_task_done).
+    # `recurrence_pattern`: daily | weekly | monthly (NULL quando não recorrente).
+    is_recurring: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    recurrence_pattern: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     # Quando o lembrete push desta tarefa foi enviado (None = ainda não). Evita
     # reenviar a cada rodada da varredura — ver app/push.py.
     reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="tasks")
+
+
+class PasswordResetToken(Base):
+    """Token de recuperação de senha (uso único, com validade).
+
+    Só o SHA-256 do token é guardado: quem lê o banco não consegue redefinir a
+    senha de ninguém. SHA-256 (e não bcrypt) basta porque o token tem 256 bits de
+    entropia — não há o que adivinhar por força bruta, e a consulta precisa ser
+    por igualdade no índice.
+    """
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class PushSubscription(Base):

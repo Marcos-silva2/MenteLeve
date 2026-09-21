@@ -6,7 +6,10 @@
      enquanto a IA real não está plugada no backend (/tasks/smart).
    ============================================================ */
 
-import { todayKey, resolveDue, resolveTime, addDaysKey } from './dates.js';
+import {
+  todayKey, resolveDue, resolveTime, addDaysKey,
+  cleanPattern, detectRecurrence, firstOccurrence,
+} from './dates.js';
 
 // Base da API: em dev local usa o backend local; em produção, o Render.
 // (hostname vazio = arquivo aberto via file://, tratado como local.)
@@ -26,6 +29,26 @@ export class AuthError extends Error {
     super(message);
     this.name = 'AuthError';
     this.status = 401;
+  }
+}
+
+/** Falha de rede: o pedido nem chegou ao servidor (sem internet, cold start). */
+export class NetworkError extends Error {
+  constructor(message = 'Sem conexão') {
+    super(message);
+    this.name = 'NetworkError';
+    this.kind = 'network';
+  }
+}
+
+/** O servidor respondeu com erro; `status` guia a mensagem (ui.friendlyError). */
+export class ApiError extends Error {
+  constructor(status, retryAfter = null) {
+    super(`HTTP ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.retryAfter = retryAfter;
+    this.kind = status >= 500 ? 'server' : 'client';
   }
 }
 
@@ -51,7 +74,12 @@ function headers(extra = {}) {
 }
 
 async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, options);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, options);
+  } catch (_) {
+    throw new NetworkError();
+  }
   if (!res.ok) {
     // 401 é tratado à parte: significa sessão inválida/expirada, e não
     // "backend fora do ar" — o app precisa mandar a usuária para o login.
@@ -64,9 +92,8 @@ async function request(path, options = {}) {
       }
       throw new AuthError();
     }
-    const err = new Error(`HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
+    const retry = Number(res.headers && res.headers.get && res.headers.get('Retry-After'));
+    throw new ApiError(res.status, Number.isFinite(retry) && retry > 0 ? retry : null);
   }
   return res.status === 204 ? null : res.json();
 }
@@ -119,8 +146,8 @@ export async function wakeBackend({ attempts = 14, intervalMs = 4000 } = {}) {
 export const isOnline = () => _online === true;
 
 // --------- Normalização backend <-> frontend ---------
-// Backend Task: {id, user_id, title, category, due_date, due_time, due, done, important, created_at}
-// Frontend Task: {id(string), title, category, dueDate, dueTime, due, done, important, createdAt}
+// Backend Task: {id, user_id, title, category, due_date, due_time, due, done, important, is_recurring, recurrence_pattern, created_at}
+// Frontend Task: {id(string), title, category, dueDate, dueTime, due, done, important, isRecurring, recurrencePattern, createdAt}
 function fromServer(t) {
   return {
     id: String(t.id),
@@ -135,6 +162,8 @@ function fromServer(t) {
     // Backend ainda não tem coluna de prioridade: deriva de `important`.
     priority: t.important ? 'alta' : 'media',
     parentId: t.parent_id != null ? String(t.parent_id) : null,
+    isRecurring: !!t.is_recurring,
+    recurrencePattern: t.is_recurring ? cleanPattern(t.recurrence_pattern) : null,
     createdAt: t.created_at ? Date.parse(t.created_at) : Date.now(),
   };
 }
@@ -177,6 +206,26 @@ export async function apiMe() {
   return request('/auth/me', { headers: headers() });
 }
 
+/** Pede o link de recuperação. Sem rede LANÇA NetworkError (não devolve null): a tela precisa dizer que o pedido não saiu. */
+export async function apiForgotPassword(email) {
+  if (!(await ensureOnline(true))) throw new NetworkError();
+  return request('/auth/forgot-password', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Define a nova senha com o token do e-mail. 400 = link expirado/já usado. */
+export async function apiResetPassword(token, newPassword) {
+  if (!(await ensureOnline(true))) throw new NetworkError();
+  return request('/auth/reset-password', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
+
 /**
  * Ativa ou cancela o Premium. Devolve o usuário atualizado pelo servidor.
  *
@@ -210,7 +259,9 @@ export async function apiListTasks() {
 }
 
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
-export async function apiCreateTask({ title, category, dueDate, dueTime, due, important, parentId }) {
+export async function apiCreateTask({
+  title, category, dueDate, dueTime, due, important, parentId, isRecurring, recurrencePattern,
+}) {
   if (!_token || !(await ensureOnline())) return null;
   try {
     const t = await request('/tasks', {
@@ -224,6 +275,8 @@ export async function apiCreateTask({ title, category, dueDate, dueTime, due, im
         due: due || '',
         important: !!important,
         parent_id: parentId != null ? Number(parentId) : null,
+        is_recurring: !!(isRecurring && cleanPattern(recurrencePattern)),
+        recurrence_pattern: isRecurring ? cleanPattern(recurrencePattern) : null,
       }),
     });
     return fromServer(t);
@@ -263,6 +316,8 @@ export async function apiSmartTask(text) {
       dueDate: r.due_date || null,
       dueTime: r.due_time || null,
       due: r.due || '',
+      isRecurring: !!r.is_recurring && !!cleanPattern(r.recurrence_pattern),
+      recurrencePattern: cleanPattern(r.recurrence_pattern),
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
       suggestion: r.suggestion
         ? {
@@ -316,11 +371,13 @@ export async function apiChat(messages) {
   }
 }
 
-export async function apiSetDone(id, done) {
+/** Conclui/reabre no servidor. `today` (data local) só importa p/ recorrente: o servidor rola o prazo a partir dela. */
+export async function apiSetDone(id, done, today = todayKey()) {
   if (!_token || !(await ensureOnline())) return null;
   const verb = done ? 'complete' : 'uncomplete';
+  const query = done ? `?today=${encodeURIComponent(today)}` : '';
   try {
-    return fromServer(await request(`/tasks/${id}/${verb}`, { method: 'PUT', headers: headers() }));
+    return fromServer(await request(`/tasks/${id}/${verb}${query}`, { method: 'PUT', headers: headers() }));
   } catch (_) {
     return null;
   }
@@ -441,7 +498,18 @@ export function decomposeTask(text) {
     };
   }
 
-  return { title, category, due, ...structure(due), subtasks, suggestion };
+  // Recorrência por regra (sem IA).
+  const recurrencePattern = detectRecurrence(text);
+  const base = structure(due);
+  if (recurrencePattern && !base.dueDate) {
+    base.dueDate = firstOccurrence(text, recurrencePattern, today);
+  }
+
+  return {
+    title, category, due, ...base,
+    isRecurring: recurrencePattern !== null, recurrencePattern,
+    subtasks, suggestion,
+  };
 }
 
 function extractDue(text) {

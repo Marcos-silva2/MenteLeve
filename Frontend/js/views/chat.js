@@ -38,6 +38,12 @@ const CANNED = {
     'Ótima pergunta! Pergunte a si mesma: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → comprar → agendar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos automaticamente. ✨',
 };
 
+// Pedidos que a Bruna executaria pela IA (criar/concluir tarefa).
+const PEDIDO_DE_ACAO = /\b(anota\w*|cria\w*|lembr\w*|adiciona\w*|agend\w*|marca\w*|conclu\w*|terminei|finalizei|j[aá] fiz)\b/i;
+const ALTERNATIVA_MANUAL =
+  'Ainda não consegui fazer isso por aqui, então nada foi anotado. ' +
+  'Toque no + para criar a tarefa, ou marque como feita na Home — tudo sincroniza quando eu voltar 💗';
+
 export function renderChat(app) {
   const user = getUser() || { name: 'Você' };
   const firstName = (user.name || 'Você').split(' ')[0];
@@ -91,12 +97,19 @@ export function renderChat(app) {
       </div>`;
   }
 
+  /* Balão-esqueleto enquanto a Bruna processa: mesma forma do balão real (avatar
+     + bolha branca com o canto inferior esquerdo reto), com barras pulsantes no
+     lugar do texto. As barras são decorativas (aria-hidden); quem usa leitor de
+     tela ouve "Bruna está pensando" uma vez, pelo role=status. */
   function typingBubble() {
     return `
-      <div class="flex items-end gap-2">
-        <span class="shrink-0 w-7 h-7 rounded-full bg-accent text-white grid place-items-center">${icons.spark}</span>
-        <div class="bg-white border border-soft-100 rounded-2xl rounded-bl-md shadow-card px-4 py-3 flex items-center gap-1">
-          <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+      <div class="flex items-end gap-2 max-w-[88%]" role="status">
+        <span class="sr-only">Bruna está pensando…</span>
+        <span aria-hidden="true" class="shrink-0 w-7 h-7 rounded-full bg-accent text-white grid place-items-center">${icons.spark}</span>
+        <div aria-hidden="true" class="bg-white border border-soft-100 rounded-2xl rounded-bl-md shadow-card px-4 py-3 flex flex-col gap-2 w-56">
+          <div class="skeleton-pulse h-3 w-full"></div>
+          <div class="skeleton-pulse h-3 w-4/5"></div>
+          <div class="skeleton-pulse h-3 w-2/5"></div>
         </div>
       </div>`;
   }
@@ -133,43 +146,50 @@ export function renderChat(app) {
     // idas ao modelo. Com o backend já no ar, esperamos bem mais: desistir cedo
     // mostraria a resposta pronta enquanto a tarefa É criada no servidor — e a
     // usuária, achando que falhou, repetiria o pedido e ganharia uma duplicata.
-    const budget = isOnline() ? 30000 : 7000;
-    const result = await withTimeout(apiChat(conversation), budget);
+    try {
+      const budget = isOnline() ? 30000 : 7000;
+      const result = await withTimeout(apiChat(conversation), budget);
 
-    let reply = result && result.reply;
-    let agiu = false;
-    if (result) {
-      // Reflete na Home/Agenda o que a Bruna acabou de fazer, sem recarregar
-      // a lista inteira (ver upsertTasks).
-      upsertTasks(result.tasks);
-      agiu = !!(result.tasks && result.tasks.length);
-    }
-
-    if (!reply) {
-      // Sem conexão (ou lenta): a "Bruna local" responde de forma natural,
-      // enquanto acordamos o backend em 2º plano para as próximas mensagens.
-      wakeBackend().then((ok) => ok && restoreSession().catch(() => {}));
-      reply = CANNED[msg] || localReply(msg);
-      // pausa proporcional ao tamanho — dá a sensação de que ela "digitou".
-      await new Promise((r) => setTimeout(r, 650 + Math.min(1400, reply.length * 10)));
-    }
-
-    typing = false;
-    conversation.push({ role: 'assistant', content: reply });
-    renderMessages();
-    playMessage();
-
-    // Ela não só respondeu: criou ou concluiu tarefa de verdade. O brilho no
-    // avatar (e no logotipo, no desktop) é a confirmação disso onde o olhar já
-    // está — sem ele, a única prova da ação ficava em outra aba.
-    if (agiu) {
-      pulseBrandLogo();
-      const avatar = messagesEl.lastElementChild &&
-        messagesEl.lastElementChild.querySelector('span.rounded-full');
-      if (avatar) {
-        avatar.classList.add('bruna-glow');
-        setTimeout(() => avatar.classList.remove('bruna-glow'), 1600);
+      let reply = result && result.reply;
+      let agiu = false;
+      if (result) {
+        // Reflete na Home/Agenda o que a Bruna acabou de fazer, sem recarregar
+        // a lista inteira (ver upsertTasks).
+        upsertTasks(result.tasks);
+        agiu = !!(result.tasks && result.tasks.length);
       }
+
+      if (!reply) {
+        // Sem conexão (ou lenta): a "Bruna local" responde de forma natural,
+        // enquanto acordamos o backend em 2º plano para as próximas mensagens.
+        wakeBackend().then((ok) => ok && restoreSession().catch(() => {}));
+        reply = CANNED[msg] || localReply(msg);
+        // Sem IA nada foi anotado: quem pediu uma ação precisa saber e como fazer à mão.
+        if (PEDIDO_DE_ACAO.test(msg)) reply += `\n\n${ALTERNATIVA_MANUAL}`;
+        // pausa proporcional ao tamanho — dá a sensação de que ela "digitou".
+        await new Promise((r) => setTimeout(r, 650 + Math.min(1400, reply.length * 10)));
+      }
+
+      typing = false;
+      conversation.push({ role: 'assistant', content: reply });
+      renderMessages();
+      playMessage();
+
+      // Ela não só respondeu: criou ou concluiu tarefa de verdade. O brilho no
+      // avatar (e no logotipo, no desktop) é a confirmação disso onde o olhar já
+      // está — sem ele, a única prova da ação ficava em outra aba.
+      if (agiu) {
+        pulseBrandLogo();
+        const avatar = messagesEl.lastElementChild &&
+          messagesEl.lastElementChild.querySelector('span.rounded-full');
+        if (avatar) {
+          avatar.classList.add('bruna-glow');
+          setTimeout(() => avatar.classList.remove('bruna-glow'), 1600);
+        }
+      }
+    } finally {
+      // Esqueleto só existe durante o carregamento: sai inclusive em caso de erro.
+      if (typing) { typing = false; renderMessages(); }
     }
   }
 

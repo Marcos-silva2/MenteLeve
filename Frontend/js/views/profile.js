@@ -47,7 +47,7 @@ export function renderProfile(app) {
                 ${icons.crown} Zere sua sobrecarga mental
               </p>
               <button id="upgrade"
-                class="cta-lift w-full py-3 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+                class="btn btn-primary cta-lift w-full py-3">
                 Fazer Upgrade
               </button>
             </div>`}
@@ -106,7 +106,7 @@ export function renderProfile(app) {
               <p class="font-semibold text-bordeaux-900 text-sm">Instalar o MenteLeve</p>
               <p class="text-xs text-bordeaux-700">Tenha o app na tela inicial, funciona offline.</p>
             </div>
-            <button id="install" class="cta-lift shrink-0 px-4 py-2 rounded-full bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-fab active:scale-95 transition">
+            <button id="install" class="btn btn-primary cta-lift shrink-0 px-4 py-2 !text-sm">
               Baixar
             </button>
           </div>`}
@@ -163,11 +163,11 @@ export function renderProfile(app) {
         setPushToggle(true);
         toast('Lembretes ativados 🔔');
       } else if (resultado === 'denied') {
-        toast('Permissão de notificação negada no navegador');
+        toast('Os lembretes estão bloqueados neste navegador. Libere as notificações do site nas configurações para ativar.', 4500);
       } else if (resultado === 'unavailable') {
-        toast('Recurso ainda não disponível');
+        toast('Os lembretes ainda não estão disponíveis neste servidor.', 3500);
       } else {
-        toast('Não foi possível ativar agora');
+        toast('Não consegui ativar os lembretes agora. Confira sua conexão e tente de novo.', 4000);
       }
     }
     pushToggle.disabled = false;

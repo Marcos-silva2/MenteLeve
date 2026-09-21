@@ -8,7 +8,7 @@
    ============================================================ */
 
 import * as api from './api.js';
-import { resolveDue, resolveTime } from './dates.js';
+import { resolveDue, resolveTime, todayKey, nextOccurrence, cleanPattern } from './dates.js';
 
 const STORAGE_KEY = 'menteleve.state.v1';
 
@@ -353,7 +353,15 @@ async function applyPending(op) {
 
   if (isLocalId(op.id)) return true;             // o `create` sumiu; não há o que atualizar
 
-  if (op.kind === 'done') return !!(await api.apiSetDone(op.id, op.done));
+  if (op.kind === 'done') {
+    const saved = await api.apiSetDone(op.id, op.done, op.today);
+    if (!saved) return false;
+    // Recorrente: o servidor decide a próxima data (várias conclusões offline
+    // viram uma operação só). Adota a resposta.
+    const t = state.tasks.find((x) => x.id === op.id);
+    if (t && saved.isRecurring) { t.dueDate = saved.dueDate; t.done = saved.done; }
+    return true;
+  }
   if (op.kind === 'delete') return await api.apiDeleteTask(op.id);
   return true;
 }
@@ -412,6 +420,8 @@ export async function addTask(task) {
     priority,
     important: task.important != null ? !!task.important : priority === 'alta',
     parentId: task.parentId != null ? String(task.parentId) : null,
+    isRecurring: !!(task.isRecurring && cleanPattern(task.recurrencePattern)),
+    recurrencePattern: task.isRecurring ? cleanPattern(task.recurrencePattern) : null,
     createdAt: Date.now(),
   };
   state.tasks.unshift(local);
@@ -466,19 +476,38 @@ export function upsertTasks(list) {
 
 export function toggleTask(id) {
   const t = state.tasks.find((x) => x.id === id);
-  if (t) {
+  if (!t) return t;
+
+  // Recorrente NÃO fecha: o prazo rola para a próxima ocorrência (dates.js →
+  // nextOccurrence). Sem cópia nova, nada duplica ao sincronizar.
+  const recorrente = !!(t.isRecurring && t.recurrencePattern && !t.done);
+  const today = todayKey();
+  if (recorrente) {
+    t.dueDate = nextOccurrence(t.dueDate, t.recurrencePattern, today);
+    t.due = '';   // o rótulo legado não vale mais para o novo prazo
+  } else {
     t.done = !t.done;
-    persist();
-    if (state.userId != null) {
+  }
+  persist();
+
+  if (state.userId != null) {
+    const enviarDone = recorrente ? true : t.done;
+    const op = { kind: 'done', id, done: enviarDone, today };
+    if (isLocalId(id)) {
       // Id local significa que o `create` ainda está na fila: enfileira o estado
       // para ir logo depois dele, já com o id que o servidor devolver.
-      if (isLocalId(id)) {
-        enqueue({ kind: 'done', id, done: t.done });
-      } else {
-        api.apiSetDone(id, t.done)
-          .then((r) => { if (!r) enqueue({ kind: 'done', id, done: t.done }); })
-          .catch(() => enqueue({ kind: 'done', id, done: t.done }));
-      }
+      // Recorrente: o `create` já leva o prazo rolado; a conclusão faria rolar 2x.
+      if (!recorrente) enqueue(op);
+    } else {
+      api.apiSetDone(id, enviarDone, today)
+        .then((r) => {
+          if (!r) { enqueue(op); return; }
+          if (recorrente && r.isRecurring) {
+            t.dueDate = r.dueDate;
+            persist();
+          }
+        })
+        .catch(() => enqueue(op));
     }
   }
   return t;

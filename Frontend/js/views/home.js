@@ -4,11 +4,56 @@
    Desktop: lista principal + painel de agenda semanal (aside)
    ============================================================ */
 
-import { h, $, $$, icons, toast, logoMark } from '../ui.js';
-import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, isSyncing, CATEGORIES } from '../store.js';
-import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey } from '../dates.js';
+import { h, $, $$, icons, toast, confirmDialog } from '../ui.js';
+import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, isSyncing, hasSession, restoreSession, CATEGORIES } from '../store.js';
+import { isOnline, ensureOnline } from '../api.js';
+import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey, labelForKey, resolveDue, RECURRENCE_LABELS } from '../dates.js';
 import { playComplete, playUndo, playTap, playDelete, playAllDone } from '../sound.js';
 import { openTaskSheet } from '../components/taskSheet.js';
+
+/* Seções da Home. Cada tarefa cai em UMA só, decidida por sectionOf — os dados
+   da tarefa não são alterados. */
+const SECTIONS = [
+  { id: 'hoje', title: 'Hoje' },
+  { id: 'rotinas', title: 'Rotinas Cíclicas' },
+  { id: 'depois', title: 'Mais Tarde / Próximos Dias' },
+  { id: 'feitas', title: 'Concluídas' },
+];
+// Lembra quais seções estão abertas entre re-renders (concluir uma tarefa redesenha a lista).
+const aberta = { hoje: true, rotinas: true, depois: true, feitas: false };
+
+/**
+ * Concluída → feitas. Em aberto com prazo hoje ou vencido → hoje (atrasada pede
+ * atenção hoje). Recorrente sem prazo para hoje → rotinas. O resto (prazo
+ * futuro ou sem prazo) → depois.
+ */
+export function sectionOf(t, today = todayKey()) {
+  if (t.done) return 'feitas';
+  const dia = t.dueDate || resolveDue(t.due, today);
+  if (dia && dia <= today) return 'hoje';
+  return t.isRecurring && t.recurrencePattern ? 'rotinas' : 'depois';
+}
+
+export function groupTasks(tasks, today = todayKey()) {
+  const grupos = { hoje: [], rotinas: [], depois: [], feitas: [] };
+  for (const t of tasks) grupos[sectionOf(t, today)].push(t);
+  return grupos;
+}
+
+/**
+ * Roda `fn` quando a animação de saída do card termina — ou já, se a pessoa
+ * pediu movimento reduzido. No CSS, `prefers-reduced-motion` desliga a animação
+ * (`animation: none`), e sem animação o `animationend` nunca dispara: concluir ou
+ * excluir deixava a lista sem redesenhar. O temporizador cobre qualquer outro caso
+ * em que o evento não chegue.
+ */
+function aposSaida(el, fn) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { fn(); return; }
+  let feito = false;
+  const uma = () => { if (!feito) { feito = true; fn(); } };
+  el.addEventListener('animationend', uma, { once: true });
+  setTimeout(uma, 800);
+}
 
 export function renderHome(app) {
   let filter = 'tudo';
@@ -47,7 +92,7 @@ export function renderHome(app) {
             <h2 class="font-serif font-bold text-bordeaux-900 text-lg mb-1">Sua semana</h2>
             <p class="text-xs text-bordeaux-700 mb-4">Planeje com antecedência, sem surpresas.</p>
             <div id="week-panel" class="flex flex-col gap-2"></div>
-            <button id="go-agenda" class="mt-4 w-full py-2.5 rounded-full border border-soft-200 text-bordeaux-800 text-sm font-medium hover:bg-soft-100 transition">
+            <button id="go-agenda" class="btn btn-secondary mt-4 w-full border border-soft-200 !text-sm !font-medium">
               Ver agenda completa
             </button>
           </div>
@@ -69,13 +114,16 @@ export function renderHome(app) {
   // Delegação de eventos (anexada UMA vez) — evita re-anexar listeners a cada
   // render da lista (mais performático e sem vazamento de handlers).
   listEl.addEventListener('click', (e) => {
+    const acc = e.target.closest('[data-acc]');
+    if (acc) { toggleSection(acc); return; }
     const check = e.target.closest('[data-check]');
     if (check) { handleToggle(check.dataset.check); return; }
     const del = e.target.closest('[data-del]');
     if (del) { e.stopPropagation(); confirmDelete(del.dataset.del); return; }
     // Botão do estado vazio (a lista é reescrita a cada render; por isso vem
     // pela delegação, e não por um listener próprio).
-    if (e.target.closest('[data-new]')) { playTap(); openTaskSheet(app, renderList); }
+    if (e.target.closest('[data-new]')) { playTap(); openTaskSheet(app, renderList); return; }
+    if (e.target.closest('[data-retry]')) retryConnection();
   });
   let lpTimer;
   listEl.addEventListener('touchstart', (e) => {
@@ -115,7 +163,7 @@ export function renderHome(app) {
     el.innerHTML = `
       <div class="flex items-center justify-between mb-1.5">
         <span class="text-xs font-medium text-bordeaux-700">${msg}</span>
-        <span class="text-xs font-bold text-accent">${pct}%</span>
+        <span class="text-xs font-bold text-bordeaux-600">${pct}%</span>
       </div>
       <div class="h-2 rounded-full bg-soft-100 overflow-hidden"
         role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
@@ -137,21 +185,43 @@ export function renderHome(app) {
       // Lista vazia é ambígua: pode ser "não há nada" ou "ainda não chegou".
       // Com uma sessão salva e o sync em andamento, dizer "sua mente está
       // limpa" seria mentira — e assustaria quem tem 30 tarefas no servidor.
-      listEl.innerHTML = isSyncing() ? skeletonList() : emptyState(filter);
+      // Vazia com sessão e sem servidor no ar ≠ vazia de verdade: não dá para
+      // dizer "tudo tranquilo" a quem não conseguiu buscar as próprias tarefas.
+      const semConexao = hasSession() && !isOnline();
+      listEl.innerHTML = isSyncing() ? skeletonList() : emptyState(filter, semConexao);
       renderWeekPanel();
       return;
     }
 
     const revelar = Array.isArray(revealIds) ? revealIds : [];
-    const ordered = [...tasks].sort((a, b) => Number(a.done) - Number(b.done));
-    listEl.innerHTML = ordered.map((t) => {
-      const subs = getSubtasks(t.id).sort((a, b) => Number(a.done) - Number(b.done));
-      const doneCount = subs.filter((s) => s.done).length;
-      return taskCard(t, { total: subs.length, done: doneCount }) +
-        (subs.length ? subtaskGroup(subs, revelar) : '');
+    const grupos = groupTasks(tasks);
+    listEl.innerHTML = SECTIONS.filter((sec) => grupos[sec.id].length).map((sec) => {
+      const cards = grupos[sec.id].map((t) => {
+        const subs = getSubtasks(t.id).sort((a, b) => Number(a.done) - Number(b.done));
+        const doneCount = subs.filter((s) => s.done).length;
+        return taskCard(t, { total: subs.length, done: doneCount }) +
+          (subs.length ? subtaskGroup(subs, revelar) : '');
+      }).join('');
+      return sectionHTML(sec, grupos[sec.id].length, cards);
     }).join('');
 
     renderWeekPanel();
+  }
+
+  function toggleSection(btn) {
+    const id = btn.dataset.acc;
+    const abrir = btn.getAttribute('aria-expanded') !== 'true';
+    aberta[id] = abrir;
+    btn.setAttribute('aria-expanded', String(abrir));
+    const painel = listEl.querySelector(`#acc-${id}`);
+    if (painel) painel.dataset.open = String(abrir);
+    playTap();
+  }
+
+  async function retryConnection() {
+    if (await ensureOnline(true)) await restoreSession().catch(() => {});
+    renderList();
+    if (!isOnline()) toast('Ainda sem conexão. Suas tarefas continuam salvas aqui 💗');
   }
 
   function renderWeekPanel() {
@@ -180,7 +250,21 @@ export function renderHome(app) {
 
   function handleToggle(id) {
     const card = $(`[data-card="${id}"]`, listEl);
+    // Recorrente não fecha: o prazo rola e ela segue na lista (lido ANTES do toggle).
+    const antes = getTasks().find((x) => x.id === id);
+    const recorrente = !!(antes && antes.isRecurring && antes.recurrencePattern && !antes.done);
     const t = toggleTask(id);
+    if (recorrente && t) {
+      playComplete();
+      toast(`Feito ✨ Volta ${labelForKey(t.dueDate).toLowerCase()} 🔁`);
+      if (card) {
+        card.classList.add('task-done');
+        aposSaida(card, () => renderList());
+      } else {
+        renderList();
+      }
+      return;
+    }
     if (t && t.done && card) {
       playComplete();
       // A última pendência caiu: marco do dia, não só mais um item. Conta sobre
@@ -188,7 +272,7 @@ export function renderHome(app) {
       // enquanto sobram cinco em "Casa" não é a mente vazia que o som celebra.
       if (getTasks().every((x) => x.done)) playAllDone();
       card.classList.add('task-done');
-      card.addEventListener('animationend', () => renderList(), { once: true });
+      aposSaida(card, () => renderList());
     } else {
       // Desmarcar é a reversão: as mesmas notas, ao contrário.
       if (t) playUndo();
@@ -203,7 +287,16 @@ export function renderHome(app) {
    * sido redesenhada) a remoção é imediata — a animação é um bônus, nunca uma
    * condição para o dado sumir.
    */
-  function confirmDelete(id) {
+  async function confirmDelete(id) {
+    const t = getTasks().find((x) => x.id === id);
+    const ok = await confirmDialog({
+      title: 'Excluir esta tarefa?',
+      message: t ? `“${t.title}” será removida. Isso não pode ser desfeito.` : 'Isso não pode ser desfeito.',
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Manter',
+      danger: true,
+    });
+    if (!ok) return;
     playDelete();
     const card = $(`[data-card="${id}"]`, listEl);
     if (!card) {
@@ -213,11 +306,11 @@ export function renderHome(app) {
       return;
     }
     card.classList.add('task-remove');
-    card.addEventListener('animationend', () => {
+    aposSaida(card, () => {
       removeTask(id);
       renderList();
       toast('Tarefa removida');
-    }, { once: true });
+    });
   }
 
   function openQuickActions(id) {
@@ -226,12 +319,8 @@ export function renderHome(app) {
     const menu = h(`
       <div class="sheet px-5 pt-4 pb-8">
         <div class="w-10 h-1.5 rounded-full bg-soft-100 mx-auto mb-4"></div>
-        <button data-act="delete" class="w-full text-left px-4 py-3.5 rounded-2xl text-bordeaux-600 font-medium active:bg-bg transition">
-          Excluir tarefa
-        </button>
-        <button data-act="cancel" class="w-full text-left px-4 py-3.5 rounded-2xl text-bordeaux-700 font-medium active:bg-bg transition">
-          Cancelar
-        </button>
+        <button data-act="delete" class="btn btn-danger w-full !justify-start">Excluir tarefa</button>
+        <button data-act="cancel" class="btn btn-secondary w-full !justify-start">Cancelar</button>
       </div>`);
     scrim.appendChild(menu);
     host.appendChild(scrim);
@@ -278,15 +367,16 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
     <div class="min-w-0 flex-1">
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
-        ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-accent font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}</span>` : ''}
+        ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}</span>` : ''}
+        ${t.isRecurring && t.recurrencePattern ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">${icons.repeat}${RECURRENCE_LABELS[t.recurrencePattern]}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
           <span style="color:${prio.dot}">${icons.flag}</span>${prio.label}</span>` : ''}
-        ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-accent">✨ ${sub.done}/${sub.total} passos</span>` : ''}
+        ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-600">✨ ${sub.done}/${sub.total} passos</span>` : ''}
       </div>
     </div>
-    <!-- ação no hover (desktop): excluir, em tom Cherry Rose discreto -->
-    <button data-del="${t.id}" title="Excluir"
-      class="hidden lg:grid place-items-center shrink-0 w-8 h-8 rounded-full text-bordeaux-700/0 group-hover:text-bordeaux-600 hover:bg-soft-100 transition">
+    <!-- excluir: sempre visível (não depende de hover), alvo de 44px e confirmação antes -->
+    <button data-del="${t.id}" title="Excluir" aria-label="Excluir tarefa ${escAttr(t.title)}"
+      class="grid place-items-center shrink-0 w-11 h-11 -mr-2 rounded-full text-muted hover:text-bordeaux-600 hover:bg-soft-100 transition">
       ${icons.trash}
     </button>
   </div>`;
@@ -315,56 +405,78 @@ function subtaskRow(t, revealIndex = null) {
   <div data-card="${t.id}"${anima ? ` style="--i:${revealIndex}"` : ''}
     class="${anima ? 'reveal ' : ''}group relative flex items-center gap-2.5 bg-white/70 rounded-xl border border-soft-100 px-3 py-2 select-none hover:border-soft-200 transition">
     <button data-check="${t.id}" aria-label="${acao} tarefa ${escAttr(t.title)}"
-      class="shrink-0 w-5 h-5 rounded-full border-2 grid place-items-center transition
-             ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent hover:border-accent'}">
-      <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
+      class="shrink-0 w-11 h-11 -m-3 grid place-items-center rounded-full">
+      <span class="w-5 h-5 rounded-full border-2 grid place-items-center transition
+             ${done ? 'bg-accent border-accent text-white' : 'border-soft-200 text-transparent'}">
+        <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
+      </span>
     </button>
     <p class="flex-1 min-w-0 text-[13px] leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-800'}">${t.title}</p>
-    ${formatDue(t) && !done ? `<span class="text-[11px] shrink-0 ${isOverdue(t) ? 'text-accent font-semibold' : 'text-bordeaux-700'}">${formatDue(t)}</span>` : ''}
-    <button data-del="${t.id}" title="Excluir"
-      class="hidden lg:grid place-items-center shrink-0 w-7 h-7 rounded-full text-bordeaux-700/0 group-hover:text-bordeaux-600 hover:bg-soft-100 transition">
+    ${formatDue(t) && !done ? `<span class="text-[11px] shrink-0 ${isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700'}">${formatDue(t)}</span>` : ''}
+    <button data-del="${t.id}" title="Excluir" aria-label="Excluir tarefa ${escAttr(t.title)}"
+      class="grid place-items-center shrink-0 w-11 h-11 -my-3 -mr-2 rounded-full text-muted hover:text-bordeaux-600 hover:bg-soft-100 transition">
       ${icons.trash}
     </button>
   </div>`;
 }
 
-/* Esqueleto: a forma do que está por vir, enquanto o sync não responde.
-   Três linhas bastam — mais que isso vira uma promessa de lista cheia que o
-   servidor talvez não confirme. */
+/* Cabeçalho + painel de uma seção. O botão é o gatilho do accordion (Enter e
+   Espaço já valem por ser <button>); o painel recolhido some da tabulação. */
+function sectionHTML(sec, total, cards) {
+  const open = aberta[sec.id];
+  return `
+  <section class="mb-3" data-section="${sec.id}">
+    <h2 class="m-0">
+      <button type="button" data-acc="${sec.id}" id="acc-btn-${sec.id}" aria-expanded="${open}" aria-controls="acc-${sec.id}"
+        class="w-full flex items-center gap-2 min-h-11 px-1 rounded-xl text-left">
+        <span class="font-serif font-bold text-bordeaux-900 text-lg flex-1">${sec.title}</span>
+        <span class="text-xs font-bold rounded-full px-2.5 py-0.5 bg-soft-100 text-bordeaux-900" aria-label="${total} tarefa${total > 1 ? 's' : ''}">${total}</span>
+        <span class="acc-chevron text-bordeaux-700" aria-hidden="true">${icons.chevron}</span>
+      </button>
+    </h2>
+    <div id="acc-${sec.id}" role="region" aria-labelledby="acc-btn-${sec.id}" class="acc-panel" data-open="${open}">
+      <div class="acc-inner"><div class="acc-body">${cards}</div></div>
+    </div>
+  </section>`;
+}
+
+/* Esqueleto: a forma do que está por vir, enquanto o sync não responde. Mesmas
+   medidas do cartão real (círculo de 44px, py-3.5) para a lista não "saltar"
+   quando o conteúdo chega. Três bastam: mais que isso promete uma lista cheia
+   que o servidor talvez não confirme. `.skeleton-wrap` só aparece após 200 ms. */
 function skeletonList() {
   return `
-  <div data-skeleton class="flex flex-col gap-3 pt-1" aria-hidden="true">
+  <div data-skeleton class="skeleton-wrap flex flex-col gap-3 pt-1" aria-busy="true">
+    <p role="status" class="sr-only">Buscando suas tarefas…</p>
     ${[0, 1, 2].map(() => `
-      <div class="bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 flex items-center gap-3">
-        <div class="skeleton shrink-0 w-7 h-7 rounded-full"></div>
+      <div aria-hidden="true" class="bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 flex items-center gap-3"
+        style="border-left:4px solid #ffccd5">
+        <div class="skeleton-pulse shrink-0 w-11 h-11"></div>
         <div class="flex-1 min-w-0 flex flex-col gap-2">
-          <div class="skeleton h-3.5 w-3/5 rounded-full"></div>
-          <div class="skeleton h-2.5 w-2/5 rounded-full"></div>
+          <div class="skeleton-pulse h-4 w-3/5"></div>
+          <div class="skeleton-pulse h-3 w-2/5"></div>
         </div>
       </div>`).join('')}
-    <p class="text-center text-xs text-bordeaux-700 pt-1">Buscando suas tarefas…</p>
+    <p aria-hidden="true" class="text-center text-xs text-bordeaux-700 pt-1">Buscando suas tarefas…</p>
   </div>`;
 }
 
-function emptyState(filter) {
-  const label = filter === 'tudo' ? 'aqui' : `em ${getCategory(filter)?.label || ''}`;
+/* Lista vazia. Duas situações diferentes: vazia de verdade (acolhe e convida a
+   anotar) e "não consegui buscar" (sem servidor — não dá para afirmar que está
+   tudo tranquilo). */
+function emptyState(filter, semConexao) {
+  const onde = filter === 'tudo' ? 'por aqui' : `em ${getCategory(filter)?.label || 'esta categoria'}`;
+  const titulo = semConexao ? 'Sem conexão por enquanto.' : `Tudo tranquilo ${onde}. Respire fundo!`;
+  const texto = semConexao
+    ? 'Não consegui buscar suas tarefas agora. O que você criar fica salvo aqui e sincroniza depois.'
+    : 'Quando algo vier à mente, é só anotar — eu guardo para você.';
   return `
-  <div class="h-full flex flex-col items-center justify-center text-center px-8 pb-20">
-    <!-- Aqui havia um pino de mapa. Numa tela que diz "sua mente parece limpa",
-         a ilustração era um marcador de localização — sem relação com o texto
-         nem com a marca. A borboleta é o isotipo e já significa leveza. -->
-    <div class="w-24 h-24 rounded-full bg-soft-100/70 grid place-items-center mb-5">
-      ${logoMark('h-12 w-auto', true)}
-    </div>
-    <h3 class="font-serif font-bold text-bordeaux-900 text-xl mb-2">Sua mente parece limpa ${label}.</h3>
-    <p class="text-sm text-bordeaux-700 max-w-[260px] mb-5">Que tal registrar a primeira pendência para começar a relaxar?</p>
-    <!-- Uma ação, e ela funciona daqui. A seta apontando para o FAB pedia que a
-         usuária descobrisse sozinha o que fazer — e no desktop o botão fica
-         longe do texto. -->
-    <button data-new
-      class="cta-lift inline-flex items-center gap-2 px-6 py-3 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
-      ${icons.plus} Criar a primeira tarefa
-    </button>
+  <div class="flex flex-col items-center text-center px-6 py-10 mt-2 mx-auto max-w-sm bg-bg border border-soft-100 rounded-xl2">
+    <div class="w-20 h-20 rounded-full bg-white grid place-items-center mb-4 text-soft-300 [&>svg]:w-10 [&>svg]:h-10" aria-hidden="true">${icons.spark}</div>
+    <h3 class="font-serif font-bold text-bordeaux-900 text-xl mb-2">${titulo}</h3>
+    <p class="text-sm text-bordeaux-700 max-w-[260px] mb-5">${texto}</p>
+    <button data-new class="btn btn-primary cta-lift">${icons.plus} Adicionar tarefa</button>
+    ${semConexao ? '<button data-retry class="btn btn-secondary mt-2">Tentar de novo</button>' : ''}
   </div>`;
 }
 

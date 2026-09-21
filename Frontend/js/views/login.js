@@ -3,7 +3,7 @@
    O cadastro fica na tela própria (views/register.js).
    ============================================================ */
 
-import { h, $, icons, logoMark, attachPasswordToggle } from '../ui.js';
+import { h, $, icons, logoMark, attachPasswordToggle, friendlyError } from '../ui.js';
 import { login } from '../store.js';
 import { playError } from '../sound.js';
 
@@ -34,17 +34,21 @@ export function renderLogin(app) {
             class="w-full px-4 py-3.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                    focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition" />
           <p data-err="password" class="hidden text-xs text-bordeaux-600 mt-1 ml-1"></p>
+          <div class="flex justify-end mt-1.5">
+            <button type="button" id="go-forgot"
+              class="text-xs font-semibold text-bordeaux-600 hover:underline min-h-11 px-1">Esqueceu sua senha?</button>
+          </div>
         </div>
 
         <button type="submit"
-          class="mt-1 w-full py-3.5 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+          class="btn btn-primary mt-1 w-full py-3.5">
           Entrar
         </button>
       </form>
 
       <p class="text-center text-sm text-bordeaux-900/70 mt-5">
         Ainda não tem conta?
-        <button id="go-register" class="font-semibold text-accent hover:underline">Criar conta</button>
+        <button id="go-register" class="font-semibold text-bordeaux-600 hover:underline min-h-11 px-1">Criar conta</button>
       </p>
 
       <!-- divisor -->
@@ -128,21 +132,18 @@ export function renderLogin(app) {
       submitBtn.disabled = false;
       view.dataset.loading = '0';
       playError();
-      if (err && err.status === 401) {
-        // Mensagem genérica de propósito: não revela se o e-mail tem conta.
-        showErr('password', 'E-mail ou senha incorretos.');
-      } else if (err && err.status === 429) {
-        // Limite de tentativas do backend. Sem esta mensagem, o genérico
-        // "tente novamente" convidaria a usuária a fazer exatamente o que
-        // está bloqueado.
-        showErr('password', 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');
+      if (err && (err.status === 401 || err.status === 429)) {
+        // 401 genérico de propósito (não revela se o e-mail tem conta); 429 = limite de tentativas
+        showErr('password', friendlyError(err, 'auth'));
       } else {
-        app.toast('Não foi possível entrar. Tente novamente.');
+        // Conexão, servidor indisponível ou erro inesperado: cada um com a sua frase.
+        app.toast(friendlyError(err, 'auth'), 4200);
       }
     }
   });
 
   $('#go-register', view).addEventListener('click', () => app.navigate('register'));
+  $('#go-forgot', view).addEventListener('click', () => app.navigate('forgot'));
 
   view.querySelectorAll('[data-social]').forEach((b) =>
     b.addEventListener('click', () => app.toast('Login social em breve. Use e-mail e senha por enquanto.'))

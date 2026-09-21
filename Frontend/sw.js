@@ -2,12 +2,13 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v40';
+const CACHE = 'menteleve-v42';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
-  './assets/mulher-onboard.webp',
+  // mulher-onboard.webp (48 KB, só o 1º slide do onboarding) fica FORA do precache:
+  // o cache de runtime o guarda na primeira exibição. Manter o precache < 150 KB.
   './assets/isotipo.webp',
   './assets/icon-192.webp',
   // Os PNG dos ícones ficam FORA do precache de propósito: só o manifest e o

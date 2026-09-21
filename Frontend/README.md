@@ -106,6 +106,17 @@ o `icon-192.webp` (4 KB) que entra no precache. O PNG de 512 — só o manifest
 o usa, na instalação. Ao adicionar um arquivo novo, lembre de incluí-lo em `ASSETS`
 (`sw.js`) **e incrementar o `CACHE`**, senão o modo offline fica sem ele.
 
+## Testes
+
+Sem dependências nem build — só o Node (>= 18) da máquina:
+
+```
+node --test "Frontend/tests/*.test.mjs"
+```
+
+Cobrem `dates.js`, a persistência/fila offline do `store.js` (com `localStorage` e `fetch`
+simulados) e as mensagens de erro. Os casos de recorrência espelham `Backend/tests/test_recurrence.py`.
+
 ## Notas
 
 - Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.

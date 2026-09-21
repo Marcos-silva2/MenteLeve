@@ -3,7 +3,7 @@
    Segue o mesmo padrão visual e de validação do login.js.
    ============================================================ */
 
-import { h, $, icons, logoMark, attachPasswordToggle } from '../ui.js';
+import { h, $, icons, logoMark, attachPasswordToggle, friendlyError } from '../ui.js';
 import { register } from '../store.js';
 import { playError } from '../sound.js';
 
@@ -44,14 +44,14 @@ export function renderRegister(app) {
         </div>
 
         <button type="submit"
-          class="mt-1 w-full py-3.5 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">
+          class="btn btn-primary mt-1 w-full py-3.5">
           Criar conta
         </button>
       </form>
 
       <p class="text-center text-sm text-bordeaux-900/70 mt-5">
         Já tem conta?
-        <button id="go-login" class="font-semibold text-accent hover:underline">Entrar</button>
+        <button id="go-login" class="font-semibold text-bordeaux-600 hover:underline min-h-11 px-1">Entrar</button>
       </p>
 
       <p class="mt-auto text-center text-[11px] text-muted pt-8">
@@ -122,7 +122,7 @@ export function renderRegister(app) {
       if (err && err.status === 409) {
         showErr('email', 'Este e-mail já tem uma conta. Tente entrar.');
       } else {
-        app.toast('Não foi possível criar a conta. Tente novamente.');
+        app.toast(friendlyError(err, 'register'), 4200);
       }
     }
   });

@@ -5,13 +5,16 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 # Categorias do design system (espelham o frontend).
 Category = Literal["casa", "filhos", "trabalho", "saude", "financas", "relacionamento"]
 
 # Horário no formato "HH:MM" (24h).
 TimeStr = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
+
+# Recorrência de tarefas (ver app/recurrence.py).
+RecurrencePattern = Literal["daily", "weekly", "monthly"]
 
 # Limite do plano gratuito (Freemium) — alinhado ao frontend.
 FREE_TASK_LIMIT = 50
@@ -56,6 +59,20 @@ class TokenOut(BaseModel):
     user: UserOut
 
 
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    # Limite generoso: o token tem 43 caracteres; o teto só barra lixo enorme.
+    token: str = Field(..., min_length=10, max_length=200)
+    new_password: Password
+
+
+class MessageOut(BaseModel):
+    message: str
+
+
 # ----------------------- Task -----------------------
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
@@ -68,6 +85,19 @@ class TaskBase(BaseModel):
     important: bool = False
     # Subtarefa: id da tarefa-mãe (None = tarefa principal).
     parent_id: int | None = None
+    # Recorrência. `is_recurring` e `recurrence_pattern` andam juntos: o
+    # validador abaixo os mantém coerentes (nunca "recorrente sem padrão").
+    is_recurring: bool = False
+    recurrence_pattern: RecurrencePattern | None = None
+
+    @model_validator(mode="after")
+    def _recorrencia_coerente(self) -> "TaskBase":
+        # Só o padrão informado: entende como recorrente (o cliente pode omitir a flag).
+        if self.recurrence_pattern is not None and not self.is_recurring:
+            self.is_recurring = True
+        if self.is_recurring and self.recurrence_pattern is None:
+            raise ValueError("Informe recurrence_pattern (daily, weekly ou monthly).")
+        return self
 
 
 class TaskCreate(TaskBase):
@@ -82,6 +112,8 @@ class TaskUpdate(BaseModel):
     due: str | None = Field(None, max_length=120)
     important: bool | None = None
     done: bool | None = None
+    is_recurring: bool | None = None
+    recurrence_pattern: RecurrencePattern | None = None
 
 
 class TaskOut(TaskBase):
@@ -147,6 +179,10 @@ class SmartTaskOut(BaseModel):
     due_date: date | None = None
     due_time: TimeStr | None = None
     due: str = ""
+    # Recorrência detectada ("todo dia", "toda segunda"…). O cliente repassa
+    # estes campos ao criar a tarefa via POST /tasks.
+    is_recurring: bool = False
+    recurrence_pattern: RecurrencePattern | None = None
     subtasks: list[str] = []
     suggestion: AiSuggestion | None = None
     task: TaskOut | None = None  # a tarefa principal persistida

@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import models, schemas, security
+from app import models, recurrence, schemas, security
+from app.config import settings
 
 
 # ----------------------- Users -----------------------
@@ -56,6 +57,84 @@ def authenticate_user(db: Session, email: str, password: str) -> models.User | N
 
 def set_user_premium(db: Session, user: models.User, is_premium: bool) -> models.User:
     user.is_premium = is_premium
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ----------------------- Recuperação de senha -----------------------
+def _as_utc(dt: datetime) -> datetime:
+    """O SQLite devolve datetimes sem fuso mesmo em colunas timezone-aware; o
+    Postgres devolve com fuso. Normaliza para poder comparar nos dois."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def create_password_reset_token(db: Session, user: models.User) -> str:
+    """Gera um token de recuperação e devolve o valor ORIGINAL (para o e-mail).
+
+    Só o hash vai para o banco. Pedidos anteriores ainda pendentes são
+    invalidados: vale sempre o link mais recente, e uma caixa de entrada com três
+    links antigos não vira três chaves da conta.
+    """
+    now = datetime.now(timezone.utc)
+    db.execute(
+        update(models.PasswordResetToken)
+        .where(models.PasswordResetToken.user_id == user.id, models.PasswordResetToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    raw = security.new_reset_token()
+    db.add(
+        models.PasswordResetToken(
+            user_id=user.id,
+            token_hash=security.hash_reset_token(raw),
+            expires_at=now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_MINUTES),
+        )
+    )
+    db.commit()
+    return raw
+
+
+def reset_password_with_token(db: Session, raw_token: str, new_password: str) -> models.User | None:
+    """Troca a senha se o token for válido. Devolve o usuário, ou None.
+
+    None cobre, sem distinguir (de propósito): token inexistente, expirado ou já
+    usado. Distinguir diria a quem chuta tokens qual deles já existiu.
+
+    O consumo é atômico (`UPDATE ... WHERE used_at IS NULL`): dois pedidos
+    simultâneos com o mesmo link não passam os dois pela verificação prévia.
+    """
+    now = datetime.now(timezone.utc)
+    row = db.scalar(
+        select(models.PasswordResetToken).where(
+            models.PasswordResetToken.token_hash == security.hash_reset_token(raw_token)
+        )
+    )
+    if row is None or row.used_at is not None or _as_utc(row.expires_at) <= now:
+        return None
+
+    consumed = db.execute(
+        update(models.PasswordResetToken)
+        .where(models.PasswordResetToken.id == row.id, models.PasswordResetToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    if consumed.rowcount != 1:
+        db.rollback()
+        return None
+
+    user = db.get(models.User, row.user_id)
+    if user is None:
+        db.rollback()
+        return None
+
+    user.hashed_password = security.hash_password(new_password)
+    # Derruba toda sessão anterior (JWT emitido com a versão antiga).
+    user.token_version = (user.token_version or 0) + 1
+    # Qualquer outro link pendente da conta morre junto.
+    db.execute(
+        update(models.PasswordResetToken)
+        .where(models.PasswordResetToken.user_id == user.id, models.PasswordResetToken.used_at.is_(None))
+        .values(used_at=now)
+    )
     db.commit()
     db.refresh(user)
     return user
@@ -131,6 +210,16 @@ def update_task(db: Session, task: models.Task, data: schemas.TaskUpdate) -> mod
     changes = data.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(task, field, value)
+    if "is_recurring" in changes or "recurrence_pattern" in changes:
+        # Mantém os dois campos coerentes, como o TaskBase faz na criação:
+        # desligar limpa o padrão; informar só o padrão liga a recorrência; ligar
+        # sem nenhum padrão (nem antes) não faz sentido e volta a desligado.
+        if changes.get("is_recurring") is False:
+            task.recurrence_pattern = None
+        elif task.recurrence_pattern is not None:
+            task.is_recurring = True
+        if task.is_recurring and task.recurrence_pattern is None:
+            task.is_recurring = False
     if "due_date" in changes or "due_time" in changes:
         # Reagendou: um lembrete já enviado valia para o horário antigo. Sem
         # zerar aqui, adiar uma tarefa depois do lembrete sair nunca mais
@@ -141,8 +230,24 @@ def update_task(db: Session, task: models.Task, data: schemas.TaskUpdate) -> mod
     return task
 
 
-def set_task_done(db: Session, task: models.Task, done: bool) -> models.Task:
-    task.done = done
+def set_task_done(
+    db: Session, task: models.Task, done: bool, today: date | None = None
+) -> models.Task:
+    """Conclui/reabre a tarefa.
+
+    Tarefa recorrente NÃO fecha ao concluir: o prazo rola para a próxima
+    ocorrência e ela segue em aberto (ver app/recurrence.py para o porquê — evita
+    duplicatas entre o aparelho e o servidor). `today` é a data local da usuária.
+    """
+    if done and task.is_recurring and task.recurrence_pattern:
+        task.due_date = recurrence.next_occurrence(
+            task.due_date, task.recurrence_pattern, today or date.today()
+        )
+        task.done = False
+        # O lembrete push já enviado valia para o ciclo que acabou.
+        task.reminder_sent_at = None
+    else:
+        task.done = done
     db.commit()
     db.refresh(task)
     return task

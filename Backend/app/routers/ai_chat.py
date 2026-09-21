@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app import ai, crud, schemas
+from app import ai, crud, recurrence, schemas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
@@ -17,9 +17,13 @@ from app.schemas import FREE_TASK_LIMIT
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
+# Quando Gemini e Groq não respondem. Tom da Bruna, sem culpar a usuária, dizendo
+# o que aconteceu e o que ela pode fazer agora — o app segue inteiro sem a IA.
 _FALLBACK = (
-    "Estou com um probleminha para pensar agora 😅. Tenta de novo daqui a "
-    "pouco? Enquanto isso, toque no + para registrar o que está na sua mente."
+    "Não consegui pensar direitinho agora 💗 Suas tarefas continuam salvas e "
+    "nada se perdeu. Enquanto eu me recomponho, toque no + para anotar o que "
+    "está na sua mente ou marque o que já fez na Home. Me chama de novo daqui a "
+    "pouco, tá?"
 )
 
 # Abaixo disso, dois títulos não são considerados a mesma tarefa.
@@ -78,6 +82,9 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
         categoria = "casa"
     due_date = ai._clean_date(args.get("due_date"))
     due_time = ai._clean_time(args.get("due_time"))
+    pattern = recurrence.clean_pattern(args.get("recorrencia")) or recurrence.detect_recurrence(titulo)
+    if pattern is not None and due_date is None:
+        due_date = recurrence.first_occurrence(titulo, pattern, today)
 
     # Idempotência: a usuária pode reenviar o pedido quando a resposta demora
     # (o timeout do cliente não cancela a requisição já em andamento).
@@ -89,13 +96,14 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
         db,
         user.id,
         schemas.TaskCreate(
-            title=titulo, category=categoria, due_date=due_date, due_time=due_time
+            title=titulo, category=categoria, due_date=due_date, due_time=due_time,
+            is_recurring=pattern is not None, recurrence_pattern=pattern,
         ),
     )
     return {"status": "criada", "titulo": task.title}, task
 
 
-def _concluir_tarefa(args: dict, user: User, db: Session) -> tuple[dict, Task | None]:
+def _concluir_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dict, Task | None]:
     """Executa concluir_tarefa. Pede desempate quando há mais de uma candidata."""
     titulo = str(args.get("titulo") or "").strip()
     abertas = crud.list_open_tasks(db, user.id)
@@ -113,7 +121,10 @@ def _concluir_tarefa(args: dict, user: User, db: Session) -> tuple[dict, Task | 
             "instrucao": "Pergunte qual dessas ela quer concluir. NÃO escolha sozinha.",
         }, None
 
-    task = crud.set_task_done(db, candidatas[0], True)
+    task = crud.set_task_done(db, candidatas[0], True, today=today)
+    if task.is_recurring:
+        # Recorrente não fecha: o prazo rolou e ela segue em aberto.
+        return {"status": "concluida", "titulo": task.title, "recorrente": True}, task
     return {"status": "concluida", "titulo": task.title}, task
 
 
@@ -125,8 +136,9 @@ def _mensagem_pronta(results: list[dict]) -> str | None:
     limite atingido, tarefa não encontrada.
     """
     criadas = [r["titulo"] for r in results if r.get("status") in ("criada", "ja_existia")]
-    concluidas = [r["titulo"] for r in results if r.get("status") == "concluida"]
-    if not criadas and not concluidas:
+    concluidas = [r["titulo"] for r in results if r.get("status") == "concluida" and not r.get("recorrente")]
+    recorrentes = [r["titulo"] for r in results if r.get("status") == "concluida" and r.get("recorrente")]
+    if not criadas and not recorrentes and not concluidas:
         return None
     if any(r.get("status") in ("ambiguo", "limite_atingido", "nao_encontrada") for r in results):
         return None
@@ -138,6 +150,9 @@ def _mensagem_pronta(results: list[dict]) -> str | None:
     if concluidas:
         lista = ", ".join(f"“{t}”" for t in concluidas)
         partes.append(f"Marquei {lista} como concluída ✨ Boa!")
+    if recorrentes:
+        lista = ", ".join(f"“{t}”" for t in recorrentes)
+        partes.append(f"Feito {lista} ✨ Ela volta na próxima data, que já deixei marcada.")
     return " ".join(partes)
 
 
@@ -157,7 +172,7 @@ def _execute_calls(
         if call["name"] == "criar_tarefa":
             result, task = _criar_tarefa(call["args"], user, db, today)
         elif call["name"] == "concluir_tarefa":
-            result, task = _concluir_tarefa(call["args"], user, db)
+            result, task = _concluir_tarefa(call["args"], user, db, today)
         else:
             result, task = {"status": "erro", "motivo": "função desconhecida"}, None
         results.append(result)

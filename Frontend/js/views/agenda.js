@@ -36,12 +36,12 @@ export function renderAgenda(app) {
     <div class="h-full flex flex-col relative">
       <div class="content-wrap lg:max-w-2xl flex-1 overflow-y-auto">
         <header class="sticky top-0 z-20 bg-bg px-6 lg:px-0 pt-12 lg:pt-8 pb-2 flex items-center justify-between gap-2">
-          <h1 id="month-label" class="font-serif font-bold text-bordeaux-900 text-[22px] lg:text-3xl truncate"></h1>
+          <h1 id="month-label" class="font-serif font-bold text-bordeaux-900 text-[22px] lg:text-3xl leading-tight min-w-0"></h1>
           <div class="flex items-center gap-1.5 shrink-0">
-            <button id="cycle-toggle" class="text-xs font-semibold px-3 py-1.5 rounded-full border transition">🌸 Ciclo</button>
-            <button id="today-btn" class="text-xs font-semibold text-bordeaux-700 px-3 py-1.5 rounded-full border border-soft-100 hover:bg-soft-100 transition">Hoje</button>
-            <button id="prev" class="w-9 h-9 rounded-full grid place-items-center text-bordeaux-700 hover:bg-soft-100 transition rotate-180">${icons.chevron}</button>
-            <button id="next" class="w-9 h-9 rounded-full grid place-items-center text-bordeaux-700 hover:bg-soft-100 transition">${icons.chevron}</button>
+            <button id="cycle-toggle" class="text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition">🌸 Ciclo</button>
+            <button id="today-btn" class="text-xs font-semibold text-bordeaux-700 px-3 py-1.5 min-h-11 rounded-full border border-soft-100 hover:bg-soft-100 transition">Hoje</button>
+            <button id="prev" class="w-11 h-11 rounded-full grid place-items-center text-bordeaux-700 hover:bg-soft-100 transition rotate-180" aria-label="Mês anterior">${icons.chevron}</button>
+            <button id="next" class="w-11 h-11 rounded-full grid place-items-center text-bordeaux-700 hover:bg-soft-100 transition" aria-label="Próximo mês">${icons.chevron}</button>
           </div>
         </header>
 
@@ -94,7 +94,7 @@ export function renderAgenda(app) {
   function render() {
     const { byDay, undated } = buildIndex();
     monthLabel.textContent = `${MONTHS[viewM]} ${viewY}`;
-    toggleBtn.className = `text-xs font-semibold px-3 py-1.5 rounded-full border transition ${showCycle ? 'bg-accent text-white border-accent' : 'text-bordeaux-700 border-soft-100 hover:bg-soft-100'}`;
+    toggleBtn.className = `text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition ${showCycle ? 'bg-accent text-white border-accent' : 'text-bordeaux-700 border-soft-100 hover:bg-soft-100'}`;
 
     // grade do mês
     const first = new Date(viewY, viewM, 1);
@@ -120,7 +120,7 @@ export function renderAgenda(app) {
 
       cells.push(`
         <button data-date="${k}"
-          class="relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition active:scale-90 border ${base} ${cycleRing}">
+          class="relative aspect-square min-h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition active:scale-90 border ${base} ${cycleRing}">
           ${ph ? `<span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style="background:${ph.color}"></span>` : ''}
           <span class="font-semibold leading-none">${d}</span>
           <span class="h-1.5 flex items-center">${count
@@ -178,7 +178,7 @@ export function renderAgenda(app) {
                 class="w-full px-3 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 focus:border-accent outline-none text-[15px]" />
             </div>
           </div>
-          <button id="cy-save" class="cta-lift w-full py-3 rounded-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-fab active:scale-[.98] transition">Salvar</button>
+          <button id="cy-save" class="btn btn-primary cta-lift w-full py-3">Salvar</button>
         </div>`;
 
       $('#cy-save', cycleEl).addEventListener('click', () => {
@@ -199,7 +199,7 @@ export function renderAgenda(app) {
       <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-4">
         <div class="flex items-center justify-between mb-2">
           <p class="font-serif font-bold text-bordeaux-900">🌸 Seu ciclo</p>
-          <button id="cy-edit" class="text-xs text-bordeaux-700 underline">ajustar</button>
+          <button id="cy-edit" class="text-xs text-bordeaux-700 underline min-h-11 px-2 -my-2">ajustar</button>
         </div>
         <div class="flex items-center gap-2 mb-2 flex-wrap">
           ${ph
@@ -210,7 +210,7 @@ export function renderAgenda(app) {
         <p class="text-sm text-bordeaux-900 mb-3">${s.daysUntilNext === 0
           ? 'A menstruação deve começar <b>hoje</b>.'
           : `Próxima menstruação em <b>${s.daysUntilNext} dia${s.daysUntilNext > 1 ? 's' : ''}</b> · ${formatBR(s.nextStartKey)}`}</p>
-        <button id="cy-log" class="cta-lift w-full py-2.5 rounded-full bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-fab active:scale-[.98] transition mb-3">
+        <button id="cy-log" class="btn btn-primary cta-lift w-full py-2.5 mb-3 !text-sm">
           Registrar menstruação hoje
         </button>
         <div class="flex items-center gap-3 text-[11px] text-bordeaux-700">

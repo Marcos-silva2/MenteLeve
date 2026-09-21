@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app import ai, crud, schemas
+from app import ai, crud, recurrence, schemas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
@@ -78,9 +79,17 @@ async def analyze_smart_task(
         # Fallback do servidor: só normaliza o título. `ai=False` avisa o cliente
         # de que ninguém analisou nada, para que ele aplique a heurística local
         # em vez de aceitar "casa, sem data" como se fosse um palpite.
+        # A recorrência, porém, é detectada por regra (sem IA) e segue na resposta.
         title = data.text.strip()
         title = title[0].upper() + title[1:] if title else title
-        return schemas.SmartTaskOut(title=title, category="casa", ai=False)
+        pattern = recurrence.detect_recurrence(data.text)
+        return schemas.SmartTaskOut(
+            title=title,
+            category="casa",
+            is_recurring=pattern is not None,
+            recurrence_pattern=pattern,
+            ai=False,
+        )
 
     return schemas.SmartTaskOut(
         title=result["title"],
@@ -88,6 +97,8 @@ async def analyze_smart_task(
         due_date=result["due_date"],
         due_time=result["due_time"],
         due=result["due"],
+        is_recurring=result["is_recurring"],
+        recurrence_pattern=result["recurrence_pattern"],
         subtasks=result["subtasks"],
         suggestion=result["suggestion"],
         ai=True,
@@ -108,11 +119,14 @@ def update_task(
 @router.put("/{task_id}/complete", response_model=schemas.TaskOut)
 def complete_task(
     task_id: int,
+    # Data local da usuária (o servidor roda em UTC). Só importa para tarefas
+    # recorrentes, que rolam o prazo para a próxima ocorrência ao concluir.
+    today: date | None = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     task = _get_owned_task(task_id, user, db)
-    return crud.set_task_done(db, task, True)
+    return crud.set_task_done(db, task, True, today=today)
 
 
 @router.put("/{task_id}/uncomplete", response_model=schemas.TaskOut)
