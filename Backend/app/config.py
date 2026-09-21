@@ -116,6 +116,11 @@ class Settings:
     # Janela, em minutos, à frente do horário atual em que uma tarefa é
     # considerada "prestes a vencer" e dispara o lembrete.
     PUSH_REMINDER_WINDOW_MINUTES: int = int(os.getenv("PUSH_REMINDER_WINDOW_MINUTES", "10"))
+    # Quanto a varredura também olha PARA TRÁS, em minutos. Cobre o caso de o
+    # cron falhar, atrasar ou o Render cair por alguns ciclos: sem isso, uma
+    # tarefa cujo horário passou entre duas varreduras nunca recebe lembrete
+    # (a janela só olhava pra frente). `reminder_sent_at` evita duplicata.
+    PUSH_REMINDER_LOOKBACK_MINUTES: int = int(os.getenv("PUSH_REMINDER_LOOKBACK_MINUTES", "15"))
 
     # Metadados
     APP_NAME: str = "MenteLeve API"

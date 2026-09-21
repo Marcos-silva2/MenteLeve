@@ -128,8 +128,14 @@ def create_task(db: Session, user_id: int, data: schemas.TaskCreate) -> models.T
 
 
 def update_task(db: Session, task: models.Task, data: schemas.TaskUpdate) -> models.Task:
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(task, field, value)
+    if "due_date" in changes or "due_time" in changes:
+        # Reagendou: um lembrete já enviado valia para o horário antigo. Sem
+        # zerar aqui, adiar uma tarefa depois do lembrete sair nunca mais
+        # dispararia nada para o novo horário.
+        task.reminder_sent_at = None
     db.commit()
     db.refresh(task)
     return task
@@ -150,21 +156,41 @@ def delete_task(db: Session, task: models.Task) -> None:
 
 
 def tasks_due_for_reminder(
-    db: Session, today: date, not_before: str, not_after: str
+    db: Session, start: datetime, end: datetime
 ) -> list[models.Task]:
-    """Tarefas em aberto, com horário definido, vencendo dentro da janela e sem
-    lembrete enviado ainda. `due_time` é "HH:MM" (zero-padded): comparar como
-    string funciona porque a ordem lexicográfica coincide com a cronológica.
+    """Tarefas-mãe em aberto, com horário definido, vencendo dentro de
+    [start, end] e sem lembrete enviado ainda.
+
+    `start`/`end` são datetimes ingênuos (sem tzinfo) em hora local — mesmo
+    fuso assumido por `due_date`/`due_time` em todo o resto do app (ver
+    routers/push.py). A janela é comparada em PYTHON, não em SQL: due_date e
+    due_time são colunas separadas (data + "HH:MM" em texto), e uma janela
+    pode atravessar a virada do dia (23:55 -> 00:05) — expressar isso como
+    comparação de string em SQL dava um intervalo vazio nesse caso. Juntar os
+    dois campos após um pré-filtro de data no banco é mais simples e correto;
+    o volume por usuária é pequeno (FREE_TASK_LIMIT), então filtrar em Python
+    não pesa.
+
+    Só tarefas-mãe (`parent_id is None`): as subtarefas sugeridas pela IA
+    herdam a mesma data/hora da tarefa que as gerou, então sem este filtro a
+    varredura mandaria uma notificação por subtarefa além da própria tarefa —
+    várias notificações para um único compromisso.
     """
     stmt = select(models.Task).where(
         models.Task.done.is_(False),
-        models.Task.due_date == today,
+        models.Task.parent_id.is_(None),
+        models.Task.due_date >= start.date(),
+        models.Task.due_date <= end.date(),
         models.Task.due_time.isnot(None),
-        models.Task.due_time >= not_before,
-        models.Task.due_time <= not_after,
         models.Task.reminder_sent_at.is_(None),
     )
-    return list(db.scalars(stmt))
+    out = []
+    for task in db.scalars(stmt):
+        hh, mm = task.due_time.split(":")
+        task_dt = datetime(task.due_date.year, task.due_date.month, task.due_date.day, int(hh), int(mm))
+        if start <= task_dt <= end:
+            out.append(task)
+    return out
 
 
 def mark_reminder_sent(db: Session, task: models.Task) -> None:

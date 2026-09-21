@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
@@ -74,11 +74,14 @@ def _check_scan_secret(x_scan_secret: str | None) -> None:
 
 def _run_scan(db: Session) -> dict:
     """Parte síncrona da varredura (toca o banco e envia push) — ver chamador."""
-    now = datetime.now(_BRAZIL_TZ)
-    until = now + timedelta(minutes=settings.PUSH_REMINDER_WINDOW_MINUTES)
-    today: date = now.date()
+    # Ingênuo de propósito (sem tzinfo): due_date/due_time também são naive,
+    # então a comparação em crud.tasks_due_for_reminder precisa do mesmo tipo
+    # dos dois lados.
+    now = datetime.now(_BRAZIL_TZ).replace(tzinfo=None)
+    start = now - timedelta(minutes=settings.PUSH_REMINDER_LOOKBACK_MINUTES)
+    end = now + timedelta(minutes=settings.PUSH_REMINDER_WINDOW_MINUTES)
 
-    tasks = crud.tasks_due_for_reminder(db, today, now.strftime("%H:%M"), until.strftime("%H:%M"))
+    tasks = crud.tasks_due_for_reminder(db, start, end)
 
     notified = 0
     for task in tasks:

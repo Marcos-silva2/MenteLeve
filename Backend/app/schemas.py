@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # Categorias do design system (espelham o frontend).
 Category = Literal["casa", "filhos", "trabalho", "saude", "financas", "relacionamento"]
@@ -158,6 +159,17 @@ class SmartTaskOut(BaseModel):
 
 
 # ------------------- Notificações push -------------------
+# Hosts reais de serviço de push por navegador — usado para validar o
+# `endpoint` recebido em PushSubscriptionIn (ver o validador abaixo).
+_ALLOWED_PUSH_HOSTS = (
+    "fcm.googleapis.com",       # Chrome/Edge/Android
+    "android.googleapis.com",   # FCM legado
+    "web.push.apple.com",       # Safari/iOS
+    "notify.windows.com",       # Edge legado
+    "updates.push.services.mozilla.com",  # Firefox
+)
+
+
 class PushSubscriptionKeys(BaseModel):
     p256dh: str
     auth: str
@@ -168,6 +180,25 @@ class PushSubscriptionIn(BaseModel):
 
     endpoint: str = Field(..., max_length=500)
     keys: PushSubscriptionKeys
+
+    @field_validator("endpoint")
+    @classmethod
+    def _endpoint_deve_ser_servico_de_push_conhecido(cls, v: str) -> str:
+        """Restringe a HTTPS + um host de push real.
+
+        Sem isso, qualquer usuária autenticada poderia gravar aqui uma URL
+        arbitrária (um IP interno, por exemplo) e o servidor passaria a fazer
+        POST nesse endereço a cada varredura (app/push.py). A resposta nunca
+        volta pra quem cadastrou — é cego — mas ainda é uma requisição de
+        saída do servidor controlada por entrada de quem só devia poder
+        cadastrar o próprio navegador.
+        """
+        host = (urlparse(v).hostname or "").lower()
+        scheme_ok = v.startswith("https://")
+        host_ok = any(host == h or host.endswith(f".{h}") for h in _ALLOWED_PUSH_HOSTS)
+        if not (scheme_ok and host_ok):
+            raise ValueError("Endpoint de push não reconhecido.")
+        return v
 
 
 class PushUnsubscribeIn(BaseModel):

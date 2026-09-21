@@ -9,6 +9,24 @@
 
 ---
 
+## 🎓 Sobre o projeto
+
+Desenvolvido por alunos do curso de **Gestão em Tecnologia da Informação** da
+**Universidade Cruzeiro do Sul**, como parte da disciplina **Itinerário
+Extensionista 2**, sob orientação do professor **Valter de Sales Santana**.
+
+O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ONU:
+
+- **ODS 3 — Saúde e Bem-Estar:** o app existe para reduzir a carga mental e o
+  esgotamento associados à sobrecarga de tarefas domésticas, familiares e
+  profissionais, especialmente entre mulheres e mães.
+- **ODS 9 — Indústria, Inovação e Infraestrutura:** aplica IA (Google Gemini),
+  arquitetura em nuvem e práticas modernas de engenharia de software (PWA,
+  criptografia de dados, autenticação segura) como infraestrutura tecnológica
+  a serviço desse problema social.
+
+---
+
 ## ✨ Funcionalidades
 
 - **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
