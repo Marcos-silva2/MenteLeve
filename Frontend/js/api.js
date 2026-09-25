@@ -170,9 +170,15 @@ function fromServer(t) {
 
 // ----------------------- Auth -----------------------
 /**
- * Autentica com e-mail + senha. Guarda o token e retorna o usuário.
+ * Autentica com e-mail + senha.
  * - Retorna null se o backend estiver offline (cold start do Render).
  * - Lança AuthError (401) se as credenciais estiverem incorretas.
+ * - Retorna `{ otpRequired: true, email }` quando o backend tem A2F ligada
+ *   (RESEND_API_KEY configurada): a senha já conferiu, falta o código do
+ *   e-mail — ver apiVerifyLoginCode. Sem A2F, o backend já devolve o token
+ *   nesta mesma chamada e cai no outro ramo.
+ * - Retorna `{ otpRequired: false, user }` quando loga direto (token já
+ *   guardado).
  */
 export async function apiLogin(email, password) {
   if (!(await ensureOnline(true))) return null;
@@ -180,6 +186,21 @@ export async function apiLogin(email, password) {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ email, password }),
+  });
+  if (data.otp_required) return { otpRequired: true, email: data.email || email };
+  setAuthToken(data.access_token);
+  return { otpRequired: false, user: data.user };
+}
+
+/**
+ * Segunda etapa do login com A2F: troca o código de 6 dígitos pelo token.
+ * Lança AuthError (401) se o código estiver errado, expirado ou já usado.
+ */
+export async function apiVerifyLoginCode(email, code) {
+  const data = await request('/auth/login/verify', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ email, code }),
   });
   setAuthToken(data.access_token);
   return data.user;

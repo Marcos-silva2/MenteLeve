@@ -52,11 +52,27 @@ class UserOut(UserBase):
 
 
 class TokenOut(BaseModel):
-    """Resposta de /auth/register e /auth/login."""
+    """Resposta de /auth/register, /auth/login (sem A2F) e /auth/login/verify."""
 
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class LoginChallengeOut(BaseModel):
+    """Resposta de /auth/login quando a A2F está ativa: ainda não há token.
+
+    A senha já conferiu; falta confirmar o código enviado por e-mail em
+    POST /auth/login/verify.
+    """
+
+    otp_required: bool = True
+    email: EmailStr
+
+
+class LoginVerifyIn(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=4, max_length=8)
 
 
 # ----------------------- Task -----------------------

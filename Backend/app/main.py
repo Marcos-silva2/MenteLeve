@@ -41,6 +41,11 @@ async def lifespan(_app: FastAPI):
             "desligadas (o Perfil não oferece a opção). Gere um par com "
             "`python scripts/generate_vapid_keys.py`."
         )
+    if not settings.email_enabled:
+        log.warning(
+            "RESEND_API_KEY não definida: login sem A2F por e-mail (segue igual "
+            "a antes, só senha). Crie uma chave grátis em resend.com."
+        )
     yield
 
 

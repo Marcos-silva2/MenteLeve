@@ -83,6 +83,13 @@ Custo mensal: **R$ 0** — tudo em plano gratuito.
   ver [`Backend/app/push.py`](../Backend/app/push.py) e
   [`Frontend/js/push.js`](../Frontend/js/push.js). Requer configuração manual (chaves
   VAPID + cron) — ver variáveis de ambiente abaixo.
+- **A2F por e-mail no login** (opcional — ativa sozinha quando `RESEND_API_KEY` está
+  configurada): senha correta dispara um código de 6 dígitos por e-mail
+  (`POST /auth/login/verify` troca o código pelo token). Sem a chave, o login segue
+  exatamente como antes — a A2F nunca é uma trava que pode deixar alguém de fora. Ver
+  [`Backend/app/routers/auth.py`](../Backend/app/routers/auth.py),
+  [`Backend/app/otp.py`](../Backend/app/otp.py) e
+  [`Backend/app/mailer.py`](../Backend/app/mailer.py).
 
 ### O que é fachada
 
@@ -189,6 +196,9 @@ Legível de propósito: **e-mail** (chave de busca do login, índice UNIQUE), **
 | `VAPID_CONTACT_EMAIL` | não | usa um e-mail placeholder no claim exigido pelo protocolo Web Push |
 | `PUSH_SCAN_SECRET` | não | `POST /push/scan` fica fechado (503) — sem ele, nunca aberto por omissão |
 | `PUSH_REMINDER_WINDOW_MINUTES` | não | padrão 10 minutos de antecedência |
+| `RESEND_API_KEY` | não | login sem A2F (segue só com senha, como sempre foi) — gerar em [resend.com](https://resend.com) |
+| `RESEND_FROM_EMAIL` | não | usa `onboarding@resend.dev` (só entrega pra própria conta Resend — trocar por domínio verificado em produção) |
+| `LOGIN_OTP_TTL_SECONDS` | não | padrão 300s (5 min) de validade do código |
 
 `SECRET_KEY` e `ENCRYPTION_KEY` são valores **diferentes**, gerados com
 `python -c "import secrets; print(secrets.token_hex(32))"`.

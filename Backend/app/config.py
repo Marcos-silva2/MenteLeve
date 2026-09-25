@@ -122,6 +122,22 @@ class Settings:
     # (a janela só olhava pra frente). `reminder_sent_at` evita duplicata.
     PUSH_REMINDER_LOOKBACK_MINUTES: int = int(os.getenv("PUSH_REMINDER_LOOKBACK_MINUTES", "15"))
 
+    # --- Verificação por e-mail no login (A2F) ---
+    # Chave da API do Resend (https://resend.com — free tier, sem cartão).
+    # Sem ela, o login segue exatamente como antes, sem pedir código: a A2F é
+    # um reforço opcional, nunca uma trava que pode deixar todo mundo de fora
+    # quando o provedor de e-mail não está configurado ou está fora do ar.
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    # Remetente. `onboarding@resend.dev` funciona sem verificar domínio, mas o
+    # Resend só ENTREGA esse remetente para o e-mail da própria conta Resend —
+    # serve pra testar, não pra usuárias reais. Trocar para um endereço do
+    # domínio verificado (ver Domains no painel do Resend) antes de produção.
+    RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "MenteLeve <onboarding@resend.dev>")
+    LOGIN_OTP_LENGTH: int = int(os.getenv("LOGIN_OTP_LENGTH", "6"))
+    LOGIN_OTP_TTL_SECONDS: int = int(os.getenv("LOGIN_OTP_TTL_SECONDS", "300"))
+    # Tentativas erradas aceitas antes de o código ser descartado (força um novo).
+    LOGIN_OTP_MAX_ATTEMPTS: int = int(os.getenv("LOGIN_OTP_MAX_ATTEMPTS", "5"))
+
     # Metadados
     APP_NAME: str = "MenteLeve API"
     APP_VERSION: str = "0.3.0"
@@ -142,6 +158,10 @@ class Settings:
     @property
     def push_enabled(self) -> bool:
         return bool(self.VAPID_PUBLIC_KEY.strip() and self.VAPID_PRIVATE_KEY.strip())
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.RESEND_API_KEY.strip())
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -179,13 +179,30 @@ function startOfflineMode(email, name) {
  * - Credencial errada: lança AuthError (a tela mostra o erro).
  * - Backend offline (cold start do Render): entra no modo local de demonstração.
  */
+/**
+ * Login com e-mail + senha.
+ * Devolve `{ status: 'ok', user }` (logada, inclusive no modo offline de
+ * demonstração) ou `{ status: 'otp', email }` quando o backend pede o código
+ * de verificação — quem chamou deve então usar `verifyLoginCode`.
+ */
 export async function login({ email, password }) {
-  const user = await api.apiLogin(email, password);
-  if (!user) {
+  const result = await api.apiLogin(email, password);
+  if (!result) {
     // Offline de verdade — nunca cai aqui por senha errada (isso lança AuthError).
     startOfflineMode(email);
-    return state.user;
+    return { status: 'ok', user: state.user };
   }
+  if (result.otpRequired) {
+    return { status: 'otp', email: result.email };
+  }
+  applySession(result.user);
+  await hydrateTasks();
+  return { status: 'ok', user: state.user };
+}
+
+/** Segunda etapa do login com A2F: troca o código pelo token e hidrata. */
+export async function verifyLoginCode({ email, code }) {
+  const user = await api.apiVerifyLoginCode(email, code);
   applySession(user);
   await hydrateTasks();
   return state.user;

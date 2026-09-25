@@ -129,7 +129,7 @@ export function toast(message, ms = 2200) {
  * api.js (NetworkError, AuthError, ApiError) e devolve texto FIXO — nunca o
  * `detail` do servidor, que iria para o innerHTML do toast.
  * Distingue conexão, servidor (5xx), autenticação (401) e validação (400/402/409/422).
- * @param {'auth'|'register'|'geral'} [ctx] onde o erro aconteceu
+ * @param {'auth'|'register'|'otp'|'geral'} [ctx] onde o erro aconteceu
  */
 export function friendlyError(err, ctx = 'geral') {
   const status = err && err.status;
@@ -141,9 +141,9 @@ export function friendlyError(err, ctx = 'geral') {
       : 'Não consegui falar com o servidor. Confira a internet e tente de novo — se ele estava dormindo, acorda em cerca de 1 minuto.';
   }
   if (status === 401) {
-    return ctx === 'auth'
-      ? 'E-mail ou senha não conferem. Confira os dados e tente de novo.'
-      : 'Por segurança, sua sessão terminou. Entre de novo para continuar 💗';
+    if (ctx === 'auth') return 'E-mail ou senha não conferem. Confira os dados e tente de novo.';
+    if (ctx === 'otp') return 'Código inválido ou expirado. Confira e tente de novo.';
+    return 'Por segurança, sua sessão terminou. Entre de novo para continuar 💗';
   }
   if (status === 429) {
     const min = err.retryAfter ? Math.max(1, Math.ceil(err.retryAfter / 60)) : 0;
