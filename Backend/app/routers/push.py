@@ -2,7 +2,7 @@
 
 `/push/subscribe` e `/push/unsubscribe` são como qualquer rota autenticada.
 `/push/scan` é diferente de propósito: não tem usuária logada — é chamada por um
-cron externo (mesmo padrão do ping em `/health`, ver docs/README.md), por isso
+cron externo (mesmo padrão do ping em `/health`, ver docs/indice.md), por isso
 usa um segredo compartilhado (`X-Scan-Secret`) em vez de JWT.
 """
 from __future__ import annotations

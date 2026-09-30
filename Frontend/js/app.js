@@ -2,7 +2,7 @@
    app.js — Bootstrap + mini-router
    ============================================================ */
 
-import { isOnboardingSeen, getUser, isPremium, restoreSession, initSession, hasSession, onSessionCleared, endBootSync } from './store.js';
+import { isOnboardingSeen, getUser, restoreSession, initSession, hasSession, onSessionCleared, endBootSync } from './store.js';
 import { toast, renderNav } from './ui.js';
 import { wakeBackend } from './api.js';
 
@@ -13,7 +13,6 @@ import { renderHome } from './views/home.js';
 import { renderAgenda } from './views/agenda.js';
 import { renderChat, clearConversation } from './views/chat.js';
 import { renderConnections } from './views/connections.js';
-import { renderPaywall } from './views/paywall.js';
 import { renderProfile } from './views/profile.js';
 
 const routes = {
@@ -24,7 +23,6 @@ const routes = {
   agenda: renderAgenda,
   bruna: renderChat,
   connections: renderConnections,
-  paywall: renderPaywall,
   profile: renderProfile,
 };
 
@@ -84,12 +82,9 @@ function navigate(route, params = {}) {
   setTimeout(() => view.classList.remove('view-enter'), 650);
 
   // Navegação persistente do shell (sidebar desktop / bottom bar mobile).
-  // Telas de fluxo (onboarding/login/paywall) não exibem navegação.
+  // Telas de fluxo (onboarding/login) não exibem navegação.
   if (TAB_ROUTES.includes(route)) {
-    renderNav(route, navigate, {
-      premium: isPremium(),
-      onUpgrade: () => navigate('paywall', { trigger: 'profile' }),
-    });
+    renderNav(route, navigate);
   } else {
     renderNav(null, navigate);
   }
@@ -142,7 +137,7 @@ function start() {
     navigate('login');
   } else {
     // UI instantânea a partir do cache local; o sync vem do wakeBackend acima.
-    if (TAB_ROUTES.includes(hashRoute) || hashRoute === 'paywall') navigate(hashRoute);
+    if (TAB_ROUTES.includes(hashRoute)) navigate(hashRoute);
     else navigate('home');
   }
 }

@@ -20,7 +20,6 @@ os.environ["ENCRYPTION_KEY"] = "ab" * 32  # 32 bytes em hex — só para testes
 # Vazio (e não ausente): o setdefault do .env não sobrescreve valor já presente.
 os.environ["GOOGLE_AI_API_KEY"] = ""
 os.environ["GROQ_API_KEY"] = ""
-os.environ["RESEND_API_KEY"] = ""
 os.environ["VAPID_PUBLIC_KEY"] = ""
 os.environ["VAPID_PRIVATE_KEY"] = ""
 
@@ -48,7 +47,6 @@ def _banco_limpo():
         auth_router._login_by_ip,
     ):
         limiter._hits.clear()
-    auth_router._login_otp._entries.clear()
     yield
 
 

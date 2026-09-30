@@ -3,13 +3,12 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast } from '../ui.js';
-import { getUser, logout, isPremium, getSoundLevel, setSoundLevel, SOUND_LEVELS } from '../store.js';
+import { getUser, logout, getSoundLevel, setSoundLevel, SOUND_LEVELS } from '../store.js';
 import { playTap, playComplete } from '../sound.js';
 import * as push from '../push.js';
 
 export function renderProfile(app) {
   const user = getUser() || { name: 'Você', email: '' };
-  const premium = isPremium();
   const installed = app.isInstalled && app.isInstalled();
   const som = getSoundLevel();
 
@@ -30,27 +29,6 @@ export function renderProfile(app) {
           </div>
           <h1 class="font-serif font-bold text-bordeaux-900 text-2xl">${user.name}</h1>
           <p class="text-sm text-bordeaux-700">${user.email || ''}</p>
-        </div>
-
-        <!-- upgrade / premium -->
-        <div class="px-6 mb-6">
-          ${premium ? `
-            <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-4 flex items-center gap-3">
-              <span class="text-accent">${icons.crown}</span>
-              <div>
-                <p class="font-semibold text-bordeaux-900 text-sm">MenteLeve Premium ativo</p>
-                <p class="text-xs text-bordeaux-700">Aproveite tudo sem limites ✨</p>
-              </div>
-            </div>` : `
-            <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-4">
-              <p class="flex items-center justify-center gap-2 text-sm font-medium text-bordeaux-900 mb-3">
-                ${icons.crown} Zere sua sobrecarga mental
-              </p>
-              <button id="upgrade"
-                class="btn btn-primary cta-lift w-full py-3">
-                Fazer Upgrade
-              </button>
-            </div>`}
         </div>
 
         <!-- preferências -->
@@ -118,9 +96,6 @@ export function renderProfile(app) {
       </div>
     </div>
   `);
-
-  const up = $('#upgrade', view);
-  if (up) up.addEventListener('click', () => app.navigate('paywall', { trigger: 'profile' }));
 
   // Nível de som — o primeiro item realmente funcional deste menu.
   const niveisEl = $('#sound-levels', view);

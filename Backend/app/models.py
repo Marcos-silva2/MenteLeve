@@ -27,7 +27,6 @@ class User(Base):
     # Hash bcrypt da senha. Nullable por causa da micro-migração aditiva
     # (ver database.py): contas antigas sem senha não conseguem logar.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    is_premium: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     tasks: Mapped[list["Task"]] = relationship(

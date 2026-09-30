@@ -29,22 +29,11 @@ async def lifespan(_app: FastAPI):
             "PURO. Quem tiver acesso ao banco lê tudo. Gere uma chave com "
             "`python -c \"import secrets; print(secrets.token_hex(32))\"`."
         )
-    if settings.SIMULATED_CHECKOUT:
-        log.warning(
-            "SIMULATED_CHECKOUT ligado: qualquer conta autenticada pode ativar o "
-            "Premium sem pagar (POST /auth/me/premium/simulate). É o esperado no "
-            "MVP; defina SIMULATED_CHECKOUT=false antes de cobrar de verdade."
-        )
     if not settings.push_enabled:
         log.warning(
             "VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY não definidas: notificações push "
             "desligadas (o Perfil não oferece a opção). Gere um par com "
             "`python scripts/generate_vapid_keys.py`."
-        )
-    if not settings.email_enabled:
-        log.warning(
-            "RESEND_API_KEY não definida: login sem A2F por e-mail (segue igual "
-            "a antes, só senha). Crie uma chave grátis em resend.com."
         )
     yield
 

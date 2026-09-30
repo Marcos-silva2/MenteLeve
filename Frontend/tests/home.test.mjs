@@ -1,6 +1,6 @@
 // Agrupamento da Home em seções (Hoje / Rotinas Cíclicas / Mais Tarde / Concluídas):
 // `node --test "Frontend/tests/*.test.mjs"`. Só a função pura — o DOM é coberto
-// pela verificação no navegador descrita em DOCS_MELHORIAS_IMPLEMENTADAS.md.
+// pela verificação no navegador descrita em docs/indice.md (Parte 3).
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 

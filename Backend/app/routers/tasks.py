@@ -1,7 +1,6 @@
 """Rotas de tarefas (CRUD + criação inteligente)."""
 from __future__ import annotations
 
-import asyncio
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,7 +10,6 @@ from app import ai, crud, recurrence, schemas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
-from app.schemas import FREE_TASK_LIMIT
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -22,17 +20,6 @@ def _get_owned_task(task_id: int, user: User, db: Session) -> Task:
     if task is None or task.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarefa não encontrada.")
     return task
-
-
-def _enforce_free_limit(user: User, db: Session) -> None:
-    """Bloqueia a criação além do limite gratuito (gatilho do Paywall)."""
-    if user.is_premium:
-        return
-    if crud.count_tasks(db, user.id) >= FREE_TASK_LIMIT:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Limite gratuito de {FREE_TASK_LIMIT} tarefas atingido. Faça upgrade para o Premium.",
-        )
 
 
 @router.get("", response_model=list[schemas.TaskOut])
@@ -46,7 +33,6 @@ def create_task(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _enforce_free_limit(user, db)
     return crud.create_task(db, user.id, data)
 
 
@@ -54,7 +40,6 @@ def create_task(
 async def analyze_smart_task(
     data: schemas.SmartTaskIn,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
     """Analisa um texto em linguagem natural com a IA (o "Aha Moment").
 
@@ -67,12 +52,8 @@ async def analyze_smart_task(
     um fallback que apenas normaliza o título.
 
     `async`: a chamada à IA (ai.analyze) é assíncrona (ver app/ai.py) para não
-    prender uma thread do pool durante a espera de rede. `_enforce_free_limit`
-    continua síncrona (SQLAlchemy não é assíncrono aqui) — vai para uma thread
-    à parte via `asyncio.to_thread` para não bloquear o event loop.
+    prender uma thread do pool durante a espera de rede.
     """
-    await asyncio.to_thread(_enforce_free_limit, user, db)
-
     result = await ai.analyze(data.text, today=data.today)
 
     if result is None:

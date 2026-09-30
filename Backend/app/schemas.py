@@ -16,10 +16,6 @@ TimeStr = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
 # Recorrência de tarefas (ver app/recurrence.py).
 RecurrencePattern = Literal["daily", "weekly", "monthly"]
 
-# Limite do plano gratuito (Freemium) — alinhado ao frontend.
-FREE_TASK_LIMIT = 50
-
-
 # ----------------------- User -----------------------
 class UserBase(BaseModel):
     email: EmailStr
@@ -47,32 +43,15 @@ class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    is_premium: bool
     created_at: datetime
 
 
 class TokenOut(BaseModel):
-    """Resposta de /auth/register, /auth/login (sem A2F) e /auth/login/verify."""
+    """Resposta de /auth/register e /auth/login."""
 
     access_token: str
     token_type: str = "bearer"
     user: UserOut
-
-
-class LoginChallengeOut(BaseModel):
-    """Resposta de /auth/login quando a A2F está ativa: ainda não há token.
-
-    A senha já conferiu; falta confirmar o código enviado por e-mail em
-    POST /auth/login/verify.
-    """
-
-    otp_required: bool = True
-    email: EmailStr
-
-
-class LoginVerifyIn(BaseModel):
-    email: EmailStr
-    code: str = Field(..., min_length=4, max_length=8)
 
 
 # ----------------------- Task -----------------------

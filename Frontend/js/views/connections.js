@@ -1,6 +1,6 @@
 /* ============================================================
    Conexões / Rede de Apoio (Tela 6)
-   MVP: visual estático. Convidar parceiro → dispara Paywall.
+   MVP: visual estático — convite de parceiro(a) ainda não implementado.
    ============================================================ */
 
 import { h, $, $$, icons, toast } from '../ui.js';
@@ -55,10 +55,10 @@ export function renderConnections(app) {
     </div>
   `);
 
-  // Qualquer ação de convite no MVP leva ao paywall (recurso premium)
-  const goPaywall = () => app.navigate('paywall', { trigger: 'invite' });
-  $('#invite', view).addEventListener('click', goPaywall);
-  $('#invite-card', view).addEventListener('click', goPaywall);
+  // Convite de parceiro(a) ainda não implementado — mesmo padrão do login social.
+  const avisarEmBreve = () => toast('Recurso disponível na versão final ✨');
+  $('#invite', view).addEventListener('click', avisarEmBreve);
+  $('#invite-card', view).addEventListener('click', avisarEmBreve);
 
   // toggles são apenas visuais no MVP
   $$('[data-toggle]', view).forEach((t) =>

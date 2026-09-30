@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
-import { CATEGORIES, PRIORITIES, addTask, reachedFreeLimit } from '../store.js';
+import { CATEGORIES, PRIORITIES, addTask } from '../store.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
 import { todayKey, resolveDue, firstOccurrence, RECURRENCE_LABELS } from '../dates.js';
 import { playAha, playTap, playAdd } from '../sound.js';
@@ -15,12 +15,6 @@ import { playAha, playTap, playAdd } from '../sound.js';
  * @param {function} onDone callback chamado após criar tarefa(s) — para re-render
  */
 export function openTaskSheet(app, onDone) {
-  // Gatilho do paywall: limite do plano gratuito
-  if (reachedFreeLimit()) {
-    app.navigate('paywall', { trigger: 'limit' });
-    return;
-  }
-
   const host = document.getElementById('device');
   const desktop = isDesktop();
   // null = a usuária ainda não escolheu, então o palpite da IA vale. Era

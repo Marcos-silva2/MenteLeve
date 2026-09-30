@@ -35,14 +35,14 @@ Backend/
 │   ├── config.py        # settings via variáveis de ambiente
 │   ├── database.py      # engine SQLAlchemy (Postgres/SQLite), sessão, init_db()
 │   ├── models.py        # User, Task
-│   ├── schemas.py       # Pydantic (entrada/saída) + FREE_TASK_LIMIT
+│   ├── schemas.py       # Pydantic (entrada/saída)
 │   ├── crud.py          # operações de banco
 │   ├── security.py      # hash de senha (bcrypt) + tokens JWT
 │   ├── crypto.py        # AES-256-GCM do conteúdo em repouso (EncryptedText)
 │   ├── ai.py            # Gemini + Groq (analyze, chat, function calling)
 │   ├── dependencies.py  # auth via Authorization: Bearer <token>
 │   └── routers/
-│       ├── auth.py      # /auth/register, /auth/login, /auth/me, /auth/me/premium
+│       ├── auth.py      # /auth/register, /auth/login, /auth/me
 │       ├── tasks.py     # CRUD de tarefas + /tasks/smart
 │       └── ai_chat.py   # /ai/chat (Bruna) — cria e conclui tarefas
 ├── scripts/
@@ -69,7 +69,7 @@ Requer a variável de ambiente **`SECRET_KEY`** (ver `.env.example`). Sem ela, o
 backend usa uma chave aleatória por processo e derruba todas as sessões a cada
 restart — no Render free isso acontece a cada cold start.
 
-OAuth real (Google/Apple) ainda não está implementado — ver `docs/README.md`.
+OAuth real (Google/Apple) ainda não está implementado — ver `docs/indice.md`.
 
 > Não há limite de tentativas de login. O custo do bcrypt (~250 ms por tentativa)
 > freia força bruta na prática, mas não é uma trava — está na lista de próximos passos.
@@ -127,7 +127,6 @@ python scripts/encrypt_existing.py --aplicar  # grava
 | POST | `/auth/register` | Cria conta (e-mail + senha) e devolve o token |
 | POST | `/auth/login` | Autentica e devolve o token |
 | GET | `/auth/me` | Dados do usuário atual |
-| POST | `/auth/me/premium?is_premium=true` | Ativa/desativa Premium |
 | GET | `/tasks` | Lista tarefas do usuário |
 | POST | `/tasks` | Cria tarefa (campos completos) |
 | POST | `/tasks/smart` | Analisa texto livre com a IA (título, `due_date`/`due_time`, subtarefas, sugestão) |
@@ -189,10 +188,6 @@ Detalhes que economizam depuração:
 > ⚠️ O tier gratuito dos dois provedores permite uso do conteúdo para treinamento. Para
 > um app de rotina/saúde feminina, considere o tier pago.
 
-## Freemium
-Usuários não-Premium têm limite de **50 tarefas** (`FREE_TASK_LIMIT`). Ao exceder,
-a criação retorna **HTTP 402** (gatilho do Paywall no frontend).
-
 ## Tarefas recorrentes
 
 `is_recurring` + `recurrence_pattern` (`daily` | `weekly` | `monthly`). Concluir uma recorrente
@@ -214,7 +209,7 @@ Usam um SQLite temporário e desligam IA e e-mail — não tocam o `.env` real n
 - **Importante:** aponte `DATABASE_URL` para o Postgres do Supabase — use a connection
   string do **"Session pooler"** (IPv4), não a "Direct connection" (IPv6-only, não
   resolve em muitos hosts/redes). Ver [`supabase_schema.sql`](supabase_schema.sql) para
-  criar as tabelas e [`docs/README.md`](../docs/README.md) para o histórico completo.
+  criar as tabelas e [`docs/indice.md`](../docs/indice.md) para o histórico completo.
 - **Variáveis obrigatórias:** `DATABASE_URL`, `SECRET_KEY`, `ENCRYPTION_KEY`.
   As duas últimas são valores **diferentes**, geradas com
   `python -c "import secrets; print(secrets.token_hex(32))"`.
@@ -224,7 +219,4 @@ e `_widen_columns()` converte para `TEXT` as colunas criptografadas. As duas ape
 registram aviso se falharem — derrubar o boot deixaria a API inteira fora do ar.
 
 ## Próximos passos
-- Limite de tentativas em `/auth/login`.
-- `POST /auth/me/premium` permite que qualquer usuária autenticada se conceda Premium.
-  Inofensivo enquanto o pagamento é simulado; **corrigir antes de haver cobrança real**.
 - OAuth real (Google/Apple).

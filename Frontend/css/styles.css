@@ -138,7 +138,7 @@ body {
   .fab { right: 40px !important; bottom: 40px !important; }
 }
 
-/* Telas de fluxo (onboarding/login/paywall) ocupam tudo, sem sidebar. */
+/* Telas de fluxo (onboarding/login) ocupam tudo, sem sidebar. */
 .root.is-fullbleed .sidenav { display: none; }
 
 /* ---------- Tipografia ---------- */

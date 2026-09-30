@@ -55,17 +55,6 @@ class Settings:
     LOGIN_ATTEMPT_WINDOW_SECONDS: int = int(os.getenv("LOGIN_ATTEMPT_WINDOW_SECONDS", "900"))
     LOGIN_MAX_ATTEMPTS_PER_IP: int = int(os.getenv("LOGIN_MAX_ATTEMPTS_PER_IP", "30"))
 
-    # --- Assinatura Premium ---
-    # Enquanto o pagamento é SIMULADO, a usuária ativa o Premium pelo próprio app
-    # (é assim que se mede interesse no MVP). Com isto em `false`, a rota de
-    # simulação passa a responder 403 e a concessão só pode vir de uma confirmação
-    # de pagamento no servidor.
-    #
-    # PRECISA virar "false" no dia em que houver cobrança de verdade.
-    SIMULATED_CHECKOUT: bool = os.getenv("SIMULATED_CHECKOUT", "true").strip().lower() not in (
-        "0", "false", "no", "off",
-    )
-
     # --- Criptografia do conteúdo em repouso (AES-256-GCM) ---
     # 32 bytes em hexadecimal (64 caracteres). Gere com:
     #   python -c "import secrets; print(secrets.token_hex(32))"
@@ -109,7 +98,7 @@ class Settings:
     # servidor em caso de abuso.
     VAPID_CONTACT_EMAIL: str = os.getenv("VAPID_CONTACT_EMAIL", "")
     # Segredo compartilhado com o cron externo que chama POST /push/scan (mesmo
-    # padrão do ping em /health — ver docs/README.md). Sem ele, a rota de
+    # padrão do ping em /health — ver docs/indice.md). Sem ele, a rota de
     # varredura fica fechada: preferimos negar por padrão a expor um jeito de
     # qualquer um disparar notificação para todas as usuárias.
     PUSH_SCAN_SECRET: str = os.getenv("PUSH_SCAN_SECRET", "")
@@ -121,22 +110,6 @@ class Settings:
     # tarefa cujo horário passou entre duas varreduras nunca recebe lembrete
     # (a janela só olhava pra frente). `reminder_sent_at` evita duplicata.
     PUSH_REMINDER_LOOKBACK_MINUTES: int = int(os.getenv("PUSH_REMINDER_LOOKBACK_MINUTES", "15"))
-
-    # --- Verificação por e-mail no login (A2F) ---
-    # Chave da API do Resend (https://resend.com — free tier, sem cartão).
-    # Sem ela, o login segue exatamente como antes, sem pedir código: a A2F é
-    # um reforço opcional, nunca uma trava que pode deixar todo mundo de fora
-    # quando o provedor de e-mail não está configurado ou está fora do ar.
-    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
-    # Remetente. `onboarding@resend.dev` funciona sem verificar domínio, mas o
-    # Resend só ENTREGA esse remetente para o e-mail da própria conta Resend —
-    # serve pra testar, não pra usuárias reais. Trocar para um endereço do
-    # domínio verificado (ver Domains no painel do Resend) antes de produção.
-    RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "MenteLeve <onboarding@resend.dev>")
-    LOGIN_OTP_LENGTH: int = int(os.getenv("LOGIN_OTP_LENGTH", "6"))
-    LOGIN_OTP_TTL_SECONDS: int = int(os.getenv("LOGIN_OTP_TTL_SECONDS", "300"))
-    # Tentativas erradas aceitas antes de o código ser descartado (força um novo).
-    LOGIN_OTP_MAX_ATTEMPTS: int = int(os.getenv("LOGIN_OTP_MAX_ATTEMPTS", "5"))
 
     # Metadados
     APP_NAME: str = "MenteLeve API"
@@ -158,10 +131,6 @@ class Settings:
     @property
     def push_enabled(self) -> bool:
         return bool(self.VAPID_PUBLIC_KEY.strip() and self.VAPID_PRIVATE_KEY.strip())
-
-    @property
-    def email_enabled(self) -> bool:
-        return bool(self.RESEND_API_KEY.strip())
 
     @property
     def cors_origins_list(self) -> list[str]:

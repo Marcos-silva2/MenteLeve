@@ -44,7 +44,7 @@ def test_colunas_novas_sao_adicionadas_e_dados_antigos_sobrevivem(tmp_path, monk
     with Session(legado) as db:
         user = db.scalar(select(User))
         task = db.scalar(select(Task))
-        assert user.email == "velha@example.com" and user.is_premium is True
+        assert user.email == "velha@example.com"
         assert task.title == "Tarefa antiga" and task.important is True
         assert task.is_recurring is False
         assert task.recurrence_pattern is None

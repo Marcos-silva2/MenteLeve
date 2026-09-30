@@ -13,7 +13,6 @@ from app import ai, crud, recurrence, schemas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
-from app.schemas import FREE_TASK_LIMIT
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -67,15 +66,6 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
     titulo = str(args.get("titulo") or "").strip()[:500]
     if not titulo:
         return {"status": "erro", "motivo": "titulo vazio"}, None
-
-    # Limite do plano gratuito: vira resultado de função, e não exceção — um 402
-    # aqui abortaria a resposta inteira e a usuária perderia a fala da Bruna.
-    if not user.is_premium and crud.count_tasks(db, user.id) >= FREE_TASK_LIMIT:
-        return {
-            "status": "limite_atingido",
-            "limite": FREE_TASK_LIMIT,
-            "instrucao": "Avise com gentileza que o limite gratuito acabou e sugira o Premium.",
-        }, None
 
     categoria = args.get("categoria")
     if categoria not in ai.CATEGORIES:

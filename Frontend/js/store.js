@@ -31,8 +31,6 @@ export const PRIORITIES = [
 
 export const getPriority = (id) => PRIORITIES.find((p) => p.id === id) || PRIORITIES[1];
 
-export const FREE_TASK_LIMIT = 50;
-
 const defaultCycle = () => ({
   enabled: false,
   lastStart: null,   // 'AAAA-MM-DD' do início da última menstruação
@@ -45,7 +43,6 @@ const defaultState = () => ({
   user: null,        // { name, email }
   userId: null,      // id numérico do backend (null = só local)
   token: null,       // JWT de acesso (null = sessão não autenticada)
-  isPremium: false,
   soundLevel: 'tudo',  // 'tudo' | 'conclusoes' | 'silencio' — ver SOUND_LEVELS
   tasks: [],
   pending: [],       // fila de escritas que ainda não subiram (ver "Fila offline")
@@ -120,7 +117,6 @@ let _bootSyncing = !!state.token;
 export const isSyncing = () => _bootSyncing;
 export function endBootSync() { _bootSyncing = false; }
 export const isOnboardingSeen = () => state.onboardingSeen;
-export const isPremium = () => state.isPremium;
 export const getTasks = () => state.tasks;
 // Tarefas principais (sem mãe) e subtarefas (filhos de uma tarefa).
 export const getTopTasks = () => state.tasks.filter((t) => !t.parentId);
@@ -138,7 +134,6 @@ export function markOnboardingSeen() {
 function applySession(user) {
   state.user = { name: user.name || nameFromEmail(user.email), email: user.email };
   state.userId = user.id;
-  state.isPremium = !!user.is_premium;
   state.token = api.getAuthToken();
   persist();
 }
@@ -179,30 +174,13 @@ function startOfflineMode(email, name) {
  * - Credencial errada: lança AuthError (a tela mostra o erro).
  * - Backend offline (cold start do Render): entra no modo local de demonstração.
  */
-/**
- * Login com e-mail + senha.
- * Devolve `{ status: 'ok', user }` (logada, inclusive no modo offline de
- * demonstração) ou `{ status: 'otp', email }` quando o backend pede o código
- * de verificação — quem chamou deve então usar `verifyLoginCode`.
- */
 export async function login({ email, password }) {
-  const result = await api.apiLogin(email, password);
-  if (!result) {
+  const user = await api.apiLogin(email, password);
+  if (!user) {
     // Offline de verdade — nunca cai aqui por senha errada (isso lança AuthError).
     startOfflineMode(email);
-    return { status: 'ok', user: state.user };
+    return state.user;
   }
-  if (result.otpRequired) {
-    return { status: 'otp', email: result.email };
-  }
-  applySession(result.user);
-  await hydrateTasks();
-  return { status: 'ok', user: state.user };
-}
-
-/** Segunda etapa do login com A2F: troca o código pelo token e hidrata. */
-export async function verifyLoginCode({ email, code }) {
-  const user = await api.apiVerifyLoginCode(email, code);
   applySession(user);
   await hydrateTasks();
   return state.user;
@@ -574,48 +552,6 @@ export function setSoundLevel(nivel) {
 
 /** Compatibilidade: "há algum som ligado?". */
 export const isSoundEnabled = () => getSoundLevel() !== 'silencio';
-
-export function reachedFreeLimit() {
-  return !state.isPremium && state.tasks.length >= FREE_TASK_LIMIT;
-}
-
-/**
- * Liga/desliga o Premium. Quem decide é o servidor.
- *
- * A UI responde na hora (otimista), mas a resposta do servidor manda: se ele
- * recusar — 403 quando a cobrança real estiver ligada, 401 se a sessão caiu —
- * o estado volta ao que era. Sem isso o app mostraria "Premium ativo" com o
- * servidor dizendo o contrário, e a divergência só apareceria no próximo
- * /auth/me, num recarregamento aparentemente aleatório.
- *
- * Falha de rede é diferente de recusa: aí o otimismo permanece e a próxima
- * sincronização reconcilia.
- *
- * @returns {Promise<boolean>} o estado que efetivamente valeu.
- */
-export async function setPremium(v) {
-  const anterior = state.isPremium;
-  state.isPremium = !!v;
-  persist();
-  if (state.userId == null) return state.isPremium;
-
-  try {
-    const user = await api.apiSetPremium(v);
-    // null = offline: nada foi decidido, mantém o otimista.
-    if (user) {
-      state.isPremium = !!user.is_premium;
-      persist();
-    }
-  } catch (e) {
-    // `.status` presente = o servidor respondeu e recusou. Sem status é falha
-    // de rede no meio da chamada, e aí não há recusa a acatar.
-    if (e && e.status) {
-      state.isPremium = anterior;
-      persist();
-    }
-  }
-  return state.isPremium;
-}
 
 // ------- Ciclo menstrual (100% local/privado) -------
 function _ckey(d) {

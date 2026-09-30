@@ -1,6 +1,6 @@
 /* ============================================================
    api.js — Cliente REST do backend (FastAPI) + heurística local
-   - Cliente REST: cadastro/login, tarefas, premium
+   - Cliente REST: cadastro/login, tarefas
      (auth via token JWT no header Authorization: Bearer)
    - decomposeTask(): "IA temporária" client-side que gera o Aha Moment
      enquanto a IA real não está plugada no backend (/tasks/smart).
@@ -173,12 +173,6 @@ function fromServer(t) {
  * Autentica com e-mail + senha.
  * - Retorna null se o backend estiver offline (cold start do Render).
  * - Lança AuthError (401) se as credenciais estiverem incorretas.
- * - Retorna `{ otpRequired: true, email }` quando o backend tem A2F ligada
- *   (RESEND_API_KEY configurada): a senha já conferiu, falta o código do
- *   e-mail — ver apiVerifyLoginCode. Sem A2F, o backend já devolve o token
- *   nesta mesma chamada e cai no outro ramo.
- * - Retorna `{ otpRequired: false, user }` quando loga direto (token já
- *   guardado).
  */
 export async function apiLogin(email, password) {
   if (!(await ensureOnline(true))) return null;
@@ -186,21 +180,6 @@ export async function apiLogin(email, password) {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ email, password }),
-  });
-  if (data.otp_required) return { otpRequired: true, email: data.email || email };
-  setAuthToken(data.access_token);
-  return { otpRequired: false, user: data.user };
-}
-
-/**
- * Segunda etapa do login com A2F: troca o código de 6 dígitos pelo token.
- * Lança AuthError (401) se o código estiver errado, expirado ou já usado.
- */
-export async function apiVerifyLoginCode(email, code) {
-  const data = await request('/auth/login/verify', {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ email, code }),
   });
   setAuthToken(data.access_token);
   return data.user;
@@ -227,25 +206,6 @@ export async function apiMe() {
   return request('/auth/me', { headers: headers() });
 }
 
-/**
- * Ativa ou cancela o Premium. Devolve o usuário atualizado pelo servidor.
- *
- * Ativar e cancelar são rotas distintas de propósito. A ativação passa por
- * `/auth/me/premium/simulate`, que o servidor pode recusar (403) quando a
- * cobrança real estiver ligada — o cliente não decide mais quem é Premium.
- * O cancelamento é sempre da própria usuária, e continua permitido.
- *
- * Retorna `null` quando não há sessão ou o backend está fora do ar (nada foi
- * decidido). Uma RECUSA do servidor é propagada como erro com `.status`, e não
- * pode ser confundida com estar offline — quem chama precisa dessa diferença
- * para saber se mantém o estado otimista ou o reverte.
- */
-export async function apiSetPremium(isPremium) {
-  if (!_token || !(await ensureOnline())) return null;
-  return isPremium
-    ? request('/auth/me/premium/simulate', { method: 'POST', headers: headers() })
-    : request('/auth/me/premium', { method: 'DELETE', headers: headers() });
-}
 
 // ----------------------- Tasks -----------------------
 /** Lista as tarefas do usuário. Retorna array (front-format) ou null. */

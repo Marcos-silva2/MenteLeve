@@ -54,13 +54,6 @@ def authenticate_user(db: Session, email: str, password: str) -> models.User | N
     return user
 
 
-def set_user_premium(db: Session, user: models.User, is_premium: bool) -> models.User:
-    user.is_premium = is_premium
-    db.commit()
-    db.refresh(user)
-    return user
-
-
 # ----------------------- Tasks -----------------------
 def list_tasks(db: Session, user_id: int) -> list[models.Task]:
     stmt = (

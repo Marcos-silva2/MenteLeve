@@ -129,7 +129,7 @@ export function toast(message, ms = 2200) {
  * api.js (NetworkError, AuthError, ApiError) e devolve texto FIXO — nunca o
  * `detail` do servidor, que iria para o innerHTML do toast.
  * Distingue conexão, servidor (5xx), autenticação (401) e validação (400/402/409/422).
- * @param {'auth'|'register'|'otp'|'geral'} [ctx] onde o erro aconteceu
+ * @param {'auth'|'register'|'geral'} [ctx] onde o erro aconteceu
  */
 export function friendlyError(err, ctx = 'geral') {
   const status = err && err.status;
@@ -142,7 +142,6 @@ export function friendlyError(err, ctx = 'geral') {
   }
   if (status === 401) {
     if (ctx === 'auth') return 'E-mail ou senha não conferem. Confira os dados e tente de novo.';
-    if (ctx === 'otp') return 'Código inválido ou expirado. Confira e tente de novo.';
     return 'Por segurança, sua sessão terminou. Entre de novo para continuar 💗';
   }
   if (status === 429) {
@@ -219,7 +218,7 @@ export const NAV_ITEMS = [
  *  - Mobile  → bottom bar (#bottomnav)
  * Quando `active` é null, esconde a navegação (telas de fluxo).
  */
-export function renderNav(active, onNavigate, opts = {}) {
+export function renderNav(active, onNavigate) {
   const side = document.getElementById('sidenav');
   const bottom = document.getElementById('bottomnav');
   const root = document.getElementById('root');
@@ -242,23 +241,11 @@ export function renderNav(active, onNavigate, opts = {}) {
     </div>
     <nav class="flex flex-col gap-1">
       ${NAV_ITEMS.map((it) => navSideItem(it, active)).join('')}
-    </nav>
-    <div class="mt-auto pt-6">
-      ${opts.premium ? `
-        <div class="flex items-center gap-2 text-soft-100 text-xs bg-white/5 rounded-2xl px-3 py-3">
-          <span class="text-accent">${icons.crown}</span> Premium ativo
-        </div>` : `
-        <button data-side-action="upgrade"
-          class="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-accent hover:bg-accent-hover text-white text-sm font-semibold transition">
-          ${icons.crown} Fazer Upgrade
-        </button>`}
-    </div>`;
+    </nav>`;
 
   $$('[data-tab]', side).forEach((b) =>
     b.addEventListener('click', () => { playTap(); onNavigate(b.dataset.tab); })
   );
-  const up = side.querySelector('[data-side-action="upgrade"]');
-  if (up && opts.onUpgrade) up.addEventListener('click', opts.onUpgrade);
 
   // ---- Bottom bar (mobile) ----
   bottom.innerHTML = `

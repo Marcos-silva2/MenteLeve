@@ -2,7 +2,9 @@
 
 > A sua mente não foi feita para guardar tudo.
 
-**MenteLeve** é um aplicativo de gestão da **carga mental** — um "Segundo Cérebro" inteligente pensado especialmente para mulheres e mães. Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis do dia a dia (o *Aha Moment*).
+**MenteLeve** é uma agenda inteligente para **profissionais do mercado de trabalho** — um "Segundo Cérebro" que reúne, num só lugar, as tarefas do trabalho (reuniões, entregas, prazos, estudos, carreira) e da vida pessoal (casa, saúde, família, finanças). Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis de cada compromisso (o *Aha Moment*).
+
+> 🔄 **Em transição:** o app nasceu voltado a mulheres e mães e está sendo ampliado para profissionais em geral. Parte da interface ainda reflete o público original — ver o [plano de migração](docs/plano_migracao_vida_trabalho.md).
 
 🔗 **App (PWA):** https://mente-leve-teal.vercel.app
 🔗 **API:** https://menteleve.onrender.com · [`/docs`](https://menteleve.onrender.com/docs)
@@ -17,9 +19,9 @@ Extensionista 2**, sob orientação do professor **Valter de Sales Santana**.
 
 O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ONU:
 
-- **ODS 3 — Saúde e Bem-Estar:** o app existe para reduzir a carga mental e o
-  esgotamento associados à sobrecarga de tarefas domésticas, familiares e
-  profissionais, especialmente entre mulheres e mães.
+- **ODS 3 — Saúde e Bem-Estar:** o app existe para reduzir a sobrecarga mental e o
+  risco de **burnout** de quem precisa conciliar as demandas do trabalho com as da
+  vida pessoal — prazos, reuniões e metas somados às tarefas domésticas e familiares.
 - **ODS 9 — Indústria, Inovação e Infraestrutura:** aplica IA (Google Gemini),
   arquitetura em nuvem e práticas modernas de engenharia de software (PWA,
   criptografia de dados, autenticação segura) como infraestrutura tecnológica
@@ -31,15 +33,17 @@ O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ON
 
 - **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
 - **Subtarefas da IA fixadas** na tarefa-mãe (a sugestão vira filho da tarefa que você criou).
-- **Bruna — chat com IA que age:** além de acolher e organizar, ela **cria e conclui tarefas pelo chat** ("cria uma consulta amanhã às 10h", "marca o mercado como feito").
+- **Bruna — assistente com IA que age:** organiza a agenda e **cria e conclui tarefas pelo chat** ("marca reunião com o cliente amanhã às 10h", "marca o relatório como feito").
+- **Tarefas recorrentes** (diária, semanal, mensal): reunião semanal, relatório do mês, rotinas pessoais.
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
-- **🌸 Calendário menstrual** (opcional e 100% privado/local): fases do ciclo, período fértil, ovulação e previsão da próxima menstruação.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
-- **Rede de apoio** (compartilhar a carga) e **Paywall Premium** (modelo freemium).
+- **Lembretes por notificação push** (opt-in) antes do horário da tarefa.
+- **Rede de apoio** (compartilhar tarefas com família ou equipe) — app 100% gratuito, sem limite de tarefas nem plano pago.
+- **🌸 Calendário menstrual** (módulo opcional e 100% privado/local): fases do ciclo, período fértil e previsão.
 - **PWA instalável** e com suporte offline (Service Worker) — 264 KB de precache em
   disco, ~149 KB transferidos (o gzip do servidor comprime os textos; as imagens já
   chegam comprimidas).
-- **Conteúdo criptografado no banco** (AES-256-GCM): o título das tarefas e o nome da usuária são ilegíveis para quem acessa o banco por fora da API.
+- **Conteúdo criptografado no banco** (AES-256-GCM): o título das tarefas e o nome do usuário são ilegíveis para quem acessa o banco por fora da API.
 
 ---
 
@@ -73,7 +77,7 @@ MenteLeve/
 │       ├── sound.js          # feedback sonoro sintetizado (Web Audio)
 │       ├── ui.js             # helpers, ícones, navegação
 │       ├── components/       # taskSheet (nova tarefa + Aha Moment)
-│       └── views/            # onboarding, login, register, home, agenda, chat (Bruna), connections, paywall, profile
+│       └── views/            # onboarding, login, register, home, agenda, chat (Bruna), connections, profile
 │
 ├── Backend/                  # API (publicada no Render)
 │   ├── app/
@@ -89,7 +93,7 @@ MenteLeve/
 │   ├── requirements.txt · Procfile · runtime.txt
 │   └── .env.example
 │
-└── docs/                     # documentação consolidada (docs/README.md) + contexto de produto
+└── docs/                     # documentação completa (docs/indice.md) + plano de migração
 ```
 
 ---
@@ -166,9 +170,9 @@ Detalhes da troca entre provedores em [`Backend/README.md`](Backend/README.md).
 | `DELETE` | `/tasks/{id}` | Excluir (remove subtarefas) |
 | `POST` | `/ai/chat` | Conversa com a **Bruna** — pode criar/concluir tarefas (function calling) |
 | `GET` | `/push/public-key` · `POST` `/push/subscribe` · `/push/unsubscribe` | Lembrete de tarefa por notificação push (opt-in, no Perfil) |
-| `POST` | `/push/scan` | Varredura de tarefas prestes a vencer — chamada por cron externo, não pela usuária (requer `X-Scan-Secret`) |
+| `POST` | `/push/scan` | Varredura de tarefas prestes a vencer — chamada por cron externo, não pelo usuário (requer `X-Scan-Secret`) |
 
-Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend devolve um **token JWT** que o frontend envia no header **`Authorization: Bearer <token>`**. Limite freemium: 50 tarefas → `HTTP 402` (dispara o Paywall).
+Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend devolve um **token JWT** que o frontend envia no header **`Authorization: Bearer <token>`**. Sem limite de tarefas — app 100% gratuito.
 
 ---
 
@@ -178,7 +182,7 @@ Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend d
 |---|---|
 | **Rotas** | Toda rota de dados exige JWT válido; além do login, há checagem de **posse** por tarefa (responde `404`, para não confirmar que a tarefa existe) |
 | **Senhas** | **bcrypt** com salt por senha — hash de mão única, a senha nunca é gravada nem registrada em log |
-| **Conteúdo no banco** | **AES-256-GCM** no título das tarefas e no nome da usuária (ver [`Backend/app/crypto.py`](Backend/app/crypto.py)). Um dump do Postgres não revela nada sem a `ENCRYPTION_KEY`, que vive só no ambiente do backend |
+| **Conteúdo no banco** | **AES-256-GCM** no título das tarefas e no nome do usuário (ver [`Backend/app/crypto.py`](Backend/app/crypto.py)). Um dump do Postgres não revela nada sem a `ENCRYPTION_KEY`, que vive só no ambiente do backend |
 | **Em trânsito** | HTTPS ponta a ponta (Vercel e Render) |
 
 **O que continua legível, de propósito:** e-mail (é a chave de busca do login, com índice UNIQUE), data, categoria e status — são eles que sustentam o calendário e os índices. Ou seja: o banco revela *quando*, não *o quê*.
@@ -233,7 +237,7 @@ python scripts/encrypt_existing.py --aplicar  # grava
 - **Framework Preset:** Other (sem build — HTML/JS puro).
 - Deploy automático a cada push em `main` (via integração Vercel ↔ GitHub).
 
-Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [`docs/README.md`](docs/README.md#série-b--migração-para-a-nuvem-27082026-concluída).
+Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [`docs/indice.md`](docs/indice.md#série-b--migração-para-a-nuvem-27082026-concluída).
 
 ---
 
@@ -251,15 +255,16 @@ Detalhes completos da migração (SQLite→Postgres, GitHub Pages→Vercel) em [
 - IA assíncrona (`httpx`) com circuit breaker no Gemini, para não travar o backend
   sob falha do provedor
 
-📍 **[`docs/README.md`](docs/README.md)** — documentação consolidada: estado atual,
-o que é fachada, design system, diretrizes de UX e histórico completo de sprints.
+📍 **[`docs/indice.md`](docs/indice.md)** — documentação completa num arquivo só: contexto
+do produto, estado atual, o que é fachada, design system, diretrizes de UX, histórico de
+sprints e de melhorias.
 
 **Próximos passos:**
 - [ ] **Recuperação de senha** — hoje não há caminho de autoatendimento para quem esquece a senha
 - [ ] **Revogação de sessão** — sem forma de invalidar um token antes de expirar (30 dias)
 - [ ] OAuth real (Apple / Google) e notificações da rede de apoio
-- [ ] Recorrência de tarefas (precisa de coluna própria — ver `docs/README.md`)
-- [ ] Suíte de testes automatizados e CI
+- [ ] CI rodando a suíte de testes (a suíte já existe)
+- [ ] Ampliação para vida + trabalho — ver [`docs/plano_migracao_vida_trabalho.md`](docs/plano_migracao_vida_trabalho.md)
 
 ---
 

@@ -41,7 +41,6 @@ Frontend/
         ├── agenda.js       # calendário mensal + ciclo menstrual (local)
         ├── chat.js         # Bruna (IA)
         ├── connections.js  # rede de apoio (estático)
-        ├── paywall.js      # premium (assinatura simulada)
         └── profile.js      # perfil / conta
 ```
 
@@ -120,7 +119,7 @@ simulados) e as mensagens de erro. Os casos de recorrência espelham `Backend/te
 ## Notas
 
 - Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.
-- Conexões e Paywall têm visual completo, mas as ações são simuladas.
+- Conexões tem visual completo, mas o convite de parceiro(a) ainda é simulado.
 - O **calendário menstrual é 100% local** (`localStorage`), nunca vai ao backend — e
   sobrevive à expiração da sessão, por não pertencer à conta.
 - Estado persiste em `localStorage` (chave `menteleve.state.v1`).

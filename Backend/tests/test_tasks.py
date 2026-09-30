@@ -7,7 +7,6 @@ import pytest
 
 from app import ai
 from app.config import settings
-from app.schemas import FREE_TASK_LIMIT
 
 from conftest import auth_headers, registrar
 
@@ -96,33 +95,6 @@ def test_uma_usuaria_nao_acessa_tarefas_de_outra(client, usuaria):
     assert client.delete(f"/tasks/{t['id']}", headers=h2).status_code == 404
     # A original segue intacta.
     assert client.get("/tasks", headers=usuaria["headers"]).json()[0]["title"] == "Comprar pão"
-
-
-# ----------------------- limite do plano gratuito -----------------------
-def test_limite_de_50_tarefas_no_plano_gratuito(client, usuaria):
-    assert FREE_TASK_LIMIT == 50
-    for i in range(FREE_TASK_LIMIT):
-        _criar(client, usuaria["headers"], title=f"Tarefa {i}")
-
-    r = client.post("/tasks", json={"title": "a 51ª"}, headers=usuaria["headers"])
-    assert r.status_code == 402
-    assert "50" in r.json()["detail"]
-    assert len(client.get("/tasks", headers=usuaria["headers"]).json()) == FREE_TASK_LIMIT
-
-
-def test_premium_nao_tem_limite(client, usuaria):
-    assert client.post("/auth/me/premium/simulate", headers=usuaria["headers"]).json()["is_premium"] is True
-    for i in range(FREE_TASK_LIMIT + 2):
-        _criar(client, usuaria["headers"], title=f"Tarefa {i}")
-    assert len(client.get("/tasks", headers=usuaria["headers"]).json()) == FREE_TASK_LIMIT + 2
-
-
-def test_smart_tambem_respeita_o_limite_gratuito(client, usuaria):
-    for i in range(FREE_TASK_LIMIT):
-        _criar(client, usuaria["headers"], title=f"Tarefa {i}")
-    r = client.post("/tasks/smart", json={"text": "mais uma"}, headers=usuaria["headers"])
-    assert r.status_code == 402
-
 
 # ----------------------- /tasks/smart -----------------------
 @pytest.fixture()
