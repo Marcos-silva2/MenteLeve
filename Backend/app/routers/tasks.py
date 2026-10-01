@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import ai, crud, recurrence, schemas
+from app.categories import DEFAULT_CATEGORY
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
@@ -63,12 +64,14 @@ async def analyze_smart_task(
         # A recorrência, porém, é detectada por regra (sem IA) e segue na resposta.
         title = data.text.strip()
         title = title[0].upper() + title[1:] if title else title
-        pattern = recurrence.detect_recurrence(data.text)
+        rec = recurrence.resolve(data.text, data.today or date.today())
         return schemas.SmartTaskOut(
             title=title,
-            category="casa",
-            is_recurring=pattern is not None,
-            recurrence_pattern=pattern,
+            category=DEFAULT_CATEGORY,
+            is_recurring=rec["is_recurring"],
+            recurrence_pattern=rec["recurrence_pattern"],
+            recurrence_weekdays=rec["recurrence_weekdays"],
+            recurrence_until=rec["recurrence_until"],
             ai=False,
         )
 
@@ -80,6 +83,8 @@ async def analyze_smart_task(
         due=result["due"],
         is_recurring=result["is_recurring"],
         recurrence_pattern=result["recurrence_pattern"],
+        recurrence_weekdays=result["recurrence_weekdays"],
+        recurrence_until=result["recurrence_until"],
         subtasks=result["subtasks"],
         suggestion=result["suggestion"],
         ai=True,

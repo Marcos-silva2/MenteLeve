@@ -38,7 +38,7 @@ def test_colunas_novas_sao_adicionadas_e_dados_antigos_sobrevivem(tmp_path, monk
     database._ensure_columns()
 
     cols_tasks = {c["name"] for c in inspect(legado).get_columns("tasks")}
-    assert {"is_recurring", "recurrence_pattern"} <= cols_tasks
+    assert {"is_recurring", "recurrence_pattern", "recurrence_weekdays", "recurrence_until"} <= cols_tasks
 
     # As linhas existentes nascem com os valores neutros — via ORM, como o app lê.
     with Session(legado) as db:
@@ -57,3 +57,21 @@ def test_migracao_e_idempotente(tmp_path, monkeypatch):
     database._ensure_columns()  # segunda rodada não pode falhar nem duplicar
     cols = [c["name"] for c in inspect(legado).get_columns("tasks")]
     assert cols.count("is_recurring") == 1
+
+
+def test_categorias_antigas_viram_as_atuais_e_a_rodada_e_idempotente(tmp_path, monkeypatch):
+    legado = _banco_antigo(tmp_path)
+    monkeypatch.setattr(database, "engine", legado)
+    with legado.begin() as conn:
+        for i, cat in enumerate(("filhos", "relacionamento", "saude", "trabalho"), start=10):
+            conn.execute(text(
+                "INSERT INTO tasks (id, user_id, title, category, due, done, important) "
+                f"VALUES ({i}, 1, 'x', '{cat}', 'Hoje', 0, 0)"
+            ))
+
+    database._migrate_categories()
+    database._migrate_categories()  # idempotente
+
+    with legado.connect() as conn:
+        cats = dict(conn.execute(text("SELECT id, category FROM tasks WHERE id >= 10")).all())
+    assert cats == {10: "familia", 11: "pessoal", 12: "saude", 13: "trabalho"}

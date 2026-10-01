@@ -27,30 +27,35 @@
 
 ## Contexto do Aplicativo: MenteLeve
 
-> **Em transição (29/09/2026):** o público está sendo ampliado para vida + trabalho, com mulheres e mães como público prioritário, não exclusivo. Ver [`plano_migracao_vida_trabalho.md`](../docs/plano_migracao_vida_trabalho.md). Este documento descreve a visão atual até a Fase 4 do plano.
+> **Atualizado em 01/10/2026:** o MenteLeve deixou de ser um app só para mulheres e mães e passou a ser uma **agenda para profissionais do mercado de trabalho**, que reúne trabalho e vida pessoal. A migração segue o [plano de migração](plano_migracao_vida_trabalho.md) (Fases 1 a 5 entregues).
 
 ### 1. Visão Geral
-O **MenteLeve** é um aplicativo focado na gestão e alívio da carga mental, projetado para atuar como um "Segundo Cérebro" (Second Brain). Seu principal objetivo é ajudar as pessoas, especialmente mulheres e mães, a organizarem suas rotinas de forma fluida, reduzindo a sobrecarga cognitiva através de uma interface sem atrito e do uso prático de Inteligência Artificial.
+O **MenteLeve** é uma agenda inteligente para quem concilia trabalho e vida pessoal, projetada para atuar como um "Segundo Cérebro" (Second Brain). Seu principal objetivo é ajudar profissionais a organizarem reuniões, entregas, estudos e compromissos pessoais de forma fluida, reduzindo a sobrecarga mental através de uma interface sem atrito e do uso prático de Inteligência Artificial. Mulheres e mães, o público original, continuam sendo atendidos — o app só deixou de presumir quem a pessoa é.
 
 ### 2. A Dor e o Problema
-A premissa central é que *"a sua mente não foi feita para guardar tudo"*. A gestão simultânea da casa, dos filhos, do trabalho e da vida pessoal exige um esforço invisível e contínuo. Muitas vezes, as ferramentas tradicionais de produtividade falham por serem muito complexas, e o próprio ato de registrar ou delegar uma tarefa para o parceiro acaba gerando mais fricção do que a execução em si.
+A premissa central é que *"a sua mente não foi feita para guardar tudo"*. A gestão simultânea de reuniões, prazos, estudos, casa, família e vida pessoal exige um esforço invisível e contínuo, e é uma fonte conhecida de estresse e burnout. Muitas vezes, as ferramentas tradicionais de produtividade falham por serem muito complexas, e o próprio ato de registrar ou delegar uma tarefa a alguém acaba gerando mais fricção do que a execução em si.
 
 ### 3. A Solução e Funcionalidades Principais
 O MVP do MenteLeve foca em velocidade de navegação e entrega imediata de valor (Aha Moment), com os seguintes pilares:
 
 * **Onboarding e Acesso Sem Atrito:** Fluxos rápidos de cadastro por e-mail e senha. Social Login (Apple/Google) está planejado, hoje aparece como "em breve".
-* **Criação Inteligente de Tarefas (NLP e IA):** A usuária digita ou fala de forma natural. A Inteligência Artificial atua nos bastidores sugerindo divisões, lembretes ou automações (o *Aha Moment*), pensando nos detalhes antes da própria usuária.
-* **Compartilhamento Familiar / Rede de Apoio:** Visão de convidar o parceiro ou a rede de apoio para dividir responsabilidades. Hoje é fachada (tela pronta, sem convite real).
+* **Criação Inteligente de Tarefas (NLP e IA):** A pessoa digita ou fala de forma natural ("reunião com o cliente sexta às 10h"). A Inteligência Artificial atua nos bastidores sugerindo subtarefas (pauta, convite, ata), lembretes ou automações (o *Aha Moment*), pensando nos detalhes antes da própria pessoa.
+* **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos — Trabalho (trabalho, reuniões, carreira, estudos) e Vida (casa, família, saúde, finanças, pessoal) — com filtro Tudo / Trabalho / Vida na Home e na Agenda. O onboarding pergunta para que a pessoa vai usar o app e define o filtro inicial.
+* **Tarefas recorrentes:** diária, semanal ou mensal (reunião semanal, relatório do mês).
+* **Compartilhamento / Rede de Apoio:** Visão de convidar familiares ou colegas de equipe para dividir responsabilidades. Hoje é fachada (tela pronta, sem convite real).
+* **Módulos opcionais:** o calendário menstrual (100% privado, só no aparelho) é um módulo desligado por padrão, ativado em Perfil. Quem já o usava continua com ele ligado.
 * **Micro-interações de Recompensa:** O app utiliza efeitos visuais (fade-outs suaves) e sonoros prazerosos ao concluir uma pendência, liberando endorfina e incentivando o uso contínuo.
 
-### 4. Identidade Visual (Design System: Bordeaux Pink)
-A interface foi rigorosamente pensada para não gerar estresse visual, guiando-se pela regra 60:30:10 e por uma paleta sofisticada, romântica e acolhedora:
+### 4. Identidade Visual (Design System: Bordeaux Pink + temas)
+A interface foi rigorosamente pensada para não gerar estresse visual, guiando-se pela regra 60:30:10. O **Bordeaux Pink** é o tema padrão; a pessoa pode trocar a cor do app em Perfil → Cor do app (Oceano, Floresta, Grafite e Lavanda), e todas as paletas passam no contraste de texto AA. A paleta padrão, sofisticada e acolhedora:
 * **Fundo (60%):** O *Lavender Blush* (#fff0f3) substitui o branco clínico ou cinza, criando um ambiente de leveza e conforto logo no primeiro contato.
 * **Estrutura (30%):** O *Night Bordeaux* (#590d22) e tons de vinho trazem elegância, contraste e clareza para a tipografia e cabeçalhos.
-* **Ação (10%):** O *Bubblegum Pink* (#ff4d6d) é a cor de sotaque (accent), usada estrategicamente para guiar a atenção da usuária aos botões de conversão e elementos interativos essenciais.
+* **Ação (10%):** O *Bubblegum Pink* (#ff4d6d) é a cor de sotaque (accent), usada estrategicamente para guiar a atenção aos botões de conversão e elementos interativos essenciais.
+
+**Logotipo:** uma folha de agenda com uma folha ("leve") e a faísca da IA, em SVG que usa as cores do tema ativo. Os ícones do PWA (que são arquivos fixos e não acompanham o tema) usam uma versão neutra em grafite. O logotipo anterior (silhueta feminina com borboleta, em rosa) foi aposentado.
 
 ### 5. Modelo de Negócios
-O MenteLeve é 100% gratuito, sem limite de tarefas nem plano pago — o modelo Freemium/Paywall descrito em versões anteriores deste documento foi descontinuado. Todos os recursos de organização de tarefas ficam disponíveis para qualquer usuária cadastrada, sem trava de uso.
+O MenteLeve é 100% gratuito, sem limite de tarefas nem plano pago — o modelo Freemium/Paywall descrito em versões anteriores deste documento foi descontinuado. Todos os recursos de organização de tarefas ficam disponíveis para qualquer pessoa cadastrada, sem trava de uso.
 
 ---
 
@@ -80,10 +85,10 @@ O MenteLeve é 100% gratuito, sem limite de tarefas nem plano pago — o modelo 
 
 ### 1. Visão geral
 
-O **MenteLeve** é um app de gestão de carga mental para mulheres e mães — um
-"segundo cérebro" que reduz sobrecarga cognitiva com uma assistente de IA (Bruna)
-que organiza e antecipa tarefas da rotina, 100% gratuito, sem limite de tarefas nem
-plano pago. A dor e a proposta de valor estão descritas em detalhe em
+O **MenteLeve** é uma agenda inteligente para profissionais do mercado de trabalho —
+um "segundo cérebro" que reúne trabalho e vida pessoal e reduz a sobrecarga com uma
+assistente de IA (Bruna) que organiza e antecipa tarefas, 100% gratuito, sem limite de
+tarefas nem plano pago. A dor e a proposta de valor estão descritas em detalhe em
 [`contexto_menteleve.md`](#parte-1--contexto-do-produto) — não repetido aqui.
 
 O restante deste documento cobre o que já existe de fato: arquitetura, decisões
@@ -98,7 +103,7 @@ ao estado atual.
 
 #### Em uma frase
 
-Aplicativo de gestão de **carga mental** para mulheres e mães, no ar como PWA
+Agenda inteligente para **trabalho e vida pessoal**, no ar como PWA
 instalável, com autenticação real, banco Postgres gerenciado, IA que cria e conclui
 tarefas por conversa, e o conteúdo das tarefas criptografado no banco.
 
@@ -311,6 +316,12 @@ Documentação de referência: [`../README.md`](../README.md) (visão geral e de
 ---
 
 ### 3. Design system — Bordeaux Pink
+
+> **Atualização (01/10/2026):** o Bordeaux Pink agora é o **tema padrão** de 5 (Oceano,
+> Floresta, Grafite e Lavanda são os outros), escolhidos em Perfil → Cor do app. A paleta
+> abaixo segue valendo para o padrão; os temas só redefinem os mesmos tokens. Detalhes na
+> [Parte 6](#parte-6--readme-do-frontend-cópia), seção "Temas de cor".
+
 
 Identidade visual que combina tons profundos de bordeaux com rosas vibrantes e
 neutros suaves. Personalidade: **sofisticada, romântica, moderna, confiante,
@@ -1026,7 +1037,7 @@ O que as 45 verificações do navegador cobriram: 4 seções na ordem certa com 
 
 **MenteLeve** é uma agenda inteligente para **profissionais do mercado de trabalho** — um "Segundo Cérebro" que reúne, num só lugar, as tarefas do trabalho (reuniões, entregas, prazos, estudos, carreira) e da vida pessoal (casa, saúde, família, finanças). Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis de cada compromisso (o *Aha Moment*).
 
-> 🔄 **Em transição:** o app nasceu voltado a mulheres e mães e está sendo ampliado para profissionais em geral. Parte da interface ainda reflete o público original — ver o [plano de migração](../docs/plano_migracao_vida_trabalho.md).
+> O app nasceu voltado a mulheres e mães e foi ampliado para profissionais em geral (Fases 1 a 5 do [plano de migração](../docs/plano_migracao_vida_trabalho.md)). Falta a recorrência avançada, as visões diária e semanal e as integrações com calendários.
 
 🔗 **App (PWA):** https://mente-leve-teal.vercel.app
 🔗 **API:** https://menteleve.onrender.com · [`/docs`](https://menteleve.onrender.com/docs)
@@ -1056,12 +1067,14 @@ O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ON
 - **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
 - **Subtarefas da IA fixadas** na tarefa-mãe (a sugestão vira filho da tarefa que você criou).
 - **Bruna — assistente com IA que age:** organiza a agenda e **cria e conclui tarefas pelo chat** ("marca reunião com o cliente amanhã às 10h", "marca o relatório como feito").
+- **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Vida: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
 - **Tarefas recorrentes** (diária, semanal, mensal): reunião semanal, relatório do mês, rotinas pessoais.
+- **Cor do app personalizável:** 5 temas (Bordeaux Pink, Oceano, Floresta, Grafite, Lavanda), escolhidos no Perfil.
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Lembretes por notificação push** (opt-in) antes do horário da tarefa.
 - **Rede de apoio** (compartilhar tarefas com família ou equipe) — app 100% gratuito, sem limite de tarefas nem plano pago.
-- **🌸 Calendário menstrual** (módulo opcional e 100% privado/local): fases do ciclo, período fértil e previsão.
+- **🌸 Calendário menstrual** (módulo opcional, desligado por padrão, ativado no Perfil; 100% privado/local): fases do ciclo, período fértil e previsão.
 - **PWA instalável** e com suporte offline (Service Worker) — 264 KB de precache em
   disco, ~149 KB transferidos (o gzip do servidor comprime os textos; as imagens já
   chegam comprimidas).
@@ -1090,10 +1103,12 @@ MenteLeve/
 │   ├── index.html            # shell + config do Tailwind
 │   ├── manifest.json · sw.js # PWA (instalação + cache offline)
 │   ├── css/styles.css        # Design System + layout responsivo + animações
-│   ├── assets/               # ilustrações (WebP) + ícones do PWA (PNG)
+│   ├── assets/               # logo (SVG) + ícones do PWA (PNG/WebP)
 │   └── js/
 │       ├── app.js            # bootstrap + mini-router
 │       ├── store.js          # estado local (localStorage) + sync
+│       ├── categories.js     # categorias Trabalho/Vida + filtro de grupo
+│       ├── theme.js          # temas de cor
 │       ├── api.js            # cliente REST (JWT) + heurística de fallback
 │       ├── dates.js          # prazo estruturado (resolução + exibição)
 │       ├── sound.js          # feedback sonoro sintetizado (Web Audio)
@@ -1445,23 +1460,25 @@ Todas as rotas de `/tasks` e `/auth/me*` exigem o header `Authorization: Bearer 
 
 ### Bruna: ações pelo chat
 
+Os prompts (`app/ai.py`: `_SYSTEM` para a análise de tarefas e `_CHAT_SYSTEM` para a Bruna) cobrem trabalho **e** vida pessoal: descrevem cada uma das 9 categorias, dão exemplos de subtarefas de trabalho (reunião → pauta/convite/ata; entrega → revisar/aprovar/enviar) e usam linguagem neutra, sem presumir gênero, profissão nem se a pessoa tem filhos. A Bruna também é instruída a não registrar informações confidenciais de trabalho. O `tests/test_prompts.py` trava essas propriedades.
+
 `POST /ai/chat` usa *function calling* do Gemini. A Bruna pode chamar duas funções:
 `criar_tarefa` e `concluir_tarefa`. **Excluir ficou de fora de propósito** — é
 destrutivo e a identificação é por texto aproximado.
 
 Pontos de projeto que importam ao mexer aqui (`routers/ai_chat.py`):
-- **O modelo nunca informa um id.** Ele passa o título com as palavras da usuária e o
+- **O modelo nunca informa um id.** Ele passa o título com as palavras da pessoa e o
   servidor casa contra as tarefas **dela** (`_match_tasks`, ignorando acentos/caixa).
   Isso elimina a classe de erro "modelo inventa um id". Com mais de uma candidata,
   devolve `ambiguo` e a Bruna pergunta em vez de escolher.
 - **Confirmação composta no servidor** no caminho feliz (1 ida ao modelo, mais rápido
   e sem risco de a IA narrar errado o que fez). A 2ª ida só acontece quando é preciso
   nuance: ambiguidade, tarefa não encontrada, limite do plano.
-- **Idempotência:** o timeout do cliente não cancela a requisição, então a usuária
+- **Idempotência:** o timeout do cliente não cancela a requisição, então a pessoa
   podia ver o fallback, repetir o pedido e criar duplicata. `find_recent_duplicate`
   bloqueia isso.
 - **Limite gratuito vira resultado de função**, não `HTTPException(402)` — um 402 aqui
-  abortaria a resposta e a usuária perderia a fala da Bruna.
+  abortaria a resposta e a pessoa perderia a fala da Bruna.
 
 ### IA: provedor principal e reserva
 
@@ -1492,11 +1509,37 @@ Detalhes que economizam depuração:
 > ⚠️ O tier gratuito dos dois provedores permite uso do conteúdo para treinamento. Para
 > um app de rotina/saúde feminina, considere o tier pago.
 
+### Categorias
+
+`app/categories.py` é a fonte única: **Trabalho** (`trabalho`, `reunioes`, `carreira`, `estudos`) e
+**Vida** (`casa`, `familia`, `saude`, `financas`, `pessoal`). O frontend espelha em `js/categories.js`.
+
+As categorias antigas (`filhos` → `familia`, `relacionamento` → `pessoal`) continuam aceitas na
+entrada e são convertidas pelo schema (`BeforeValidator`) — clientes com cache antigo e filas
+offline ainda as enviam. As linhas já gravadas são convertidas no boot por
+`database._migrate_categories` (UPDATE idempotente; o equivalente em SQL está no fim de
+`supabase_schema.sql`). A resposta da API sempre traz as categorias atuais.
+
 ### Tarefas recorrentes
 
 `is_recurring` + `recurrence_pattern` (`daily` | `weekly` | `monthly`). Concluir uma recorrente
 **não a fecha**: o prazo rola para a próxima ocorrência (`app/recurrence.py`), sem criar cópia.
-`PUT /tasks/{id}/complete?today=AAAA-MM-DD` recebe a data local da usuária.
+`PUT /tasks/{id}/complete?today=AAAA-MM-DD` recebe a data local do usuário.
+
+Dois campos refinam a regra:
+
+- `recurrence_weekdays` (só com `weekly`): dias específicos, `0` = segunda … `6` = domingo
+  (padrão do `date.weekday()` do Python; **não** o `getDay()` do JS). Dias úteis = `[0,1,2,3,4]`.
+  A próxima ocorrência é o primeiro desses dias depois de hoje e do prazo. No banco vira o
+  texto `"0,2,4"` (`models.WeekdayList`).
+- `recurrence_until`: último dia da série. Concluir quando não há próxima ocorrência antes
+  dele **fecha** a tarefa de vez.
+
+A detecção por texto (`recurrence.resolve`) reconhece "dias úteis", "de segunda a sexta",
+"toda segunda e quarta", "até 20/12", "até dezembro". É usada pela IA (quando ela omite ou
+erra os campos), pelo fallback sem IA do `/tasks/smart` e pela Bruna (`dias_semana`, `ate`).
+`PATCH /tasks/{id}` edita a recorrência depois de criada e mantém os campos coerentes
+(desligar limpa tudo; trocar para diário/mensal descarta os dias).
 
 ### Testes
 
@@ -1560,6 +1603,8 @@ Frontend/
     ├── store.js            # estado + localStorage + sincronização
     ├── api.js              # cliente REST (JWT) + heurística local de fallback
     ├── dates.js            # prazo estruturado: resolução e exibição de datas
+    ├── categories.js       # categorias (Trabalho / Vida), mapeamento das antigas, grupo escolhido
+    ├── theme.js            # temas de cor: lista, persistência e aplicação
     ├── sound.js            # feedback sonoro sintetizado (Web Audio)
     ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
     ├── components/
@@ -1624,9 +1669,46 @@ não da conta: sobrevive ao logout, assim como os dados do ciclo. Estados gravad
 versão do interruptor booleano migram na leitura — quem tinha desligado fica em
 `silencio`.
 
+### Temas de cor
+
+O app tem 5 temas (Bordeaux Pink é o padrão); a escolha fica em **Perfil → Cor do app**.
+Cada tema é um bloco `:root[data-theme="..."]` em `css/styles.css` que só redefine os
+canais RGB (`--rgb-*`). Tudo deriva deles: os `--color-*` do CSS e as cores do Tailwind
+(`index.html`, via `rgb(var(--rgb-x) / <alpha-value>)`, então `bg-accent/15` funciona em
+qualquer tema).
+
+- **Não escreva hex no código** — use um token (`var(--color-accent)`, `text-bordeaux-900`…).
+  Cor fixa não acompanha o tema. (Exceções: branco e o logotipo do Google.)
+- O tema salvo é aplicado por um script no `<head>` do `index.html`, **antes** do primeiro
+  render (sem flash). O id vem de `js/theme.js`; a chave é `menteleve.theme`.
+- Para criar um tema: acrescente o bloco no CSS e a entrada em `THEMES` (`theme.js`). O
+  `tests/theme.test.mjs` confere que os dois batem e que o contraste de texto é ≥ 4,5:1.
+- O logotipo e as ilustrações do onboarding acompanham o tema. Só os **ícones do PWA** não
+  (são arquivos estáticos; ver "Imagens").
+
+### Repetição de tarefas
+
+`js/dates.js` espelha `Backend/app/recurrence.py`: `nextOccurrence` (com dias específicos e
+fim da série), `detectWeekdays`, `detectUntil`, `firstOccurrence` e `recurrenceLabel`. Dias no
+padrão do Python (**0 = segunda**); use `weekdayOf(chave)`, nunca `Date.getDay()` direto.
+O seletor (`components/recurrencePicker.js`) é o mesmo na criação e na edição; a edição fica
+no menu da tarefa (pressão longa / botão direito) e, offline, entra na fila como `update`.
+
+### Categorias
+
+`js/categories.js` é a fonte única: 4 de **Trabalho** (trabalho, reuniões, carreira, estudos)
+e 5 de **Vida** (casa, família, saúde, finanças, pessoal). O backend espelha em
+`Backend/app/categories.py`. As ids antigas (`filhos` → `familia`, `relacionamento` →
+`pessoal`) são convertidas ao carregar o estado local e nas respostas da API.
+O filtro **Tudo / Trabalho / Vida** (Home e Agenda) é lembrado em `menteleve.group`.
+
 ### Imagens
 
-Ilustrações, logo e ícones em **WebP**, dimensionados para o tamanho real de exibição.
+O **logotipo** é SVG inline (`js/ui.js::logoMark`) e usa as cores do tema ativo; as
+ilustrações do onboarding também são feitas só de tokens, sem imagem. Os **ícones do PWA**
+(`icon-192`/`icon-512`) são arquivos fixos e **não acompanham o tema** — usam uma versão
+neutra em grafite, gerada a partir de `assets/logo.svg`. Se mudar o desenho do logo, mude
+os três lugares: `logo.svg`, `logoMark` e a splash do `index.html`.
 O `manifest.json` lista o WebP primeiro e mantém o **PNG como fallback** para qualquer
 plataforma que não o aceite.
 
@@ -1644,15 +1726,17 @@ Sem dependências nem build — só o Node (>= 18) da máquina:
 node --test "Frontend/tests/*.test.mjs"
 ```
 
-Cobrem `dates.js`, a persistência/fila offline do `store.js` (com `localStorage` e `fetch`
+Cobrem `dates.js`, `categories.js`, `theme.js` (inclusive o contraste de cada tema), a persistência/fila offline do `store.js` (com `localStorage` e `fetch`
 simulados) e as mensagens de erro. Os casos de recorrência espelham `Backend/tests/test_recurrence.py`.
 
 ### Notas
 
 - Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.
 - Conexões tem visual completo, mas o convite de parceiro(a) ainda é simulado.
-- O **calendário menstrual é 100% local** (`localStorage`), nunca vai ao backend — e
-  sobrevive à expiração da sessão, por não pertencer à conta.
+- O **calendário menstrual é um módulo opcional** (Perfil → Calendário menstrual; desligado
+  por padrão) e 100% local (`localStorage`), nunca vai ao backend — e sobrevive à expiração
+  da sessão, por não pertencer à conta. Quem já o usava antes do módulo existir continua
+  com ele ligado (migração em `store.js::migrar`). Desligar só esconde: os dados ficam.
 - Estado persiste em `localStorage` (chave `menteleve.state.v1`).
 - No **servidor**, o título das tarefas é criptografado (AES-256-GCM). No **aparelho**
   ele fica em texto puro no `localStorage` — é o que faz o modo offline funcionar. A

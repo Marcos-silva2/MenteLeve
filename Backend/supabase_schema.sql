@@ -31,7 +31,7 @@ create table if not exists tasks (
     -- Subtarefa: aponta para a tarefa-mãe (NULL = tarefa principal).
     parent_id     bigint references tasks (id) on delete cascade,
     title         text not null,
-    -- Categoria do design system: casa | filhos | trabalho | saude | financas | relacionamento
+    -- Categoria: trabalho | reunioes | carreira | estudos | casa | familia | saude | financas | pessoal
     category      varchar(40) not null default 'casa',
     -- Prazo estruturado: fonte da verdade para posicionar no calendário.
     due_date      date,
@@ -71,6 +71,9 @@ create index if not exists ix_push_subscriptions_user_id on push_subscriptions (
 -- ocorrência (ver Backend/app/recurrence.py); recurrence_pattern: daily|weekly|monthly.
 alter table tasks add column if not exists is_recurring boolean not null default false;
 alter table tasks add column if not exists recurrence_pattern varchar(10);
+-- Recorrência avançada: dias específicos ("0,2,4", 0 = segunda; só weekly) e fim da série.
+alter table tasks add column if not exists recurrence_weekdays varchar(20);
+alter table tasks add column if not exists recurrence_until date;
 
 -- Para bancos criados antes da criptografia (idempotente): o ciphertext em
 -- base64 não cabe no varchar original. O backend também faz isso no boot
@@ -101,3 +104,9 @@ alter default privileges in schema public revoke all on tables from anon, authen
 --   BOOLEAN                     -> boolean                   (SQLite guarda como 0/1; Postgres é nativo)
 --   DATETIME (naive/UTC)        -> timestamptz                (Postgres é mais rigoroso: exige TZ explícito)
 --   FOREIGN KEY ... ON DELETE CASCADE -> igual, sintaxe compatível
+
+-- Ampliação para vida + trabalho: categorias antigas -> atuais.
+-- O backend já faz isso no boot (database._migrate_categories); rode aqui só se
+-- preferir converter antes do deploy. Idempotente.
+update tasks set category = 'familia' where category = 'filhos';
+update tasks set category = 'pessoal' where category = 'relacionamento';

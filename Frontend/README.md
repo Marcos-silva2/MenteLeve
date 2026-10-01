@@ -29,6 +29,8 @@ Frontend/
     ├── store.js            # estado + localStorage + sincronização
     ├── api.js              # cliente REST (JWT) + heurística local de fallback
     ├── dates.js            # prazo estruturado: resolução e exibição de datas
+    ├── categories.js       # categorias (Trabalho / Vida), mapeamento das antigas, grupo escolhido
+    ├── theme.js            # temas de cor: lista, persistência e aplicação
     ├── sound.js            # feedback sonoro sintetizado (Web Audio)
     ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
     ├── components/
@@ -93,9 +95,46 @@ não da conta: sobrevive ao logout, assim como os dados do ciclo. Estados gravad
 versão do interruptor booleano migram na leitura — quem tinha desligado fica em
 `silencio`.
 
+## Temas de cor
+
+O app tem 5 temas (Bordeaux Pink é o padrão); a escolha fica em **Perfil → Cor do app**.
+Cada tema é um bloco `:root[data-theme="..."]` em `css/styles.css` que só redefine os
+canais RGB (`--rgb-*`). Tudo deriva deles: os `--color-*` do CSS e as cores do Tailwind
+(`index.html`, via `rgb(var(--rgb-x) / <alpha-value>)`, então `bg-accent/15` funciona em
+qualquer tema).
+
+- **Não escreva hex no código** — use um token (`var(--color-accent)`, `text-bordeaux-900`…).
+  Cor fixa não acompanha o tema. (Exceções: branco e o logotipo do Google.)
+- O tema salvo é aplicado por um script no `<head>` do `index.html`, **antes** do primeiro
+  render (sem flash). O id vem de `js/theme.js`; a chave é `menteleve.theme`.
+- Para criar um tema: acrescente o bloco no CSS e a entrada em `THEMES` (`theme.js`). O
+  `tests/theme.test.mjs` confere que os dois batem e que o contraste de texto é ≥ 4,5:1.
+- O logotipo e as ilustrações do onboarding acompanham o tema. Só os **ícones do PWA** não
+  (são arquivos estáticos; ver "Imagens").
+
+## Repetição de tarefas
+
+`js/dates.js` espelha `Backend/app/recurrence.py`: `nextOccurrence` (com dias específicos e
+fim da série), `detectWeekdays`, `detectUntil`, `firstOccurrence` e `recurrenceLabel`. Dias no
+padrão do Python (**0 = segunda**); use `weekdayOf(chave)`, nunca `Date.getDay()` direto.
+O seletor (`components/recurrencePicker.js`) é o mesmo na criação e na edição; a edição fica
+no menu da tarefa (pressão longa / botão direito) e, offline, entra na fila como `update`.
+
+## Categorias
+
+`js/categories.js` é a fonte única: 4 de **Trabalho** (trabalho, reuniões, carreira, estudos)
+e 5 de **Vida** (casa, família, saúde, finanças, pessoal). O backend espelha em
+`Backend/app/categories.py`. As ids antigas (`filhos` → `familia`, `relacionamento` →
+`pessoal`) são convertidas ao carregar o estado local e nas respostas da API.
+O filtro **Tudo / Trabalho / Vida** (Home e Agenda) é lembrado em `menteleve.group`.
+
 ## Imagens
 
-Ilustrações, logo e ícones em **WebP**, dimensionados para o tamanho real de exibição.
+O **logotipo** é SVG inline (`js/ui.js::logoMark`) e usa as cores do tema ativo; as
+ilustrações do onboarding também são feitas só de tokens, sem imagem. Os **ícones do PWA**
+(`icon-192`/`icon-512`) são arquivos fixos e **não acompanham o tema** — usam uma versão
+neutra em grafite, gerada a partir de `assets/logo.svg`. Se mudar o desenho do logo, mude
+os três lugares: `logo.svg`, `logoMark` e a splash do `index.html`.
 O `manifest.json` lista o WebP primeiro e mantém o **PNG como fallback** para qualquer
 plataforma que não o aceite.
 
@@ -113,15 +152,17 @@ Sem dependências nem build — só o Node (>= 18) da máquina:
 node --test "Frontend/tests/*.test.mjs"
 ```
 
-Cobrem `dates.js`, a persistência/fila offline do `store.js` (com `localStorage` e `fetch`
+Cobrem `dates.js`, `categories.js`, `theme.js` (inclusive o contraste de cada tema), a persistência/fila offline do `store.js` (com `localStorage` e `fetch`
 simulados) e as mensagens de erro. Os casos de recorrência espelham `Backend/tests/test_recurrence.py`.
 
 ## Notas
 
 - Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.
 - Conexões tem visual completo, mas o convite de parceiro(a) ainda é simulado.
-- O **calendário menstrual é 100% local** (`localStorage`), nunca vai ao backend — e
-  sobrevive à expiração da sessão, por não pertencer à conta.
+- O **calendário menstrual é um módulo opcional** (Perfil → Calendário menstrual; desligado
+  por padrão) e 100% local (`localStorage`), nunca vai ao backend — e sobrevive à expiração
+  da sessão, por não pertencer à conta. Quem já o usava antes do módulo existir continua
+  com ele ligado (migração em `store.js::migrar`). Desligar só esconde: os dados ficam.
 - Estado persiste em `localStorage` (chave `menteleve.state.v1`).
 - No **servidor**, o título das tarefas é criptografado (AES-256-GCM). No **aparelho**
   ele fica em texto puro no `localStorage` — é o que faz o modo offline funcionar. A

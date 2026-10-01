@@ -4,7 +4,7 @@
 
 **MenteLeve** é uma agenda inteligente para **profissionais do mercado de trabalho** — um "Segundo Cérebro" que reúne, num só lugar, as tarefas do trabalho (reuniões, entregas, prazos, estudos, carreira) e da vida pessoal (casa, saúde, família, finanças). Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis de cada compromisso (o *Aha Moment*).
 
-> 🔄 **Em transição:** o app nasceu voltado a mulheres e mães e está sendo ampliado para profissionais em geral. Parte da interface ainda reflete o público original — ver o [plano de migração](docs/plano_migracao_vida_trabalho.md).
+> O app nasceu voltado a mulheres e mães e foi ampliado para profissionais em geral (Fases 1 a 5 do [plano de migração](docs/plano_migracao_vida_trabalho.md)). Falta a recorrência avançada, as visões diária e semanal e as integrações com calendários.
 
 🔗 **App (PWA):** https://mente-leve-teal.vercel.app
 🔗 **API:** https://menteleve.onrender.com · [`/docs`](https://menteleve.onrender.com/docs)
@@ -34,12 +34,14 @@ O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ON
 - **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
 - **Subtarefas da IA fixadas** na tarefa-mãe (a sugestão vira filho da tarefa que você criou).
 - **Bruna — assistente com IA que age:** organiza a agenda e **cria e conclui tarefas pelo chat** ("marca reunião com o cliente amanhã às 10h", "marca o relatório como feito").
+- **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Vida: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
 - **Tarefas recorrentes** (diária, semanal, mensal): reunião semanal, relatório do mês, rotinas pessoais.
+- **Cor do app personalizável:** 5 temas (Bordeaux Pink, Oceano, Floresta, Grafite, Lavanda), escolhidos no Perfil.
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Lembretes por notificação push** (opt-in) antes do horário da tarefa.
 - **Rede de apoio** (compartilhar tarefas com família ou equipe) — app 100% gratuito, sem limite de tarefas nem plano pago.
-- **🌸 Calendário menstrual** (módulo opcional e 100% privado/local): fases do ciclo, período fértil e previsão.
+- **🌸 Calendário menstrual** (módulo opcional, desligado por padrão, ativado no Perfil; 100% privado/local): fases do ciclo, período fértil e previsão.
 - **PWA instalável** e com suporte offline (Service Worker) — 264 KB de precache em
   disco, ~149 KB transferidos (o gzip do servidor comprime os textos; as imagens já
   chegam comprimidas).
@@ -68,10 +70,12 @@ MenteLeve/
 │   ├── index.html            # shell + config do Tailwind
 │   ├── manifest.json · sw.js # PWA (instalação + cache offline)
 │   ├── css/styles.css        # Design System + layout responsivo + animações
-│   ├── assets/               # ilustrações (WebP) + ícones do PWA (PNG)
+│   ├── assets/               # logo (SVG) + ícones do PWA (PNG/WebP)
 │   └── js/
 │       ├── app.js            # bootstrap + mini-router
 │       ├── store.js          # estado local (localStorage) + sync
+│       ├── categories.js     # categorias Trabalho/Vida + filtro de grupo
+│       ├── theme.js          # temas de cor
 │       ├── api.js            # cliente REST (JWT) + heurística de fallback
 │       ├── dates.js          # prazo estruturado (resolução + exibição)
 │       ├── sound.js          # feedback sonoro sintetizado (Web Audio)

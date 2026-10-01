@@ -5,16 +5,33 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-# Categorias do design system (espelham o frontend).
-Category = Literal["casa", "filhos", "trabalho", "saude", "financas", "relacionamento"]
+from app.categories import CATEGORIES, DEFAULT_CATEGORY, normalize_category
+from app.recurrence import clean_weekdays
+
+# Categorias (ver app/categories.py). Aceita também as antigas ("filhos",
+# "relacionamento"), convertidas na entrada: quem responde sempre devolve as atuais.
+Category = Annotated[Literal[CATEGORIES], BeforeValidator(normalize_category)]
 
 # Horário no formato "HH:MM" (24h).
 TimeStr = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
 
 # Recorrência de tarefas (ver app/recurrence.py).
 RecurrencePattern = Literal["daily", "weekly", "monthly"]
+
+
+def _weekdays(value):
+    """[0..6] (0 = segunda); aceita também "0,2,4". Inválido -> erro de validação."""
+    if value is None:
+        return None
+    dias = clean_weekdays(value)
+    if dias is None and value not in ([], ""):
+        raise ValueError("recurrence_weekdays: use dias de 0 (segunda) a 6 (domingo), sem repetir todos os 7.")
+    return dias
+
+
+Weekdays = Annotated[list[int] | None, BeforeValidator(_weekdays)]
 
 # ----------------------- User -----------------------
 class UserBase(BaseModel):
@@ -57,7 +74,7 @@ class TokenOut(BaseModel):
 # ----------------------- Task -----------------------
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
-    category: Category = "casa"
+    category: Category = DEFAULT_CATEGORY
     # Prazo estruturado — fonte da verdade para o calendário.
     due_date: date | None = None
     due_time: TimeStr | None = None
@@ -70,14 +87,25 @@ class TaskBase(BaseModel):
     # validador abaixo os mantém coerentes (nunca "recorrente sem padrão").
     is_recurring: bool = False
     recurrence_pattern: RecurrencePattern | None = None
+    # Dias específicos (só weekly) e fim da série. Ver app/recurrence.py.
+    recurrence_weekdays: Weekdays = None
+    recurrence_until: date | None = None
 
     @model_validator(mode="after")
     def _recorrencia_coerente(self) -> "TaskBase":
+        # Dias específicos implicam semanal.
+        if self.recurrence_weekdays and self.recurrence_pattern is None:
+            self.recurrence_pattern = "weekly"
         # Só o padrão informado: entende como recorrente (o cliente pode omitir a flag).
         if self.recurrence_pattern is not None and not self.is_recurring:
             self.is_recurring = True
         if self.is_recurring and self.recurrence_pattern is None:
             raise ValueError("Informe recurrence_pattern (daily, weekly ou monthly).")
+        if self.recurrence_weekdays and self.recurrence_pattern != "weekly":
+            raise ValueError("recurrence_weekdays só vale para recorrência semanal.")
+        if not self.is_recurring:
+            self.recurrence_weekdays = None
+            self.recurrence_until = None
         return self
 
 
@@ -95,6 +123,8 @@ class TaskUpdate(BaseModel):
     done: bool | None = None
     is_recurring: bool | None = None
     recurrence_pattern: RecurrencePattern | None = None
+    recurrence_weekdays: Weekdays = None
+    recurrence_until: date | None = None
 
 
 class TaskOut(TaskBase):
@@ -139,7 +169,7 @@ class SmartTaskIn(BaseModel):
 
 class AiSuggestionAction(BaseModel):
     title: str
-    category: Category = "casa"
+    category: Category = DEFAULT_CATEGORY
     due_date: date | None = None
     due_time: TimeStr | None = None
     due: str = ""
@@ -156,7 +186,7 @@ class SmartTaskOut(BaseModel):
     Sem IA configurada, `subtasks` vem vazio e `suggestion` nulo.
     """
     title: str
-    category: Category = "casa"
+    category: Category = DEFAULT_CATEGORY
     due_date: date | None = None
     due_time: TimeStr | None = None
     due: str = ""
@@ -164,6 +194,8 @@ class SmartTaskOut(BaseModel):
     # estes campos ao criar a tarefa via POST /tasks.
     is_recurring: bool = False
     recurrence_pattern: RecurrencePattern | None = None
+    recurrence_weekdays: list[int] | None = None
+    recurrence_until: date | None = None
     subtasks: list[str] = []
     suggestion: AiSuggestion | None = None
     task: TaskOut | None = None  # a tarefa principal persistida

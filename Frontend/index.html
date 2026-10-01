@@ -4,10 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#fff0f3" />
-  <meta name="description" content="MenteLeve — a sua mente mais leve. Gestão de carga mental com inteligência artificial." />
+  <!-- Aplica o tema salvo ANTES do primeiro render (sem flash de cor).
+       Ids válidos: ver THEMES em js/theme.js. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('menteleve.theme');
+        if (t && /^[a-z]+$/.test(t) && t !== 'bordeaux') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+  <meta name="description" content="MenteLeve — a agenda inteligente para o trabalho e a vida. Organize tarefas e compromissos com inteligência artificial." />
   <title>MenteLeve</title>
 
   <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
   <link rel="icon" type="image/png" href="assets/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="assets/icon-192.png" />
 
@@ -34,28 +45,39 @@
     tailwind.config = {
       theme: {
         extend: {
+          // As cores vêm dos canais `--rgb-*` de css/styles.css (um bloco por
+          // tema), então `bg-accent/15` etc. continuam funcionando em qualquer tema.
+          // O nome `bordeaux` é histórico: designa a cor de estrutura do tema ativo.
           colors: {
-            bg: '#fff0f3',
-            bordeaux: { 900: '#590d22', 800: '#800f2f', 700: '#a4133c', 600: '#c9184a' },
-            accent: { DEFAULT: '#ff4d6d', hover: '#ff758f' },
-            soft: { 300: '#ff8fa3', 200: '#ffb3c1', 100: '#ffccd5' },
-            // Texto secundário. O rosa `soft-300` vinha fazendo esse papel e
-            // rende 1,96:1 sobre o fundo do app — abaixo dos 4,5:1 do WCAG AA,
-            // em rótulos de 10-11px e na navegação inferior. Este bordô
-            // dessaturado dá 4,90:1 sobre o fundo e 5,41:1 sobre o branco,
-            // e continua bem mais leve que o `bordeaux-900` do texto principal.
-            // `soft-300` fica para o que é decoração, não leitura.
-            muted: '#836169',
-            surface: '#ffffff',
+            bg: 'rgb(var(--rgb-bg) / <alpha-value>)',
+            bordeaux: {
+              900: 'rgb(var(--rgb-primary-900) / <alpha-value>)',
+              800: 'rgb(var(--rgb-primary-800) / <alpha-value>)',
+              700: 'rgb(var(--rgb-primary-700) / <alpha-value>)',
+              600: 'rgb(var(--rgb-primary-600) / <alpha-value>)',
+            },
+            accent: {
+              DEFAULT: 'rgb(var(--rgb-accent) / <alpha-value>)',
+              hover: 'rgb(var(--rgb-accent-hover) / <alpha-value>)',
+            },
+            soft: {
+              300: 'rgb(var(--rgb-soft-300) / <alpha-value>)',
+              200: 'rgb(var(--rgb-soft-200) / <alpha-value>)',
+              100: 'rgb(var(--rgb-soft-100) / <alpha-value>)',
+            },
+            // Texto secundário: em todos os temas dá ≥ 4,5:1 (WCAG AA) sobre o
+            // fundo e sobre o branco. `soft-300` fica para decoração, não leitura.
+            muted: 'rgb(var(--rgb-muted) / <alpha-value>)',
+            surface: 'rgb(var(--rgb-surface) / <alpha-value>)',
           },
           fontFamily: {
             sans: ['system-ui', '-apple-system', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
             serif: ['"Playfair Display"', 'Georgia', 'serif'],
           },
           boxShadow: {
-            card: '0 8px 24px rgba(89,13,34,.08)',
-            sheet: '0 -8px 40px rgba(89,13,34,.18)',
-            fab: '0 8px 24px rgba(255,77,109,.45)',
+            card: '0 8px 24px rgb(var(--rgb-primary-900) / .08)',
+            sheet: '0 -8px 40px rgb(var(--rgb-primary-900) / .18)',
+            fab: '0 8px 24px rgb(var(--rgb-accent) / .45)',
           },
           borderRadius: {
             xl2: '1.5rem',
@@ -87,7 +109,8 @@
   <div id="splash" class="splash" aria-hidden="true">
     <div id="splash-particles" class="splash-particles"></div>
     <div class="splash-stage">
-      <img class="splash-iso" src="assets/isotipo.webp" alt="" draggable="false" />
+      <!-- mesmo logo de js/ui.js, sem a faísca embutida: a splash tem a sua, animada -->
+      <svg viewBox="0 0 64 64" class="splash-iso" aria-hidden="true"><rect x="6" y="10" width="52" height="48" rx="14" fill="var(--color-primary-900)"/><rect x="19" y="4" width="6" height="14" rx="3" fill="var(--color-accent)"/><rect x="39" y="4" width="6" height="14" rx="3" fill="var(--color-accent)"/><path d="M18 47C15 31 28 21 46 22C48 38 36 50 18 47Z" fill="var(--color-bg)"/><path d="M20 45C27 38 33 33 41 27" fill="none" stroke="var(--color-accent)" stroke-width="2.4" stroke-linecap="round"/></svg>
       <span class="splash-spark">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.3L19 9l-5.2 1.7L12 16l-1.8-5.3L5 9l5.2-1.7L12 2z"/><circle cx="19.5" cy="4.5" r="1.3"/><circle cx="5" cy="17" r="1.1"/></svg>
       </span>

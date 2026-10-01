@@ -38,13 +38,21 @@ globalThis.fetch = async (url, opts = {}) => {
   if (m && metodo === 'PUT') {
     const t = servidor.tarefas.get(Number(m[1]));
     if (!t) return json(404, {});
-    if (m[2] === 'complete' && t.is_recurring) {
-      // Mesma regra do backend (crud.set_task_done): rola o prazo e não fecha.
-      const { nextOccurrence } = await import('../js/dates.js');
-      t.due_date = nextOccurrence(t.due_date, t.recurrence_pattern, searchParams.get('today'));
-    } else {
-      t.done = m[2] === 'complete';
-    }
+    // Mesma regra do backend (crud.set_task_done): rola o prazo e não fecha —
+    // a não ser que a série tenha terminado (recurrence_until).
+    const { nextOccurrence } = await import('../js/dates.js');
+    const prox = m[2] === 'complete' && t.is_recurring
+      ? nextOccurrence(t.due_date, t.recurrence_pattern, searchParams.get('today'), t.recurrence_weekdays, t.recurrence_until)
+      : null;
+    if (prox) t.due_date = prox;
+    else t.done = m[2] === 'complete';
+    return json(200, t);
+  }
+  const p = pathname.match(/^\/tasks\/(\d+)$/);
+  if (p && metodo === 'PATCH') {
+    const t = servidor.tarefas.get(Number(p[1]));
+    if (!t) return json(404, {});
+    Object.assign(t, JSON.parse(opts.body));
     return json(200, t);
   }
   return json(404, {});
@@ -312,5 +320,94 @@ describe('fila offline → online (conta logada)', () => {
     servidor.chamadas = [];
     await store.flushPending();
     assert.equal(servidor.chamadas.filter((c) => c.pathname === '/tasks').length, 0);
+  });
+});
+
+describe('recorrência avançada (dias específicos e fim da série)', () => {
+  it('addTask guarda dias e fim; dias só valem no semanal', async () => {
+    const store = await carregarStore();
+    const a = await store.addTask({ title: 'Daily', dueDate: '2026-10-01', isRecurring: true, recurrencePattern: 'weekly', recurrenceWeekdays: [4, 0, 2], recurrenceUntil: '2026-12-20' });
+    assert.deepEqual(a.recurrenceWeekdays, [0, 2, 4]);
+    assert.equal(a.recurrenceUntil, '2026-12-20');
+    const b = await store.addTask({ title: 'Remédio', isRecurring: true, recurrencePattern: 'daily', recurrenceWeekdays: [0, 1] });
+    assert.equal(b.recurrenceWeekdays, null);
+    const c = await store.addTask({ title: 'Comum', recurrenceUntil: '2026-12-20' });
+    assert.equal(c.isRecurring, false);
+    assert.equal(c.recurrenceUntil, null);
+  });
+
+  it('concluir a última ocorrência fecha a tarefa de vez', async () => {
+    const store = await carregarStore();
+    const hoje = todayKey();
+    const t = await store.addTask({ title: 'Curso', dueDate: hoje, isRecurring: true, recurrencePattern: 'daily', recurrenceUntil: hoje });
+    store.toggleTask(t.id);
+    const depois = store.getTasks().find((x) => x.id === t.id);
+    assert.equal(depois.done, true);
+    assert.equal(depois.dueDate, hoje, 'o prazo não rola além do fim');
+  });
+
+  it('dias úteis: concluir rola para o próximo dia útil', async () => {
+    const store = await carregarStore();
+    const hoje = todayKey();
+    const t = await store.addTask({ title: 'Daily', dueDate: hoje, isRecurring: true, recurrencePattern: 'weekly', recurrenceWeekdays: [0, 1, 2, 3, 4] });
+    store.toggleTask(t.id);
+    const { weekdayOf } = await import('../js/dates.js');
+    const d = store.getTasks().find((x) => x.id === t.id);
+    assert.equal(d.done, false);
+    assert.ok(d.dueDate > hoje);
+    assert.ok(weekdayOf(d.dueDate) <= 4, 'nunca cai no fim de semana');
+  });
+
+  it('updateRecurrence: liga a repetição, dá prazo a quem não tinha e desliga limpando tudo', async () => {
+    const store = await carregarStore();
+    const t = await store.addTask({ title: 'Relatório' });
+    assert.equal(t.dueDate, null);
+    store.updateRecurrence(t.id, { isRecurring: true, recurrencePattern: 'weekly', recurrenceWeekdays: [0, 1, 2, 3, 4], recurrenceUntil: '2026-12-20' });
+    let d = store.getTasks().find((x) => x.id === t.id);
+    assert.equal(d.isRecurring, true);
+    assert.deepEqual(d.recurrenceWeekdays, [0, 1, 2, 3, 4]);
+    assert.ok(d.dueDate, 'ganhou a primeira ocorrência');
+    store.updateRecurrence(t.id, { isRecurring: false });
+    d = store.getTasks().find((x) => x.id === t.id);
+    assert.equal(d.isRecurring, false);
+    assert.equal(d.recurrencePattern, null);
+    assert.equal(d.recurrenceWeekdays, null);
+    assert.equal(d.recurrenceUntil, null);
+    assert.equal(estadoSalvo().tasks.find((x) => x.id === t.id).isRecurring, false, 'persistido');
+  });
+
+  it('edição offline entra na fila e sobe o estado mais recente uma vez só', async () => {
+    semearSessao();
+    const store = await carregarStore();
+    store.initSession(() => {});
+    const t = await store.addTask({ title: 'Relatório', dueDate: '2026-10-05' });   // online: id do servidor
+    assert.equal(t.id, '100');
+
+    servidor.online = false;
+    store.updateRecurrence(t.id, { isRecurring: true, recurrencePattern: 'daily' });
+    store.updateRecurrence(t.id, { isRecurring: true, recurrencePattern: 'weekly', recurrenceWeekdays: [0, 2] });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(estadoSalvo().pending.filter((p) => p.kind === 'update').length, 1, 'uma operação por tarefa');
+
+    servidor.online = true;
+    servidor.chamadas = [];
+    await store.flushPending();
+    const patches = servidor.chamadas.filter((c) => c.metodo === 'PATCH');
+    assert.equal(patches.length, 1);
+    assert.equal(patches[0].corpo.recurrence_pattern, 'weekly');
+    assert.deepEqual(patches[0].corpo.recurrence_weekdays, [0, 2]);
+    assert.equal(store.pendingCount(), 0);
+  });
+
+  it('a série que termina no servidor também fecha no aparelho', async () => {
+    semearSessao();
+    const store = await carregarStore();
+    store.initSession(() => {});
+    const hoje = todayKey();
+    const t = await store.addTask({ title: 'Plantão', dueDate: hoje, isRecurring: true, recurrencePattern: 'daily', recurrenceUntil: hoje });
+    store.toggleTask(t.id);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(servidor.tarefas.get(Number(t.id)).done, true);
+    assert.equal(store.getTasks().find((x) => x.id === t.id).done, true);
   });
 });

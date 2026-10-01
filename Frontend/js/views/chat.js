@@ -1,6 +1,6 @@
 /* ============================================================
    Bruna — Chat com a IA (Tela de conversa)
-   Conversa empática para organizar a rotina e aliviar a carga mental.
+   Conversa acolhedora para organizar trabalho e vida pessoal e aliviar a sobrecarga.
    Backend: POST /ai/chat (Gemini). Fallback gentil se offline.
    ============================================================ */
 
@@ -23,7 +23,7 @@ export function clearConversation() {
 
 const SUGGESTIONS = [
   'Me ajuda a organizar a semana',
-  'Tô me sentindo sobrecarregada',
+  'Estou com a cabeça cheia',
   'Como dividir uma tarefa grande?',
 ];
 
@@ -31,23 +31,23 @@ const SUGGESTIONS = [
 // conexão com a IA demorar (cold start do Render). A IA real é acordada em 2º plano.
 const CANNED = {
   'Me ajuda a organizar a semana':
-    'Claro! Vamos por partes 💗: toque no + e despeje tudo que está na sua cabeça, sem filtrar. Depois marque só o que é desta semana e escolha no máximo 3 prioridades por dia — o resto pode esperar. Quando eu me conectar, te ajudo a quebrar cada tarefa em passos. 🌸',
-  'Tô me sentindo sobrecarregada':
-    'Respira fundo, eu tô aqui com você 💗. Que tal escolher UMA coisa pequena pra resolver agora e registrar o resto no app, pra tirar da mente? Você não precisa dar conta de tudo de uma vez. Daqui a pouco a gente organiza o restante juntas. 🌸',
+    'Claro! Vamos por partes: toque no + e despeje tudo o que está na sua cabeça, sem filtrar — trabalho e vida pessoal. Depois marque só o que é desta semana e escolha no máximo 3 prioridades por dia; o resto pode esperar. Quando eu me conectar, te ajudo a quebrar cada tarefa em passos. ✨',
+  'Estou com a cabeça cheia':
+    'Respira fundo, eu estou aqui com você. Que tal escolher UMA coisa pequena para resolver agora e registrar o resto no app, para tirar da cabeça? Você não precisa dar conta de tudo de uma vez. Daqui a pouco a gente organiza o restante. ✨',
   'Como dividir uma tarefa grande?':
-    'Ótima pergunta! Pergunte a si mesma: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → comprar → agendar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos automaticamente. ✨',
+    'Boa pergunta! Pense: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → executar → revisar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos automaticamente. ✨',
 };
 
 // Pedidos que a Bruna executaria pela IA (criar/concluir tarefa).
 const PEDIDO_DE_ACAO = /\b(anota\w*|cria\w*|lembr\w*|adiciona\w*|agend\w*|marca\w*|conclu\w*|terminei|finalizei|j[aá] fiz)\b/i;
 const ALTERNATIVA_MANUAL =
   'Ainda não consegui fazer isso por aqui, então nada foi anotado. ' +
-  'Toque no + para criar a tarefa, ou marque como feita na Home — tudo sincroniza quando eu voltar 💗';
+  'Toque no + para criar a tarefa, ou marque como feita na Home — tudo sincroniza quando eu voltar ✨';
 
 export function renderChat(app) {
   const user = getUser() || { name: 'Você' };
   const firstName = (user.name || 'Você').split(' ')[0];
-  const greeting = `Oi, ${firstName}! Eu sou a Bruna 💗 Tô aqui pra te ajudar a organizar a rotina e tirar um peso da sua mente. Como você tá hoje?`;
+  const greeting = `Oi, ${firstName}! Eu sou a Bruna ✨ Estou aqui para ajudar a organizar o trabalho e a vida pessoal e tirar um peso da sua cabeça. Como você está hoje?`;
 
   const view = h(`
     <div class="h-full flex flex-col">
@@ -56,7 +56,7 @@ export function renderChat(app) {
           <span class="bruna-glow w-11 h-11 rounded-full bg-accent text-white grid place-items-center">${icons.spark}</span>
           <div class="min-w-0">
             <h1 class="font-serif font-bold text-bordeaux-900 text-xl leading-none">Bruna</h1>
-            <p class="text-xs text-bordeaux-700 mt-1">Sua parceira de rotina • IA do MenteLeve</p>
+            <p class="text-xs text-bordeaux-700 mt-1">Sua assistente de agenda • IA do MenteLeve</p>
           </div>
         </header>
 
@@ -233,61 +233,63 @@ function localReply(text) {
 
   if (has('oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e aí', 'eai', 'opa'))
     return pick([
-      'Oi! Que bom te ver por aqui 💗 Como você está se sentindo hoje?',
-      'Olá! Tô aqui com você 🌸 Me conta, como posso te ajudar agora?',
+      'Oi! Que bom te ver por aqui. Como posso ajudar hoje?',
+      'Olá! Estou por aqui ✨ Me conta, o que você precisa organizar agora?',
     ]);
 
   if (has('obrigad', 'valeu', 'brigad', 'agradeç', 'gratidão'))
     return pick([
-      'Imagina, é sempre um prazer 💗 Conte comigo sempre que precisar.',
-      'De nada! Tô aqui pra deixar a sua mente mais leve 🌸',
+      'Imagina, é sempre um prazer. Conte comigo sempre que precisar.',
+      'De nada! Estou aqui para deixar a sua cabeça mais leve ✨',
     ]);
 
   if (has('tchau', 'até logo', 'ate logo', 'falou', 'até mais', 'ate mais'))
-    return 'Até já! Descanse a mente, você merece 💗';
+    return 'Até já! Descanse a mente, você merece ✨';
 
   if (has('sobrecarreg', 'cansad', 'exaust', 'estressad', 'não aguento', 'nao aguento', 'demais', 'no limite', 'esgotad'))
     return pick([
-      'Respira fundo, eu tô aqui com você 💗. Que tal escolher só UMA coisa pequena pra resolver agora e registrar o resto no + pra tirar da cabeça? Você não precisa dar conta de tudo de uma vez.',
-      'Sinto muito que esteja pesado assim 🌸. Vamos aliviar juntas: me diz a única tarefa que mais te incomoda agora, e começamos só por ela.',
+      'Respira fundo, eu estou aqui com você. Que tal escolher só UMA coisa pequena para resolver agora e registrar o resto no + para tirar da cabeça? Você não precisa dar conta de tudo de uma vez.',
+      'Sinto muito que esteja pesado assim. Vamos aliviar: me diz a única tarefa que mais te incomoda agora, e começamos só por ela.',
     ]);
 
-  if (has('triste', 'ansios', 'sozinha', 'chorar', 'angúst', 'angust', 'medo', 'desanim', 'pra baixo'))
+  if (has('triste', 'ansios', 'sozinh', 'chorar', 'angúst', 'angust', 'medo', 'desanim', 'pra baixo'))
     return pick([
-      'Eu tô aqui com você, viu? 💗 Tá tudo bem não estar bem. Respira fundo comigo: inspira… e solta devagar. Quer me contar o que está pesando?',
-      'Você não está sozinha 🌸. Vamos com calma, uma coisinha de cada vez, pra a sua mente respirar.',
+      'Eu estou aqui com você. Tudo bem não estar bem. Respira fundo comigo: inspira… e solta devagar. Quer me contar o que está pesando?',
+      'Você não está só nisso. Vamos com calma, uma coisa de cada vez, para a sua mente respirar.',
     ]);
 
   if (has('organiz', 'semana', 'rotina', 'planej', 'agenda', 'dia a dia', 'prioridade'))
     return pick([
-      'Vamos por partes 💗: toque no + e despeje tudo que está na sua cabeça, sem filtrar. Depois marque só o que é desta semana e escolha no máximo 3 prioridades por dia — o resto pode esperar. 🌸',
-      'Adoro organizar com você! Comece anotando tudo no +, sem se cobrar. Aí a gente separa por dia e por prioridade. Quer começar listando o de hoje?',
+      'Vamos por partes: toque no + e despeje tudo o que está na sua cabeça, sem filtrar. Depois marque só o que é desta semana e escolha no máximo 3 prioridades por dia; o resto pode esperar. ✨',
+      'Vamos organizar! Comece anotando tudo no +, sem se cobrar. Aí a gente separa por dia e por prioridade. Quer começar listando o de hoje?',
     ]);
 
   if (has('dividir', 'divido', 'grande', 'passo', 'começar', 'comecar', 'por onde', 'quebrar'))
-    return 'Ótima pergunta! Pergunte a si mesma: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → comprar → agendar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos. ✨';
+    return 'Boa pergunta! Pense: "qual é o primeiro passo bem pequeno?". Quebre em 3 a 5 passos curtos (ex.: pesquisar → decidir → executar → revisar) e faça só o primeiro hoje. Ao adicionar a tarefa no +, eu já sugiro esses passos. ✨';
 
-  if (has('filho', 'filha', 'bebê', 'bebe', 'criança', 'crianca', 'escola', 'pediatra', 'vacina'))
-    return 'Cuidar dos filhos já é um trabalho enorme 💗. Registra essas tarefas no + que eu te ajudo a encaixá-las na semana — e, se quiser, dá pra dividir algumas com a sua rede de apoio na aba Conexões. Você não precisa carregar tudo sozinha. 🌸';
-  if (has('marido', 'esposo', 'parceir', 'companheir', 'delegar'))
-    return 'Dividir a carga faz toda a diferença 🌸. Na aba Conexões você pode convidar o seu parceiro pra compartilhar tarefas. Quer que eu te ajude a separar o que dá pra delegar?';
+  if (has('reuni', 'prazo', 'entrega', 'chefe', 'cliente', 'relat', 'projeto', 'trabalho', 'e-mail', 'email'))
+    return 'Trabalho acumulado pesa mesmo. Registre no + as reuniões e entregas, com data e horário, e eu te ajudo a separar o que é urgente do que pode esperar, distribuindo na semana sem sobrecarregar nenhum dia. ✨';
+  if (has('filho', 'filha', 'bebê', 'bebe', 'criança', 'crianca', 'escola', 'pediatra', 'vacina', 'família', 'familia'))
+    return 'Cuidar da família também é muita coisa. Registra essas tarefas no + que eu te ajudo a encaixá-las na semana — e, se quiser, dá para dividir algumas com quem você confia na aba Conexões. Você não precisa carregar tudo por conta própria. ✨';
+  if (has('marido', 'esposo', 'parceir', 'companheir', 'delegar', 'colega', 'equipe'))
+    return 'Dividir a carga faz toda a diferença. Na aba Conexões você pode convidar alguém de confiança para compartilhar tarefas. Quer que eu te ajude a separar o que dá para delegar?';
   if (has('casa', 'limpe', 'mercado', 'comida', 'janta', 'almoç', 'roupa', 'louça'))
-    return 'As tarefas de casa nunca acabam, né? 💗 Registra elas no + que eu te ajudo a distribuir na semana sem sobrecarregar nenhum dia.';
+    return 'As tarefas de casa nunca acabam, né? Registra elas no + que eu te ajudo a distribuir na semana sem sobrecarregar nenhum dia.';
 
   if (/^(sim|isso|ok|ta|tá|claro|pode ser|aham|uhum|certo|beleza|com certeza)\b/.test(t))
     return pick([
-      'Perfeito! Me conta um pouco mais pra eu te ajudar melhor 💗',
-      'Que bom! Então vamos lá — qual é o próximo passo que você quer dar? 🌸',
+      'Perfeito! Me conta um pouco mais para eu te ajudar melhor.',
+      'Que bom! Então vamos lá — qual é o próximo passo que você quer dar? ✨',
     ]);
   if (/^(não|nao|nem|jamais)\b/.test(t))
-    return 'Tudo bem 💗. Me diz então o que faria mais sentido pra você agora?';
+    return 'Tudo bem. Me diz então o que faria mais sentido para você agora?';
 
   if (has('quem é você', 'quem e voce', 'seu nome', 'você é', 'voce e', 'o que voce faz', 'o que você faz'))
-    return 'Eu sou a Bruna, sua parceira aqui no MenteLeve 💗 Tô aqui pra te ajudar a organizar a rotina e aliviar a carga mental. Como posso te ajudar?';
+    return 'Eu sou a Bruna, a assistente do MenteLeve ✨ Ajudo a organizar o trabalho e a vida pessoal e a aliviar a sobrecarga. Como posso ajudar?';
 
   return pick([
-    'Entendi 💗. Me conta um pouco mais? Se quiser, posso te ajudar a transformar isso em tarefas — é só tocar no +.',
-    'Tô aqui com você 🌸. Que tal a gente registrar isso no app pra tirar da sua mente? Toque no + e me conta o que precisa ser feito.',
-    'Faz sentido. Vamos deixar a sua mente mais leve: quer que eu te ajude a quebrar isso em pequenos passos?',
+    'Entendi. Me conta um pouco mais? Se quiser, posso te ajudar a transformar isso em tarefas — é só tocar no +.',
+    'Estou aqui com você ✨ Que tal registrar isso no app para tirar da cabeça? Toque no + e me conta o que precisa ser feito.',
+    'Faz sentido. Vamos deixar a sua cabeça mais leve: quer que eu te ajude a quebrar isso em pequenos passos?',
   ]);
 }

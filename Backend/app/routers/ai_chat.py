@@ -10,13 +10,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app import ai, crud, recurrence, schemas
+from app.categories import DEFAULT_CATEGORY, normalize_category
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Task, User
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-# Quando Gemini e Groq não respondem. Tom da Bruna, sem culpar a usuária, dizendo
+# Quando Gemini e Groq não respondem. Tom da Bruna, sem culpar a pessoa, dizendo
 # o que aconteceu e o que ela pode fazer agora — o app segue inteiro sem a IA.
 _FALLBACK = (
     "Não consegui pensar direitinho agora 💗 Suas tarefas continuam salvas e "
@@ -67,16 +68,18 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
     if not titulo:
         return {"status": "erro", "motivo": "titulo vazio"}, None
 
-    categoria = args.get("categoria")
+    categoria = normalize_category(args.get("categoria"))
     if categoria not in ai.CATEGORIES:
-        categoria = "casa"
+        categoria = DEFAULT_CATEGORY
     due_date = ai._clean_date(args.get("due_date"))
     due_time = ai._clean_time(args.get("due_time"))
-    pattern = recurrence.clean_pattern(args.get("recorrencia")) or recurrence.detect_recurrence(titulo)
-    if pattern is not None and due_date is None:
-        due_date = recurrence.first_occurrence(titulo, pattern, today)
+    rec = recurrence.resolve(
+        titulo, today, pattern=args.get("recorrencia"), weekdays=args.get("dias_semana"),
+        until=ai._clean_date(args.get("ate")), due_date=due_date,
+    )
+    due_date = rec["due_date"]
 
-    # Idempotência: a usuária pode reenviar o pedido quando a resposta demora
+    # Idempotência: a pessoa pode reenviar o pedido quando a resposta demora
     # (o timeout do cliente não cancela a requisição já em andamento).
     existente = crud.find_recent_duplicate(db, user.id, titulo, due_date)
     if existente is not None:
@@ -87,7 +90,8 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
         user.id,
         schemas.TaskCreate(
             title=titulo, category=categoria, due_date=due_date, due_time=due_time,
-            is_recurring=pattern is not None, recurrence_pattern=pattern,
+            is_recurring=rec["is_recurring"], recurrence_pattern=rec["recurrence_pattern"],
+            recurrence_weekdays=rec["recurrence_weekdays"], recurrence_until=rec["recurrence_until"],
         ),
     )
     return {"status": "criada", "titulo": task.title}, task
@@ -112,8 +116,9 @@ def _concluir_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[
         }, None
 
     task = crud.set_task_done(db, candidatas[0], True, today=today)
-    if task.is_recurring:
-        # Recorrente não fecha: o prazo rolou e ela segue em aberto.
+    if task.is_recurring and not task.done:
+        # Recorrente não fecha: o prazo rolou e ela segue em aberto. (Se a série
+        # passou do fim, ela fecha como uma tarefa comum.)
         return {"status": "concluida", "titulo": task.title, "recorrente": True}, task
     return {"status": "concluida", "titulo": task.title}, task
 

@@ -124,7 +124,12 @@ def update_task(db: Session, task: models.Task, data: schemas.TaskUpdate) -> mod
     changes = data.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(task, field, value)
-    if "is_recurring" in changes or "recurrence_pattern" in changes:
+    rec_fields = ("is_recurring", "recurrence_pattern", "recurrence_weekdays", "recurrence_until")
+    if any(f in changes for f in rec_fields):
+        if changes.get("recurrence_weekdays") and "recurrence_pattern" not in changes:
+            task.recurrence_pattern = "weekly"
+        if task.recurrence_pattern != "weekly":
+            task.recurrence_weekdays = None
         # Mantém os dois campos coerentes, como o TaskBase faz na criação:
         # desligar limpa o padrão; informar só o padrão liga a recorrência; ligar
         # sem nenhum padrão (nem antes) não faz sentido e volta a desligado.
@@ -134,6 +139,9 @@ def update_task(db: Session, task: models.Task, data: schemas.TaskUpdate) -> mod
             task.is_recurring = True
         if task.is_recurring and task.recurrence_pattern is None:
             task.is_recurring = False
+        if not task.is_recurring:
+            task.recurrence_weekdays = None
+            task.recurrence_until = None
     if "due_date" in changes or "due_time" in changes:
         # Reagendou: um lembrete já enviado valia para o horário antigo. Sem
         # zerar aqui, adiar uma tarefa depois do lembrete sair nunca mais
@@ -153,14 +161,19 @@ def set_task_done(
     ocorrência e ela segue em aberto (ver app/recurrence.py para o porquê — evita
     duplicatas entre o aparelho e o servidor). `today` é a data local da usuária.
     """
+    nxt = None
     if done and task.is_recurring and task.recurrence_pattern:
-        task.due_date = recurrence.next_occurrence(
-            task.due_date, task.recurrence_pattern, today or date.today()
+        nxt = recurrence.next_occurrence(
+            task.due_date, task.recurrence_pattern, today or date.today(),
+            task.recurrence_weekdays, task.recurrence_until,
         )
+    if nxt is not None:
+        task.due_date = nxt
         task.done = False
         # O lembrete push já enviado valia para o ciclo que acabou.
         task.reminder_sent_at = None
     else:
+        # Não recorrente, reabrindo, ou série encerrada (passou de recurrence_until).
         task.done = done
     db.commit()
     db.refresh(task)

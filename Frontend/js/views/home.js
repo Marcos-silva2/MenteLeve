@@ -4,12 +4,14 @@
    Desktop: lista principal + painel de agenda semanal (aside)
    ============================================================ */
 
-import { h, $, $$, icons, toast, confirmDialog } from '../ui.js';
-import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, isSyncing, hasSession, restoreSession, CATEGORIES } from '../store.js';
+import { h, $, $$, icons, toast, confirmDialog, renderGroupTabs } from '../ui.js';
+import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, updateRecurrence, isSyncing, hasSession, restoreSession } from '../store.js';
+import { categoriesOf, getGroupFilter, inGroup } from '../categories.js';
 import { isOnline, ensureOnline } from '../api.js';
-import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey, labelForKey, resolveDue, RECURRENCE_LABELS } from '../dates.js';
+import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey, labelForKey, resolveDue, recurrenceLabel } from '../dates.js';
 import { playComplete, playUndo, playTap, playDelete, playAllDone } from '../sound.js';
 import { openTaskSheet } from '../components/taskSheet.js';
+import { recurrencePicker } from '../components/recurrencePicker.js';
 
 /* Seções da Home. Cada tarefa cai em UMA só, decidida por sectionOf — os dados
    da tarefa não são alterados. */
@@ -56,7 +58,8 @@ function aposSaida(el, fn) {
 }
 
 export function renderHome(app) {
-  let filter = 'tudo';
+  let filter = 'tudo';              // categoria escolhida ('tudo' = todas do grupo)
+  let grupo = getGroupFilter();     // 'tudo' | 'trabalho' | 'vida'
   const user = getUser() || { name: 'Você' };
 
   const view = h(`
@@ -68,7 +71,7 @@ export function renderHome(app) {
           <header class="px-6 lg:px-0 pt-12 lg:pt-0 pb-3">
             <div class="flex items-start justify-between">
               <h1 class="font-serif font-bold text-bordeaux-900 text-[26px] lg:text-3xl leading-tight">
-                Olá, ${user.name.split(' ')[0]}.<br/>Respire fundo…
+                Olá, ${user.name.split(' ')[0]}.<br/>Como está o seu dia?
               </h1>
               <button id="avatar" class="lg:hidden w-11 h-11 rounded-full bg-soft-200 grid place-items-center text-bordeaux-900 shrink-0 mt-1">
                 ${initials(user.name)}
@@ -76,6 +79,9 @@ export function renderHome(app) {
             </div>
             <div id="progress" class="mt-3.5"></div>
           </header>
+
+          <!-- grupo: trabalho / vida -->
+          <div id="group-tabs" class="mx-6 lg:mx-0 mb-2 p-1 flex gap-1 rounded-full bg-white border border-soft-100"></div>
 
           <!-- filtros -->
           <div class="px-6 lg:px-0 pb-2 overflow-x-auto no-scrollbar">
@@ -109,6 +115,7 @@ export function renderHome(app) {
   `);
 
   const filtersEl = $('#filters', view);
+  renderGroupTabs($('#group-tabs', view), (g) => { grupo = g; filter = 'tudo'; renderFilters(); renderList(); });
   const listEl = $('#list', view);
 
   // Delegação de eventos (anexada UMA vez) — evita re-anexar listeners a cada
@@ -130,6 +137,13 @@ export function renderHome(app) {
     const card = e.target.closest('[data-card]');
     if (card) lpTimer = setTimeout(() => openQuickActions(card.dataset.card), 500);
   }, { passive: true });
+  // No computador não há pressão longa: o botão direito abre o mesmo menu.
+  listEl.addEventListener('contextmenu', (e) => {
+    const card = e.target.closest('[data-card]');
+    if (!card) return;
+    e.preventDefault();
+    openQuickActions(card.dataset.card);
+  });
   const cancelLp = () => clearTimeout(lpTimer);
   listEl.addEventListener('touchend', cancelLp);
   listEl.addEventListener('touchmove', cancelLp, { passive: true });
@@ -137,7 +151,7 @@ export function renderHome(app) {
   function renderFilters() {
     filtersEl.setAttribute('role', 'group');
     filtersEl.setAttribute('aria-label', 'Filtrar por categoria');
-    const all = [{ id: 'tudo', label: 'Tudo' }, ...CATEGORIES];
+    const all = [{ id: 'tudo', label: 'Tudo' }, ...categoriesOf(grupo)];
     filtersEl.innerHTML = all.map((c) => {
       const on = c.id === filter;
       const dot = c.dot ? `<span class="w-1.5 h-1.5 rounded-full" style="background:${c.dot}"></span>` : '';
@@ -154,12 +168,12 @@ export function renderHome(app) {
   function renderProgress() {
     const el = $('#progress', view);
     if (!el) return;
-    const tops = getTopTasks();
+    const tops = getTopTasks().filter((t) => inGroup(t, grupo));
     const total = tops.length;
     const done = tops.filter((t) => t.done).length;
     if (total === 0) { el.innerHTML = ''; return; }
     const pct = Math.round((done / total) * 100);
-    const msg = pct === 100 ? 'Tudo em dia, respire fundo 🌸' : `${done} de ${total} concluídas`;
+    const msg = pct === 100 ? 'Tudo em dia ✨' : `${done} de ${total} concluídas`;
     el.innerHTML = `
       <div class="flex items-center justify-between mb-1.5">
         <span class="text-xs font-medium text-bordeaux-700">${msg}</span>
@@ -179,7 +193,7 @@ export function renderHome(app) {
   function renderList(revealIds) {
     renderProgress();
     // Apenas tarefas principais na lista; as subtarefas vêm aninhadas.
-    const tasks = getTopTasks().filter((t) => filter === 'tudo' || t.category === filter);
+    const tasks = getTopTasks().filter((t) => inGroup(t, grupo) && (filter === 'tudo' || t.category === filter));
 
     if (tasks.length === 0) {
       // Lista vazia é ambígua: pode ser "não há nada" ou "ainda não chegou".
@@ -188,7 +202,7 @@ export function renderHome(app) {
       // Vazia com sessão e sem servidor no ar ≠ vazia de verdade: não dá para
       // dizer "tudo tranquilo" a quem não conseguiu buscar as próprias tarefas.
       const semConexao = hasSession() && !isOnline();
-      listEl.innerHTML = isSyncing() ? skeletonList() : emptyState(filter, semConexao);
+      listEl.innerHTML = isSyncing() ? skeletonList() : emptyState(filter, semConexao, grupo);
       renderWeekPanel();
       return;
     }
@@ -252,9 +266,12 @@ export function renderHome(app) {
     const card = $(`[data-card="${id}"]`, listEl);
     // Recorrente não fecha: o prazo rola e ela segue na lista (lido ANTES do toggle).
     const antes = getTasks().find((x) => x.id === id);
-    const recorrente = !!(antes && antes.isRecurring && antes.recurrencePattern && !antes.done);
+    const antesDue = antes && antes.dueDate;
     const t = toggleTask(id);
-    if (recorrente && t) {
+    // Rolou para a próxima ocorrência (segue aberta, prazo mudou). Série encerrada
+    // fecha como tarefa comum.
+    const recorrente = !!(t && antes && t.isRecurring && !t.done && t.dueDate !== antesDue);
+    if (recorrente) {
       playComplete();
       toast(`Feito ✨ Volta ${labelForKey(t.dueDate).toLowerCase()} 🔁`);
       if (card) {
@@ -319,6 +336,7 @@ export function renderHome(app) {
     const menu = h(`
       <div class="sheet px-5 pt-4 pb-8">
         <div class="w-10 h-1.5 rounded-full bg-soft-100 mx-auto mb-4"></div>
+        <button data-act="repeat" class="btn btn-secondary w-full !justify-start">${icons.repeat} Editar repetição</button>
         <button data-act="delete" class="btn btn-danger w-full !justify-start">Excluir tarefa</button>
         <button data-act="cancel" class="btn btn-secondary w-full !justify-start">Cancelar</button>
       </div>`);
@@ -328,6 +346,41 @@ export function renderHome(app) {
     scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
     $('[data-act="cancel"]', menu).addEventListener('click', close);
     $('[data-act="delete"]', menu).addEventListener('click', () => { close(); confirmDelete(id); });
+    $('[data-act="repeat"]', menu).addEventListener('click', () => { close(); setTimeout(() => openRecurrenceEditor(id), 220); });
+  }
+
+  /** Editar a repetição de uma tarefa já criada. */
+  function openRecurrenceEditor(id) {
+    const t = getTasks().find((x) => x.id === id);
+    if (!t) return;
+    const host = document.getElementById('device');
+    const scrim = h('<div class="scrim grid items-end"></div>');
+    const picker = recurrencePicker({ task: t, allowNone: true });
+    const sheet = h(`
+      <div class="sheet px-5 pt-4 pb-8" role="dialog" aria-modal="true" aria-labelledby="rec-title">
+        <div class="w-10 h-1.5 rounded-full bg-soft-100 mx-auto mb-4"></div>
+        <h2 id="rec-title" class="font-serif font-bold text-bordeaux-900 text-lg mb-1">Repetição</h2>
+        <p class="text-xs text-bordeaux-700 mb-3 truncate">${escAttr(t.title)}</p>
+        <div data-picker></div>
+        <div class="flex gap-2 mt-5">
+          <button data-act="cancel" class="btn btn-secondary flex-1">Cancelar</button>
+          <button data-act="save" class="btn btn-primary flex-1">Salvar</button>
+        </div>
+      </div>`);
+    $('[data-picker]', sheet).replaceWith(picker.el);
+    scrim.appendChild(sheet);
+    host.appendChild(scrim);
+    const close = () => { scrim.style.animation = 'fadeOut .2s ease both'; setTimeout(() => scrim.remove(), 200); };
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
+    $('[data-act="cancel"]', sheet).addEventListener('click', close);
+    $('[data-act="save"]', sheet).addEventListener('click', () => {
+      const v = picker.getValue();
+      const nova = updateRecurrence(id, v);
+      close();
+      playTap();
+      renderList();
+      toast(nova && nova.isRecurring ? `Repete: ${recurrenceLabel(nova).toLowerCase()} 🔁` : 'A tarefa não se repete mais');
+    });
   }
 
   // eventos
@@ -357,7 +410,7 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
   const acao = done ? 'Reabrir' : 'Concluir';
   return `
   <div data-card="${t.id}"
-    style="border-left:4px solid ${cat ? cat.dot : '#ffb3c1'}"
+    style="border-left:4px solid ${cat ? cat.dot : 'var(--color-soft-200)'}"
     class="lift group relative bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 ${hasSubs ? 'mb-1' : 'mb-3'} flex items-center gap-3 select-none hover:border-soft-200">
     <button data-check="${t.id}" aria-label="${acao} tarefa ${escAttr(t.title)}"
       class="shrink-0 w-11 h-11 rounded-full border-2 grid place-items-center transition
@@ -368,7 +421,7 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
         ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}</span>` : ''}
-        ${t.isRecurring && t.recurrencePattern ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">${icons.repeat}${RECURRENCE_LABELS[t.recurrencePattern]}</span>` : ''}
+        ${recurrenceLabel(t) ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">${icons.repeat}${recurrenceLabel(t)}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
           <span style="color:${prio.dot}">${icons.flag}</span>${prio.label}</span>` : ''}
         ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-600">✨ ${sub.done}/${sub.total} passos</span>` : ''}
@@ -450,7 +503,7 @@ function skeletonList() {
     <p role="status" class="sr-only">Buscando suas tarefas…</p>
     ${[0, 1, 2].map(() => `
       <div aria-hidden="true" class="bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3.5 flex items-center gap-3"
-        style="border-left:4px solid #ffccd5">
+        style="border-left:4px solid var(--color-soft-100)">
         <div class="skeleton-pulse shrink-0 w-11 h-11"></div>
         <div class="flex-1 min-w-0 flex flex-col gap-2">
           <div class="skeleton-pulse h-4 w-3/5"></div>
@@ -464,8 +517,9 @@ function skeletonList() {
 /* Lista vazia. Duas situações diferentes: vazia de verdade (acolhe e convida a
    anotar) e "não consegui buscar" (sem servidor — não dá para afirmar que está
    tudo tranquilo). */
-function emptyState(filter, semConexao) {
-  const onde = filter === 'tudo' ? 'por aqui' : `em ${getCategory(filter)?.label || 'esta categoria'}`;
+function emptyState(filter, semConexao, grupo = 'tudo') {
+  const onde = filter !== 'tudo' ? `em ${getCategory(filter)?.label || 'esta categoria'}`
+    : grupo !== 'tudo' ? `em ${grupo === 'trabalho' ? 'Trabalho' : 'Vida'}` : 'por aqui';
   const titulo = semConexao ? 'Sem conexão por enquanto.' : `Tudo tranquilo ${onde}. Respire fundo!`;
   const texto = semConexao
     ? 'Não consegui buscar suas tarefas agora. O que você criar fica salvo aqui e sincroniza depois.'

@@ -8,31 +8,26 @@
    ============================================================ */
 
 import * as api from './api.js';
-import { resolveDue, resolveTime, todayKey, nextOccurrence, cleanPattern } from './dates.js';
+import { resolveDue, resolveTime, todayKey, nextOccurrence, cleanPattern, cleanWeekdays, firstOccurrence } from './dates.js';
+import { CATEGORIES, getCategory, normalizeCategory } from './categories.js';
+
+export { CATEGORIES, getCategory };
 
 const STORAGE_KEY = 'menteleve.state.v1';
-
-export const CATEGORIES = [
-  { id: 'casa',           label: 'Casa',           dot: '#ff758f' },
-  { id: 'filhos',         label: 'Filhos',         dot: '#c9184a' },
-  { id: 'trabalho',       label: 'Trabalho',       dot: '#a4133c' },
-  { id: 'saude',          label: 'Saúde',          dot: '#ff4d6d' },
-  { id: 'financas',       label: 'Finanças',       dot: '#800f2f' },
-  { id: 'relacionamento', label: 'Relacionamento', dot: '#ff8fa3' },
-];
 
 // Níveis de prioridade (padrão: "media"). Alta também marca a tarefa como
 // importante, mantendo compatibilidade com o backend (campo booleano `important`).
 export const PRIORITIES = [
-  { id: 'baixa', label: 'Baixa', dot: '#ff8fa3' },
-  { id: 'media', label: 'Média', dot: '#ff758f' },
-  { id: 'alta',  label: 'Alta',  dot: '#ff4d6d' },
+  { id: 'baixa', label: 'Baixa', dot: 'var(--color-soft-300)' },
+  { id: 'media', label: 'Média', dot: 'var(--color-accent-hover)' },
+  { id: 'alta',  label: 'Alta',  dot: 'var(--color-accent)' },
 ];
 
 export const getPriority = (id) => PRIORITIES.find((p) => p.id === id) || PRIORITIES[1];
 
 const defaultCycle = () => ({
-  enabled: false,
+  module: false,     // módulo opcional (Perfil): desligado, a Agenda nem mostra o botão
+  enabled: false,    // camada visível na Agenda (só vale com o módulo ligado)
   lastStart: null,   // 'AAAA-MM-DD' do início da última menstruação
   cycleLength: 28,   // duração média do ciclo (dias)
   periodLength: 5,   // duração média da menstruação (dias)
@@ -51,10 +46,10 @@ const defaultState = () => ({
 
 function seedTasks() {
   return [
-    { id: uid(), title: 'Encomendar bolo p/ Leo',  category: 'filhos',   due: '14:00',           done: false, important: false, priority: 'media', createdAt: Date.now() - 5000 },
-    { id: uid(), title: 'Mandar convites p/ Leo',   category: 'filhos',   due: 'Hoje',            done: false, important: true,  priority: 'alta',  createdAt: Date.now() - 4000 },
-    { id: uid(), title: 'Reunião de Equipe',        category: 'trabalho', due: 'Amanhã • 10:00',  done: true,  important: false, priority: 'media', createdAt: Date.now() - 3000 },
-    { id: uid(), title: 'Lanche c/ Família',        category: 'casa',     due: '12:00',           done: false, important: false, priority: 'baixa', createdAt: Date.now() - 2000 },
+    { id: uid(), title: 'Enviar relatório ao cliente', category: 'trabalho', due: '14:00',           done: false, important: false, priority: 'media', createdAt: Date.now() - 5000 },
+    { id: uid(), title: 'Preparar pauta da reunião', category: 'reunioes', due: 'Hoje',            done: false, important: true,  priority: 'alta',  createdAt: Date.now() - 4000 },
+    { id: uid(), title: 'Reunião de Equipe',        category: 'reunioes', due: 'Amanhã • 10:00',  done: true,  important: false, priority: 'media', createdAt: Date.now() - 3000 },
+    { id: uid(), title: 'Consulta no dentista',       category: 'saude',    due: '12:00',           done: false, important: false, priority: 'baixa', createdAt: Date.now() - 2000 },
   ];
 }
 
@@ -84,6 +79,13 @@ function migrar(s, salvo) {
     s.soundLevel = salvo.soundEnabled ? 'tudo' : 'silencio';
   }
   delete s.soundEnabled;
+  // O calendário menstrual virou módulo opcional. Quem já o usava continua com ele ligado.
+  if (salvo.cycle && salvo.cycle.module == null && (salvo.cycle.enabled || salvo.cycle.lastStart)) {
+    s.cycle = { ...s.cycle, module: true };
+  }
+  // Categorias de antes da ampliação (filhos -> familia, relacionamento -> pessoal).
+  // A fila offline guarda só ids; o `create` lê a tarefa daqui, já convertida.
+  for (const t of s.tasks || []) t.category = normalizeCategory(t.category);
   return s;
 }
 
@@ -121,7 +123,6 @@ export const getTasks = () => state.tasks;
 // Tarefas principais (sem mãe) e subtarefas (filhos de uma tarefa).
 export const getTopTasks = () => state.tasks.filter((t) => !t.parentId);
 export const getSubtasks = (parentId) => state.tasks.filter((t) => t.parentId === parentId);
-export const getCategory = (id) => CATEGORIES.find((c) => c.id === id) || null;
 
 // ------- Onboarding -------
 export function markOnboardingSeen() {
@@ -358,7 +359,36 @@ async function applyPending(op) {
     return true;
   }
   if (op.kind === 'delete') return await api.apiDeleteTask(op.id);
+  if (op.kind === 'update') {
+    // Sobe o estado ATUAL da tarefa (a última edição vence), não o da hora da fila.
+    const t = state.tasks.find((x) => x.id === op.id);
+    if (!t) return true;
+    const saved = await api.apiUpdateRecurrence(op.id, t);
+    if (!saved) return false;
+    adotarRecorrencia(t, saved);
+    return true;
+  }
   return true;
+}
+
+function adotarRecorrencia(t, saved) {
+  t.isRecurring = saved.isRecurring;
+  t.recurrencePattern = saved.recurrencePattern;
+  t.recurrenceWeekdays = saved.recurrenceWeekdays;
+  t.recurrenceUntil = saved.recurrenceUntil;
+  t.dueDate = saved.dueDate;
+  t.done = saved.done;
+}
+
+/** Campos de recorrência coerentes: dias só no semanal; tarefa comum não tem fim. */
+function recorrenciaLimpa({ isRecurring, recurrencePattern, recurrenceWeekdays, recurrenceUntil }) {
+  const pattern = isRecurring ? cleanPattern(recurrencePattern) : null;
+  return {
+    isRecurring: !!pattern,
+    recurrencePattern: pattern,
+    recurrenceWeekdays: pattern === 'weekly' ? cleanWeekdays(recurrenceWeekdays) : null,
+    recurrenceUntil: pattern ? recurrenceUntil || null : null,
+  };
 }
 
 /**
@@ -407,7 +437,7 @@ export async function addTask(task) {
   const local = {
     id: uid(),
     title: task.title,
-    category: task.category || 'casa',
+    category: normalizeCategory(task.category),
     dueDate,
     dueTime: task.dueTime || resolveTime(task.due) || null,
     due: task.due || '',
@@ -415,8 +445,7 @@ export async function addTask(task) {
     priority,
     important: task.important != null ? !!task.important : priority === 'alta',
     parentId: task.parentId != null ? String(task.parentId) : null,
-    isRecurring: !!(task.isRecurring && cleanPattern(task.recurrencePattern)),
-    recurrencePattern: task.isRecurring ? cleanPattern(task.recurrencePattern) : null,
+    ...recorrenciaLimpa(task),
     createdAt: Date.now(),
   };
   state.tasks.unshift(local);
@@ -475,10 +504,14 @@ export function toggleTask(id) {
 
   // Recorrente NÃO fecha: o prazo rola para a próxima ocorrência (dates.js →
   // nextOccurrence). Sem cópia nova, nada duplica ao sincronizar.
-  const recorrente = !!(t.isRecurring && t.recurrencePattern && !t.done);
   const today = todayKey();
+  // Série com fim: depois da última ocorrência, `next` é null e ela fecha normalmente.
+  const next = t.isRecurring && t.recurrencePattern && !t.done
+    ? nextOccurrence(t.dueDate, t.recurrencePattern, today, t.recurrenceWeekdays, t.recurrenceUntil)
+    : null;
+  const recorrente = next !== null;
   if (recorrente) {
-    t.dueDate = nextOccurrence(t.dueDate, t.recurrencePattern, today);
+    t.dueDate = next;
     t.due = '';   // o rótulo legado não vale mais para o novo prazo
   } else {
     t.done = !t.done;
@@ -499,11 +532,39 @@ export function toggleTask(id) {
           if (!r) { enqueue(op); return; }
           if (recorrente && r.isRecurring) {
             t.dueDate = r.dueDate;
+            t.done = r.done;   // o servidor pode ter encerrado a série
             persist();
           }
         })
         .catch(() => enqueue(op));
     }
+  }
+  return t;
+}
+
+/**
+ * Muda a repetição de uma tarefa já criada. `rec`: { isRecurring, recurrencePattern,
+ * recurrenceWeekdays, recurrenceUntil }. Sem prazo, uma tarefa que passa a repetir
+ * ganha a primeira ocorrência (hoje ou o primeiro dia escolhido).
+ */
+export function updateRecurrence(id, rec) {
+  const t = state.tasks.find((x) => x.id === id);
+  if (!t) return null;
+  Object.assign(t, recorrenciaLimpa(rec));
+  if (t.isRecurring && !t.dueDate) {
+    t.dueDate = firstOccurrence('', t.recurrencePattern, todayKey(), t.recurrenceWeekdays);
+  }
+  persist();
+
+  if (state.userId != null && !isLocalId(id)) {
+    // Id local: o `create` na fila já leva a recorrência nova.
+    api.apiUpdateRecurrence(id, t)
+      .then((r) => {
+        if (!r) { enqueue({ kind: 'update', id }); return; }
+        adotarRecorrencia(t, r);
+        persist();
+      })
+      .catch(() => enqueue({ kind: 'update', id }));
   }
   return t;
 }
@@ -566,6 +627,14 @@ function _cdays(aKey, bKey) {
 }
 
 export const getCycle = () => ({ ...defaultCycle(), ...(state.cycle || {}) });
+
+/** O módulo do calendário menstrual está ligado? (opcional; desligado por padrão) */
+export const isCycleModuleOn = () => getCycle().module === true;
+
+/** Liga/desliga o módulo. Desligar só esconde: os dados do ciclo ficam no aparelho. */
+export function setCycleModule(on) {
+  return setCycle(on ? { module: true } : { module: false, enabled: false });
+}
 
 export function setCycle(patch) {
   state.cycle = { ...defaultCycle(), ...(state.cycle || {}), ...patch };

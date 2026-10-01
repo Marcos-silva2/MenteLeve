@@ -49,6 +49,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_columns()
     _widen_columns()
+    _migrate_categories()
 
 
 # Colunas adicionadas depois da criação original das tabelas.
@@ -63,6 +64,8 @@ _ADDITIVE_COLUMNS = (
     # UPDATE separado. `FALSE`/`0` são aceitos igualmente por SQLite e Postgres.
     ("tasks", "is_recurring", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("tasks", "recurrence_pattern", "VARCHAR(10)"),
+    ("tasks", "recurrence_weekdays", "VARCHAR(20)"),
+    ("tasks", "recurrence_until", "DATE"),
 )
 
 
@@ -99,6 +102,34 @@ def _ensure_columns() -> None:
                     "Não foi possível adicionar a coluna %s.%s — siga com a migração manual.",
                     table, column,
                 )
+
+
+def _migrate_categories() -> None:
+    """Converte as categorias antigas nas atuais (ver app/categories.py).
+
+    A coluna `category` não é criptografada, então é um UPDATE simples e
+    idempotente: depois da primeira rodada não sobra linha para converter.
+    Falha só registra aviso, como as outras micro-migrações.
+    """
+    import logging
+
+    from sqlalchemy import inspect, text
+
+    from app.categories import LEGACY_CATEGORIES
+
+    if not inspect(engine).has_table("tasks"):
+        return
+    try:
+        with engine.begin() as conn:
+            for antiga, atual in LEGACY_CATEGORIES.items():
+                conn.execute(
+                    text("UPDATE tasks SET category = :atual WHERE category = :antiga"),
+                    {"atual": atual, "antiga": antiga},
+                )
+    except Exception:
+        logging.getLogger("uvicorn.error").warning(
+            "Não foi possível converter as categorias antigas — rode o UPDATE de supabase_schema.sql."
+        )
 
 
 # Colunas que passaram a guardar conteúdo criptografado (ver app/crypto.py). O

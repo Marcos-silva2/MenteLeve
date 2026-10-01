@@ -5,10 +5,25 @@ from datetime import date as dt_date
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, false
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.categories import DEFAULT_CATEGORY
 from app.crypto import EncryptedText
 from app.database import Base
+
+
+class WeekdayList(TypeDecorator):
+    """Lista de dias da semana [0, 2, 4] guardada como "0,2,4" (0 = segunda)."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return ",".join(str(int(v)) for v in value) if value else None
+
+    def process_result_value(self, value, dialect):
+        return [int(v) for v in value.split(",") if v.strip()] if value else None
 
 
 def _utcnow() -> datetime:
@@ -53,8 +68,8 @@ class Task(Base):
     title: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     # Metadados ficam em texto puro: são eles que sustentam o calendário e os
     # índices (ix_tasks_due_date). Revelam quando, não o quê.
-    # Categoria do design system: casa | filhos | trabalho | saude | financas | relacionamento
-    category: Mapped[str] = mapped_column(String(40), default="casa", nullable=False)
+    # Categoria (ver app/categories.py)
+    category: Mapped[str] = mapped_column(String(40), default=DEFAULT_CATEGORY, nullable=False)
     # Prazo estruturado — fonte da verdade para posicionar a tarefa no calendário.
     due_date: Mapped[dt_date | None] = mapped_column(Date, nullable=True, index=True)
     due_time: Mapped[str | None] = mapped_column(String(5), nullable=True)  # "HH:MM"
@@ -70,6 +85,10 @@ class Task(Base):
         Boolean, default=False, server_default=false(), nullable=False
     )
     recurrence_pattern: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Só para weekly: dias específicos (ex.: dias úteis). NULL = toda semana no dia do prazo.
+    recurrence_weekdays: Mapped[list[int] | None] = mapped_column(WeekdayList, nullable=True)
+    # Último dia da série. Concluir depois disso fecha a tarefa de vez.
+    recurrence_until: Mapped[dt_date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     # Quando o lembrete push desta tarefa foi enviado (None = ainda não). Evita
     # reenviar a cada rodada da varredura — ver app/push.py.

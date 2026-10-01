@@ -5,10 +5,11 @@
      Dados do ciclo são 100% locais/privados (localStorage).
    ============================================================ */
 
-import { h, $, $$, icons } from '../ui.js';
+import { h, $, $$, icons, renderGroupTabs } from '../ui.js';
+import { getGroupFilter, inGroup } from '../categories.js';
 import {
   getTasks, getCategory,
-  getCycle, setCycle, logPeriodToday, cyclePhase, cycleSummary,
+  getCycle, setCycle, logPeriodToday, cyclePhase, cycleSummary, isCycleModuleOn,
 } from '../store.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 import { resolveTime } from '../dates.js';
@@ -18,9 +19,9 @@ const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Jul
 const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 
 const PHASE = {
-  period:    { label: 'Menstruação',    color: '#c9184a', bg: 'bg-soft-200' },
-  fertile:   { label: 'Período fértil',  color: '#ff8fa3', bg: '' },
-  ovulation: { label: 'Ovulação',        color: '#ff4d6d', bg: '' },
+  period:    { label: 'Menstruação',    color: 'var(--color-primary-600)', bg: 'bg-soft-200' },
+  fertile:   { label: 'Período fértil',  color: 'var(--color-soft-300)', bg: '' },
+  ovulation: { label: 'Ovulação',        color: 'var(--color-accent)', bg: '' },
 };
 
 export function renderAgenda(app) {
@@ -29,7 +30,8 @@ export function renderAgenda(app) {
   let viewY = today.getFullYear();
   let viewM = today.getMonth();
   let selectedKey = todayKey;
-  let showCycle = getCycle().enabled;   // mostra a camada de ciclo
+  const cicloLigado = isCycleModuleOn();                // módulo opcional (Perfil)
+  let showCycle = cicloLigado && getCycle().enabled;   // mostra a camada de ciclo
   let cycleEdit = false;                // mostra o formulário de configuração
 
   const view = h(`
@@ -38,12 +40,14 @@ export function renderAgenda(app) {
         <header class="sticky top-0 z-20 bg-bg px-6 lg:px-0 pt-12 lg:pt-8 pb-2 flex items-center justify-between gap-2">
           <h1 id="month-label" class="font-serif font-bold text-bordeaux-900 text-[22px] lg:text-3xl leading-tight min-w-0"></h1>
           <div class="flex items-center gap-1.5 shrink-0">
-            <button id="cycle-toggle" class="text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition">🌸 Ciclo</button>
+            ${cicloLigado ? '<button id="cycle-toggle" class="text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition">🌸 Ciclo</button>' : ''}
             <button id="today-btn" class="text-xs font-semibold text-bordeaux-700 px-3 py-1.5 min-h-11 rounded-full border border-soft-100 hover:bg-soft-100 transition">Hoje</button>
             <button id="prev" class="w-11 h-11 rounded-full grid place-items-center text-bordeaux-700 hover:bg-soft-100 transition rotate-180" aria-label="Mês anterior">${icons.chevron}</button>
             <button id="next" class="w-11 h-11 rounded-full grid place-items-center text-bordeaux-700 hover:bg-soft-100 transition" aria-label="Próximo mês">${icons.chevron}</button>
           </div>
         </header>
+
+        <div id="group-tabs" class="mx-5 lg:mx-0 mb-3 p-1 flex gap-1 rounded-full bg-white border border-soft-100"></div>
 
         <div class="px-5 lg:px-0">
           <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-3">
@@ -70,11 +74,14 @@ export function renderAgenda(app) {
   const dayEl = $('#day', view);
   const cycleEl = $('#cyclepanel', view);
   const toggleBtn = $('#cycle-toggle', view);
+  renderGroupTabs($('#group-tabs', view), () => render());
 
   function buildIndex() {
     const byDay = new Map();
     const undated = [];
+    const grupo = getGroupFilter();
     for (const t of getTasks()) {
+      if (!inGroup(t, grupo)) continue;
       // `dueDate` já vem no formato "AAAA-MM-DD" — o mesmo de keyOf(). Indexar
       // a string direto evita `new Date('AAAA-MM-DD')`, que é lido como UTC e
       // volta um dia no Brasil.
@@ -94,7 +101,7 @@ export function renderAgenda(app) {
   function render() {
     const { byDay, undated } = buildIndex();
     monthLabel.textContent = `${MONTHS[viewM]} ${viewY}`;
-    toggleBtn.className = `text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition ${showCycle ? 'bg-accent text-white border-accent' : 'text-bordeaux-700 border-soft-100 hover:bg-soft-100'}`;
+    if (toggleBtn) toggleBtn.className = `text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition ${showCycle ? 'bg-accent text-white border-accent' : 'text-bordeaux-700 border-soft-100 hover:bg-soft-100'}`;
 
     // grade do mês
     const first = new Date(viewY, viewM, 1);
@@ -143,7 +150,7 @@ export function renderAgenda(app) {
       ${dayTasks.length
         ? `<div class="stagger flex flex-col gap-2 mb-6">${dayTasks.map(taskRow).join('')}</div>`
         : `<div class="bg-white/60 border border-soft-100 rounded-2xl p-5 text-center mb-6">
-             <p class="text-sm text-bordeaux-700">Nada agendado para este dia. Aproveite para respirar. 🌸</p>
+             <p class="text-sm text-bordeaux-700">Nada agendado para este dia. Aproveite para respirar.</p>
            </div>`}
       ${undated.length
         ? `<h3 class="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Sem data definida</h3>
@@ -214,7 +221,7 @@ export function renderAgenda(app) {
           Registrar menstruação hoje
         </button>
         <div class="flex items-center gap-3 text-[11px] text-bordeaux-700">
-          ${legendDot('#c9184a', 'Menstruação')} ${legendDot('#ff8fa3', 'Fértil')} ${legendDot('#ff4d6d', 'Ovulação')}
+          ${legendDot('var(--color-primary-600)', 'Menstruação')} ${legendDot('var(--color-soft-300)', 'Fértil')} ${legendDot('var(--color-accent)', 'Ovulação')}
         </div>
       </div>`;
 
@@ -228,7 +235,7 @@ export function renderAgenda(app) {
   $('#prev', view).addEventListener('click', () => { playTap(); viewM--; if (viewM < 0) { viewM = 11; viewY--; } render(); });
   $('#next', view).addEventListener('click', () => { playTap(); viewM++; if (viewM > 11) { viewM = 0; viewY++; } render(); });
   $('#today-btn', view).addEventListener('click', () => { playTap(); viewY = today.getFullYear(); viewM = today.getMonth(); selectedKey = todayKey; render(); });
-  toggleBtn.addEventListener('click', () => { showCycle = !showCycle; setCycle({ enabled: showCycle }); cycleEdit = false; render(); });
+  if (toggleBtn) toggleBtn.addEventListener('click', () => { showCycle = !showCycle; setCycle({ enabled: showCycle }); cycleEdit = false; render(); });
   $('#fab', view).addEventListener('click', () => openTaskSheet(app, render));
 
   render();
@@ -253,7 +260,7 @@ function taskRow(t) {
   const time = t.dueTime || resolveTime(t.due) || '';
   return `
     <div class="lift flex items-center gap-3 bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3">
-      <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : '#ff4d6d'}"></span>
+      <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : 'var(--color-accent)'}"></span>
       <div class="min-w-0 flex-1">
         <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
         <p class="text-xs text-bordeaux-700 mt-0.5">${cat ? cat.label : ''}${t.parentId ? ' • subtarefa' : ''}</p>

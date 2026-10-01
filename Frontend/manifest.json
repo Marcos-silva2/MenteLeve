@@ -1,7 +1,7 @@
 {
   "name": "MenteLeve",
   "short_name": "MenteLeve",
-  "description": "A sua mente mais leve. Gestão de carga mental com inteligência artificial.",
+  "description": "A agenda inteligente para o trabalho e a vida. Organize tarefas e compromissos com inteligência artificial.",
   "lang": "pt-BR",
   "start_url": "./index.html",
   "scope": "./",

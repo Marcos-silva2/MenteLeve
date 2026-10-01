@@ -4,9 +4,11 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
-import { CATEGORIES, PRIORITIES, addTask } from '../store.js';
+import { PRIORITIES, addTask } from '../store.js';
+import { GROUPS, categoriesOf, DEFAULT_CATEGORY } from '../categories.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
-import { todayKey, resolveDue, firstOccurrence, RECURRENCE_LABELS } from '../dates.js';
+import { todayKey, resolveDue, firstOccurrence, recurrenceLabel } from '../dates.js';
+import { recurrencePicker } from './recurrencePicker.js';
 import { playAha, playTap, playAdd } from '../sound.js';
 
 /**
@@ -25,8 +27,6 @@ export function openTaskSheet(app, onDone) {
   let selectedCat = null;
   let due = '';
   let selectedPriority = 'media';
-  // null = não escolhida: vale o que a IA percebeu
-  let selectedRecurrence = null;
   // Data mínima do seletor = hoje (evita agendar no passado).
   // todayKey() usa o fuso local: toISOString() devolveria o dia seguinte
   // à noite no Brasil, bloqueando a escolha do próprio dia de hoje.
@@ -48,20 +48,22 @@ export function openTaskSheet(app, onDone) {
       <textarea id="task-input" rows="2"
         class="w-full px-4 py-3 rounded-2xl bg-white border border-soft-100 text-bordeaux-900 placeholder-muted
                focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition resize-none text-[15px]"
-        placeholder="Ex: Vacina do Léo dia 15 ou Comprar presentes de aniversário amanhã..."></textarea>
+        placeholder="Ex: Reunião com o cliente sexta às 10h ou Dentista dia 15..."></textarea>
 
       <!-- categorias -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
         Categoria <span id="cat-hint" class="font-normal text-muted">— a IA escolhe se você não marcar</span>
       </p>
+      ${GROUPS.map((g) => `
+      <p class="text-[11px] font-semibold text-muted uppercase tracking-wide mt-2 mb-1.5">${g.label}</p>
       <div class="flex flex-wrap gap-2">
-        ${CATEGORIES.map((c) => `
+        ${categoriesOf(g.id).map((c) => `
           <button data-cat="${c.id}"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition
                    ${c.id === selectedCat ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}">
             <span class="w-2 h-2 rounded-full" style="background:${c.dot}"></span>${c.label}
           </button>`).join('')}
-      </div>
+      </div>`).join('')}
 
       <!-- data rápida -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Quando</p>
@@ -86,15 +88,9 @@ export function openTaskSheet(app, onDone) {
 
       <!-- repetição -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
-        Repetir <span id="rec-hint" class="font-normal text-muted">— a IA percebe “todo dia”, “toda segunda”…</span>
+        Repetir <span id="rec-hint" class="font-normal text-muted">— a IA percebe “todo dia”, “dias úteis”, “até 20/12”…</span>
       </p>
-      <div class="flex flex-wrap gap-2" role="group" aria-label="Repetição da tarefa">
-        ${Object.entries(RECURRENCE_LABELS).map(([id, label]) => `
-          <button type="button" data-rec="${id}" aria-pressed="false"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition bg-white text-bordeaux-700 border-soft-100">
-            ${icons.repeat}${label}
-          </button>`).join('')}
-      </div>
+      <div id="rec-picker"></div>
 
       <!-- prioridade -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Prioridade</p>
@@ -160,19 +156,11 @@ export function openTaskSheet(app, onDone) {
     });
   });
 
-  // repetição — tocar de novo desmarca (volta para a IA)
-  $$('[data-rec]', sheet).forEach((b) =>
-    b.addEventListener('click', () => {
-      selectedRecurrence = selectedRecurrence === b.dataset.rec ? null : b.dataset.rec;
-      const hint = $('#rec-hint', sheet);
-      if (hint) hint.classList.toggle('hidden', selectedRecurrence !== null);
-      $$('[data-rec]', sheet).forEach((x) => {
-        const on = x.dataset.rec === selectedRecurrence;
-        x.setAttribute('aria-pressed', String(on));
-        x.className = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
-      });
-    })
-  );
+  // repetição — nada escolhido = vale o que a IA percebeu
+  const picker = recurrencePicker({
+    onChange: (v) => { const hint = $('#rec-hint', sheet); if (hint) hint.classList.toggle('hidden', v !== null); },
+  });
+  $('#rec-picker', sheet).replaceWith(picker.el);
 
   // seleção de prioridade
   $$('[data-prio]', sheet).forEach((b) =>
@@ -233,18 +221,22 @@ export function openTaskSheet(app, onDone) {
       try {
         result = decomposeTask(text);
       } catch (_) {
-        result = { title: text, category: selectedCat || 'casa', due, subtasks: [], suggestion: null };
+        result = { title: text, category: selectedCat || DEFAULT_CATEGORY, due, subtasks: [], suggestion: null };
       }
     }
     pararEspera();
 
     // A escolha manual do usuário tem prioridade sobre o palpite da IA.
-    const category = selectedCat || result.category || 'casa';
-    const recurrencePattern = selectedRecurrence || result.recurrencePattern || null;
+    const category = selectedCat || result.category || DEFAULT_CATEGORY;
+    // Repetição: escolha manual > palpite da IA.
+    const rec = picker.getValue() || (result.recurrencePattern
+      ? { isRecurring: true, recurrencePattern: result.recurrencePattern,
+          recurrenceWeekdays: result.recurrenceWeekdays || null, recurrenceUntil: result.recurrenceUntil || null }
+      : { isRecurring: false, recurrencePattern: null, recurrenceWeekdays: null, recurrenceUntil: null });
     // Data: calendário > atalho > IA. Recorrente sempre nasce datada (1ª ocorrência).
     const finalDueDate =
       dateInput.value || (due ? resolveDue(due) : null) || result.dueDate ||
-      (recurrencePattern ? firstOccurrence(text, recurrencePattern) : null);
+      (rec.isRecurring ? firstOccurrence(text, rec.recurrencePattern, todayKey(), rec.recurrenceWeekdays) : null);
     // Horário: escolha manual > palpite da IA.
     const finalDueTime = timeInput.value || result.dueTime || null;
 
@@ -256,8 +248,7 @@ export function openTaskSheet(app, onDone) {
       dueDate: finalDueDate,
       dueTime: finalDueTime,
       priority: selectedPriority,
-      isRecurring: !!recurrencePattern,
-      recurrencePattern,
+      ...rec,
     });
 
     close();
@@ -276,8 +267,8 @@ export function openTaskSheet(app, onDone) {
       // Sem Aha Moment não há playAha; este é o único retorno sonoro do
       // registro. Quando o modal abre, o playAha dele já cumpre esse papel.
       playAdd();
-      toast(recurrencePattern
-        ? `Tarefa adicionada ✨ Ela se repete: ${RECURRENCE_LABELS[recurrencePattern].toLowerCase()}`
+      toast(rec.isRecurring
+        ? `Tarefa adicionada ✨ Ela se repete: ${recurrenceLabel({ ...rec }).toLowerCase()}`
         : 'Tarefa adicionada ✨');
     }
   });

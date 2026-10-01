@@ -141,23 +141,25 @@ Todas as rotas de `/tasks` e `/auth/me*` exigem o header `Authorization: Bearer 
 
 ## Bruna: ações pelo chat
 
+Os prompts (`app/ai.py`: `_SYSTEM` para a análise de tarefas e `_CHAT_SYSTEM` para a Bruna) cobrem trabalho **e** vida pessoal: descrevem cada uma das 9 categorias, dão exemplos de subtarefas de trabalho (reunião → pauta/convite/ata; entrega → revisar/aprovar/enviar) e usam linguagem neutra, sem presumir gênero, profissão nem se a pessoa tem filhos. A Bruna também é instruída a não registrar informações confidenciais de trabalho. O `tests/test_prompts.py` trava essas propriedades.
+
 `POST /ai/chat` usa *function calling* do Gemini. A Bruna pode chamar duas funções:
 `criar_tarefa` e `concluir_tarefa`. **Excluir ficou de fora de propósito** — é
 destrutivo e a identificação é por texto aproximado.
 
 Pontos de projeto que importam ao mexer aqui (`routers/ai_chat.py`):
-- **O modelo nunca informa um id.** Ele passa o título com as palavras da usuária e o
+- **O modelo nunca informa um id.** Ele passa o título com as palavras da pessoa e o
   servidor casa contra as tarefas **dela** (`_match_tasks`, ignorando acentos/caixa).
   Isso elimina a classe de erro "modelo inventa um id". Com mais de uma candidata,
   devolve `ambiguo` e a Bruna pergunta em vez de escolher.
 - **Confirmação composta no servidor** no caminho feliz (1 ida ao modelo, mais rápido
   e sem risco de a IA narrar errado o que fez). A 2ª ida só acontece quando é preciso
   nuance: ambiguidade, tarefa não encontrada, limite do plano.
-- **Idempotência:** o timeout do cliente não cancela a requisição, então a usuária
+- **Idempotência:** o timeout do cliente não cancela a requisição, então a pessoa
   podia ver o fallback, repetir o pedido e criar duplicata. `find_recent_duplicate`
   bloqueia isso.
 - **Limite gratuito vira resultado de função**, não `HTTPException(402)` — um 402 aqui
-  abortaria a resposta e a usuária perderia a fala da Bruna.
+  abortaria a resposta e a pessoa perderia a fala da Bruna.
 
 ## IA: provedor principal e reserva
 
@@ -188,11 +190,37 @@ Detalhes que economizam depuração:
 > ⚠️ O tier gratuito dos dois provedores permite uso do conteúdo para treinamento. Para
 > um app de rotina/saúde feminina, considere o tier pago.
 
+## Categorias
+
+`app/categories.py` é a fonte única: **Trabalho** (`trabalho`, `reunioes`, `carreira`, `estudos`) e
+**Vida** (`casa`, `familia`, `saude`, `financas`, `pessoal`). O frontend espelha em `js/categories.js`.
+
+As categorias antigas (`filhos` → `familia`, `relacionamento` → `pessoal`) continuam aceitas na
+entrada e são convertidas pelo schema (`BeforeValidator`) — clientes com cache antigo e filas
+offline ainda as enviam. As linhas já gravadas são convertidas no boot por
+`database._migrate_categories` (UPDATE idempotente; o equivalente em SQL está no fim de
+`supabase_schema.sql`). A resposta da API sempre traz as categorias atuais.
+
 ## Tarefas recorrentes
 
 `is_recurring` + `recurrence_pattern` (`daily` | `weekly` | `monthly`). Concluir uma recorrente
 **não a fecha**: o prazo rola para a próxima ocorrência (`app/recurrence.py`), sem criar cópia.
-`PUT /tasks/{id}/complete?today=AAAA-MM-DD` recebe a data local da usuária.
+`PUT /tasks/{id}/complete?today=AAAA-MM-DD` recebe a data local do usuário.
+
+Dois campos refinam a regra:
+
+- `recurrence_weekdays` (só com `weekly`): dias específicos, `0` = segunda … `6` = domingo
+  (padrão do `date.weekday()` do Python; **não** o `getDay()` do JS). Dias úteis = `[0,1,2,3,4]`.
+  A próxima ocorrência é o primeiro desses dias depois de hoje e do prazo. No banco vira o
+  texto `"0,2,4"` (`models.WeekdayList`).
+- `recurrence_until`: último dia da série. Concluir quando não há próxima ocorrência antes
+  dele **fecha** a tarefa de vez.
+
+A detecção por texto (`recurrence.resolve`) reconhece "dias úteis", "de segunda a sexta",
+"toda segunda e quarta", "até 20/12", "até dezembro". É usada pela IA (quando ela omite ou
+erra os campos), pelo fallback sem IA do `/tasks/smart` e pela Bruna (`dias_semana`, `ate`).
+`PATCH /tasks/{id}` edita a recorrência depois de criada e mantém os campos coerentes
+(desligar limpa tudo; trocar para diário/mensal descarta os dias).
 
 ## Testes
 

@@ -3,19 +3,99 @@
    Tokens + ajustes que o Tailwind CDN não cobre + animações
    ============================================================ */
 
+/* ---------- Tema ----------
+   Cada tema só redefine os canais RGB (--rgb-*). Os --color-* e as cores do
+   Tailwind (index.html) derivam deles, então trocar `data-theme` no <html>
+   recolore o app inteiro. O padrão (Bordeaux Pink) vive em :root. */
 :root {
-  --color-bg: #fff0f3;
-  --color-primary-900: #590d22;
-  --color-primary-800: #800f2f;
-  --color-primary-700: #a4133c;
-  --color-primary-600: #c9184a;
-  --color-accent: #ff4d6d;
-  --color-accent-hover: #ff758f;
-  --color-soft-300: #ff8fa3;
-  --color-muted: #836169;   /* texto secundário legível — ver index.html */
-  --color-soft-200: #ffb3c1;
-  --color-soft-100: #ffccd5;
-  --color-surface: #ffffff;
+  --rgb-bg: 255 240 243;
+  --rgb-primary-900: 89 13 34;
+  --rgb-primary-800: 128 15 47;
+  --rgb-primary-700: 164 19 60;
+  --rgb-primary-600: 201 24 74;
+  --rgb-accent: 212 42 76;
+  --rgb-accent-hover: 184 33 63;
+  --rgb-soft-300: 255 143 163;
+  --rgb-soft-200: 255 179 193;
+  --rgb-soft-100: 255 204 213;
+  --rgb-soft-50: 255 227 232;
+  --rgb-muted: 131 97 105;
+  --rgb-surface: 255 255 255;
+}
+:root {
+  --color-bg: rgb(var(--rgb-bg));
+  --color-primary-900: rgb(var(--rgb-primary-900));
+  --color-primary-800: rgb(var(--rgb-primary-800));
+  --color-primary-700: rgb(var(--rgb-primary-700));
+  --color-primary-600: rgb(var(--rgb-primary-600));
+  --color-accent: rgb(var(--rgb-accent));
+  --color-accent-hover: rgb(var(--rgb-accent-hover));
+  --color-soft-300: rgb(var(--rgb-soft-300));
+  --color-soft-200: rgb(var(--rgb-soft-200));
+  --color-soft-100: rgb(var(--rgb-soft-100));
+  --color-soft-50: rgb(var(--rgb-soft-50));
+  --color-muted: rgb(var(--rgb-muted));
+  --color-surface: rgb(var(--rgb-surface));
+}
+:root[data-theme="oceano"] { /* Oceano */
+  --rgb-bg: 238 246 251;
+  --rgb-primary-900: 11 58 83;
+  --rgb-primary-800: 15 76 110;
+  --rgb-primary-700: 19 101 144;
+  --rgb-primary-600: 26 116 166;
+  --rgb-accent: 28 124 172;
+  --rgb-accent-hover: 25 110 152;
+  --rgb-soft-300: 127 189 224;
+  --rgb-soft-200: 169 211 234;
+  --rgb-soft-100: 207 230 243;
+  --rgb-soft-50: 224 238 247;
+  --rgb-muted: 79 107 122;
+  --rgb-surface: 255 255 255;
+}
+:root[data-theme="floresta"] { /* Floresta */
+  --rgb-bg: 240 247 241;
+  --rgb-primary-900: 30 77 43;
+  --rgb-primary-800: 37 99 54;
+  --rgb-primary-700: 45 122 65;
+  --rgb-primary-600: 42 125 68;
+  --rgb-accent: 54 132 77;
+  --rgb-accent-hover: 47 116 67;
+  --rgb-soft-300: 143 203 163;
+  --rgb-soft-200: 179 220 192;
+  --rgb-soft-100: 211 235 219;
+  --rgb-soft-50: 226 240 229;
+  --rgb-muted: 86 107 92;
+  --rgb-surface: 255 255 255;
+}
+:root[data-theme="grafite"] { /* Grafite */
+  --rgb-bg: 244 244 245;
+  --rgb-primary-900: 39 39 42;
+  --rgb-primary-800: 63 63 70;
+  --rgb-primary-700: 67 56 202;
+  --rgb-primary-600: 79 70 229;
+  --rgb-accent: 94 97 241;
+  --rgb-accent-hover: 75 79 239;
+  --rgb-soft-300: 165 180 252;
+  --rgb-soft-200: 199 210 254;
+  --rgb-soft-100: 224 231 255;
+  --rgb-soft-50: 235 235 237;
+  --rgb-muted: 99 99 107;
+  --rgb-surface: 255 255 255;
+}
+:root[data-theme="lavanda"] { /* Lavanda */
+  --rgb-bg: 246 242 253;
+  --rgb-primary-900: 59 31 107;
+  --rgb-primary-800: 76 42 133;
+  --rgb-primary-700: 96 48 181;
+  --rgb-primary-600: 109 50 214;
+  --rgb-accent: 132 82 245;
+  --rgb-accent-hover: 117 60 244;
+  --rgb-soft-300: 196 181 253;
+  --rgb-soft-200: 216 205 251;
+  --rgb-soft-100: 232 224 251;
+  --rgb-soft-50: 236 230 250;
+  --rgb-muted: 107 95 128;
+  --rgb-surface: 255 255 255;
 }
 
 * {
@@ -77,7 +157,7 @@ body {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   z-index: 30;
-  background: rgba(255, 240, 243, 0.92);
+  background: rgb(var(--rgb-bg) / 0.92);
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--color-soft-100);
   padding-bottom: env(safe-area-inset-bottom, 0);
@@ -199,25 +279,25 @@ h1, h2, h3, h4 { line-height: 1.25; }
    nasce invisível e só aparece após 200 ms: operação rápida termina antes e
    nunca pisca um esqueleto. */
 .skeleton-pulse {
-  background: #fff0f3;
+  background: var(--color-bg);
   border-radius: 9999px;
   animation: skeletonPulse 1.4s ease-in-out infinite;
 }
 @keyframes skeletonPulse {
-  0%, 100% { background-color: #fff0f3; }
-  50%      { background-color: #ffccd5; }
+  0%, 100% { background-color: var(--color-bg); }
+  50%      { background-color: var(--color-soft-100); }
 }
 .skeleton-wrap { animation: fadeIn 0.2s ease 0.2s both; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none !important; }
-  .skeleton-pulse { animation: none; background: #ffe3e8; }
+  .skeleton-pulse { animation: none; background: var(--color-soft-50); }
   .skeleton-wrap { animation: none; }
 }
 
 /* ---------- Lift sutil ao passar o mouse (desktop) ---------- */
 .lift { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
 @media (hover: hover) and (min-width: 1024px) {
-  .lift:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(89, 13, 34, 0.12); }
+  .lift:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgb(var(--rgb-primary-900) / 0.12); }
 }
 
 /* ---------- Entrada das bolhas do chat (só a mais nova) ---------- */
@@ -241,14 +321,14 @@ h1, h2, h3, h4 { line-height: 1.25; }
 /* ---------- Brilho suave (IA viva) — avatar/elementos da Bruna ---------- */
 .bruna-glow { animation: brunaGlow 3s ease-in-out infinite; }
 @keyframes brunaGlow {
-  0%, 100% { box-shadow: 0 6px 18px rgba(255, 77, 109, 0.45); }
-  50%      { box-shadow: 0 6px 28px rgba(255, 77, 109, 0.72); }
+  0%, 100% { box-shadow: 0 6px 18px rgb(var(--rgb-accent) / 0.45); }
+  50%      { box-shadow: 0 6px 28px rgb(var(--rgb-accent) / 0.72); }
 }
 
 /* ---------- Botões primários: leve elevação no hover (desktop) ---------- */
 @media (hover: hover) and (min-width: 1024px) {
   .cta-lift { transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease; }
-  .cta-lift:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(255, 77, 109, 0.5); }
+  .cta-lift:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgb(var(--rgb-accent) / 0.5); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -261,7 +341,7 @@ h1, h2, h3, h4 { line-height: 1.25; }
 .scrim {
   position: absolute;
   inset: 0;
-  background: rgba(89, 13, 34, 0.45);
+  background: rgb(var(--rgb-primary-900) / 0.45);
   backdrop-filter: blur(2px);
   z-index: 40;
   animation: fadeIn 0.2s ease both;
@@ -274,7 +354,7 @@ h1, h2, h3, h4 { line-height: 1.25; }
   left: 0; right: 0; bottom: 0;
   background: var(--color-surface);
   border-radius: 28px 28px 0 0;
-  box-shadow: 0 -8px 40px rgba(89, 13, 34, 0.18);
+  box-shadow: 0 -8px 40px rgb(var(--rgb-primary-900) / 0.18);
   z-index: 41;
   animation: sheetUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   padding-bottom: env(safe-area-inset-bottom, 0);
@@ -356,8 +436,8 @@ h1, h2, h3, h4 { line-height: 1.25; }
 /* ---------- FAB pulse ---------- */
 .fab-pulse { animation: fabPulse 2.4s ease-in-out infinite; }
 @keyframes fabPulse {
-  0%, 100% { box-shadow: 0 8px 24px rgba(255, 77, 109, 0.45); }
-  50%      { box-shadow: 0 8px 32px rgba(255, 77, 109, 0.65); }
+  0%, 100% { box-shadow: 0 8px 24px rgb(var(--rgb-accent) / 0.45); }
+  50%      { box-shadow: 0 8px 32px rgb(var(--rgb-accent) / 0.65); }
 }
 
 /* ============================================================
@@ -372,14 +452,14 @@ h1, h2, h3, h4 { line-height: 1.25; }
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #fff0f3;                 /* Lavender Blush (60%) */
+  background: var(--color-bg);                 /* Lavender Blush (60%) */
   animation: splashBreath 0.6s ease both;   /* respiro inicial */
   transition: opacity 0.6s ease;
 }
 .splash.hide { opacity: 0; pointer-events: none; }
 @keyframes splashBreath {
-  from { background: #ffe3e8; }
-  to   { background: #fff0f3; }
+  from { background: var(--color-soft-50); }
+  to   { background: var(--color-bg); }
 }
 
 /* ---- Partículas (carga mental dispersa) que convergem ao centro ---- */
@@ -439,14 +519,14 @@ h1, h2, h3, h4 { line-height: 1.25; }
   font-family: 'Playfair Display', Georgia, serif;
   font-weight: 800;
   font-size: 36px;
-  color: #590d22;                       /* Night Bordeaux */
+  color: var(--color-primary-900);                       /* Night Bordeaux */
   letter-spacing: 0.5px;
   opacity: 0;
   animation: splashFadeUp 0.6s ease 1.5s both;
 }
 .splash-tagline {
   font-size: 13px;
-  color: #a4133c;                       /* Cherry Rose */
+  color: var(--color-primary-700);                       /* Cherry Rose */
   letter-spacing: 1px;
   margin-top: 4px;
   opacity: 0;
@@ -462,11 +542,11 @@ h1, h2, h3, h4 { line-height: 1.25; }
   position: absolute;
   top: 4px;
   right: calc(50% - 92px);
-  color: #ff4d6d;                       /* Bubblegum Pink */
+  color: var(--color-accent);                       /* Bubblegum Pink */
   opacity: 0;
   animation: sparkBlink 1.4s ease 1.7s both;
 }
-.splash-spark svg { width: 26px; height: 26px; filter: drop-shadow(0 0 6px rgba(255,77,109,.6)); }
+.splash-spark svg { width: 26px; height: 26px; filter: drop-shadow(0 0 6px rgb(var(--rgb-accent) / .6)); }
 @keyframes sparkBlink {
   0%   { opacity: 0; transform: scale(0.4) rotate(-20deg); }
   20%  { opacity: 1; transform: scale(1.1) rotate(0); }
@@ -535,10 +615,8 @@ h1, h2, h3, h4 { line-height: 1.25; }
 
    Usado só onde é a primeira impressão (onboarding). Na navegação, o logotipo
    entra pronto — repetir a animação a cada troca de aba viraria ruído. */
-/* O isotipo é um bitmap, então não dá para "desenhar" o traço como se fazia
-   com os paths da lótus. A entrada agora é de escala: a marca chega pequena e
-   assenta, com um leve overshoot no fim da curva. Mesma duração de antes, para
-   não descompassar do texto que entra junto. */
+/* A marca entra em escala: chega pequena e assenta, com um leve overshoot no fim
+   da curva, no mesmo tempo do texto que entra junto. */
 .logo-bloom {
   animation: logoBloom 0.7s cubic-bezier(0.34, 1.4, 0.44, 1) 0.1s both;
   transform-origin: center bottom;
@@ -665,12 +743,12 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="swi
 .btn:active:not(:disabled) { transform: scale(0.98); }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
 .btn[aria-busy="true"] { cursor: progress; }
-.btn-primary { background: #ff4d6d; color: #fff; box-shadow: 0 8px 24px rgba(255, 77, 109, 0.35); }
-.btn-primary:hover:not(:disabled) { background: #ff758f; }
-.btn-secondary { background: transparent; color: #800f2f; }
-.btn-secondary:hover:not(:disabled) { background: #ffccd5; }
-.btn-danger { background: transparent; color: #c9184a; }
-.btn-danger:hover:not(:disabled) { background: rgba(201, 24, 74, 0.1); }
+.btn-primary { background: var(--color-accent); color: #fff; box-shadow: 0 8px 24px rgb(var(--rgb-accent) / 0.35); }
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-hover); }
+.btn-secondary { background: transparent; color: var(--color-primary-800); }
+.btn-secondary:hover:not(:disabled) { background: var(--color-soft-100); }
+.btn-danger { background: transparent; color: var(--color-primary-600); }
+.btn-danger:hover:not(:disabled) { background: rgb(var(--rgb-primary-600) / 0.1); }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:active:not(:disabled) { transform: none; } }
 
 /* ---------- Seções da Home (accordion) ----------
@@ -703,7 +781,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="swi
   display: grid; place-items: center; padding: 2px 16px; border-radius: 9999px;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
-.is-active .nav-pill { background: #ffccd5; color: #590d22; }
+.is-active .nav-pill { background: var(--color-soft-100); color: var(--color-primary-900); }
 
 /* utilidades */
 .no-scrollbar::-webkit-scrollbar { display: none; }

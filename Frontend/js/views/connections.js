@@ -13,8 +13,8 @@ export function renderConnections(app) {
     <div class="h-full flex flex-col relative">
       <div class="content-wrap lg:max-w-2xl flex-1 flex flex-col overflow-hidden">
       <header class="px-6 lg:px-0 pt-12 lg:pt-8 pb-4">
-        <h1 class="font-serif font-bold text-bordeaux-900 text-[26px] lg:text-3xl leading-tight">A sua Rede de Apoio</h1>
-        <p class="text-sm text-bordeaux-700 mt-1">Divida as tarefas e multiplique o seu tempo livre.</p>
+        <h1 class="font-serif font-bold text-bordeaux-900 text-[26px] lg:text-3xl leading-tight">Sua rede de apoio</h1>
+        <p class="text-sm text-bordeaux-700 mt-1">Divida tarefas com a família ou a equipe e ganhe tempo.</p>
       </header>
 
       <div class="flex-1 overflow-y-auto px-6 lg:px-0 safe-bottom">
@@ -23,12 +23,12 @@ export function renderConnections(app) {
           <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4 flex flex-col items-center text-center">
             <div class="w-14 h-14 rounded-full bg-soft-200 grid place-items-center text-bordeaux-900 font-serif font-bold mb-2">${ini(user.name)}</div>
             <p class="text-sm font-semibold text-bordeaux-900">${user.name.split(' ')[0]}</p>
-            <p class="text-[11px] text-bordeaux-700">(Administradora)</p>
+            <p class="text-[11px] text-bordeaux-700">(Administrador)</p>
           </div>
           <button id="invite-card"
             class="lift rounded-xl2 border-2 border-dashed border-soft-200 p-4 flex flex-col items-center justify-center text-center active:scale-[.98] transition">
             <div class="w-14 h-14 rounded-full bg-soft-100 grid place-items-center text-accent mb-2">${icons.plus}</div>
-            <p class="text-sm font-semibold text-bordeaux-900">Convidar Parceiro(a)</p>
+            <p class="text-sm font-semibold text-bordeaux-900">Convidar alguém</p>
             <p class="text-[11px] text-bordeaux-700">Divida a carga</p>
           </button>
         </div>
@@ -38,16 +38,16 @@ export function renderConnections(app) {
         <div class="flex flex-col items-center text-center px-6 py-8 mb-7 bg-bg border border-soft-100 rounded-xl2">
           <div class="w-16 h-16 rounded-full bg-white grid place-items-center mb-3 text-soft-300 [&>svg]:w-8 [&>svg]:h-8" aria-hidden="true">${icons.users}</div>
           <h2 class="font-serif font-bold text-bordeaux-900 text-lg mb-1">Sua rede de apoio começa aqui</h2>
-          <p class="text-sm text-bordeaux-700 max-w-[280px] mb-4">Ainda não há ninguém conectado. Convide seu parceiro(a) ou alguém de confiança para dividir a carga.</p>
-          <button id="invite" class="btn btn-primary cta-lift">Convidar Parceiro(a)</button>
+          <p class="text-sm text-bordeaux-700 max-w-[280px] mb-4">Ainda não há ninguém conectado. Convide alguém de confiança — da família ou da equipe — para dividir a carga.</p>
+          <button id="invite" class="btn btn-primary cta-lift">Convidar alguém</button>
         </div>
 
         <!-- configurações -->
         <h2 class="font-serif font-bold text-bordeaux-900 text-lg mb-3">Configurações de Partilha</h2>
         <div class="flex flex-col gap-1 bg-white rounded-xl2 shadow-card border border-soft-100 overflow-hidden mb-6">
-          ${toggleRow('Notificar parceiro sobre tarefas urgentes', true)}
-          ${toggleRow('Sincronizar agenda de filhos', false)}
-          ${toggleRow('Permitir que a IA divida tarefas entre nós ✨', true)}
+          ${toggleRow('Notificar sobre tarefas urgentes', true)}
+          ${toggleRow('Sincronizar agenda compartilhada', false)}
+          ${toggleRow('Permitir que a IA sugira como dividir tarefas ✨', true)}
         </div>
       </div>
 
@@ -55,7 +55,7 @@ export function renderConnections(app) {
     </div>
   `);
 
-  // Convite de parceiro(a) ainda não implementado — mesmo padrão do login social.
+  // Convite ainda não implementado — mesmo padrão do login social.
   const avisarEmBreve = () => toast('Recurso disponível na versão final ✨');
   $('#invite', view).addEventListener('click', avisarEmBreve);
   $('#invite-card', view).addEventListener('click', avisarEmBreve);

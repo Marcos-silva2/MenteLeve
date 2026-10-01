@@ -41,6 +41,20 @@ def test_valores_padrao_da_tarefa(client, usuaria):
     assert t["is_recurring"] is False and t["recurrence_pattern"] is None
 
 
+@pytest.mark.parametrize("categoria", ["trabalho", "reunioes", "carreira", "estudos", "casa", "familia", "saude", "financas", "pessoal"])
+def test_todas_as_categorias_sao_aceitas(client, usuaria, categoria):
+    assert _criar(client, usuaria["headers"], category=categoria)["category"] == categoria
+
+
+@pytest.mark.parametrize("antiga,atual", [("filhos", "familia"), ("relacionamento", "pessoal")])
+def test_categoria_antiga_e_convertida_na_entrada(client, usuaria, antiga, atual):
+    # Clientes com cache antigo e filas offline ainda enviam as categorias de antes.
+    t = _criar(client, usuaria["headers"], category=antiga)
+    assert t["category"] == atual
+    r = client.patch(f"/tasks/{t['id']}", json={"category": "relacionamento"}, headers=usuaria["headers"])
+    assert r.json()["category"] == "pessoal"
+
+
 @pytest.mark.parametrize(
     "corpo",
     [
@@ -197,7 +211,7 @@ def test_smart_ignora_padrao_invalido_da_ia(client, usuaria, gemini):
 
 
 def test_smart_texto_sem_repeticao_nao_e_recorrente(client, usuaria, gemini):
-    gemini(title="Ligar pra vovó", category="relacionamento", due_date=None, due_time=None,
+    gemini(title="Ligar pra vovó", category="pessoal", due_date=None, due_time=None,
            subtasks=[], suggestion=None)
     body = client.post("/tasks/smart", json={"text": "ligar pra vovó amanhã"}, headers=usuaria["headers"]).json()
     assert body["is_recurring"] is False and body["recurrence_pattern"] is None

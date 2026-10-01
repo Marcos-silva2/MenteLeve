@@ -3,19 +3,21 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast } from '../ui.js';
-import { getUser, logout, getSoundLevel, setSoundLevel, SOUND_LEVELS } from '../store.js';
+import { getUser, logout, getSoundLevel, setSoundLevel, SOUND_LEVELS, isCycleModuleOn, setCycleModule } from '../store.js';
 import { playTap, playComplete } from '../sound.js';
 import * as push from '../push.js';
+import { THEMES, getTheme, setTheme } from '../theme.js';
 
 export function renderProfile(app) {
   const user = getUser() || { name: 'Você', email: '' };
   const installed = app.isInstalled && app.isInstalled();
   const som = getSoundLevel();
+  const tema = getTheme();
 
   const menu = [
     { id: 'account', label: 'Minha Conta', icon: icons.user },
     { id: 'ai', label: 'Preferências da IA', icon: icons.cog },
-    { id: 'notifications', label: 'Notificações da Família', icon: icons.bell },
+    { id: 'notifications', label: 'Notificações', icon: icons.bell },
     { id: 'help', label: 'Ajuda e Suporte', icon: icons.help },
   ];
 
@@ -46,6 +48,35 @@ export function renderProfile(app) {
                   ${n.label}
                 </button>`).join('')}
             </div>
+          </div>
+        </div>
+
+        <!-- cor do app -->
+        <div class="px-6 mb-4">
+          <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4">
+            <p class="flex items-center gap-2 text-sm text-bordeaux-900 mb-1">
+              <span class="text-bordeaux-700">${icons.spark}</span> Cor do app
+            </p>
+            <p id="theme-hint" class="text-xs text-bordeaux-700 mb-3">${THEMES.find((t) => t.id === tema).label}</p>
+            <div id="theme-options" role="radiogroup" aria-label="Cor do app" class="grid grid-cols-5 gap-2">
+              ${THEMES.map((t) => themeOption(t, t.id === tema)).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- módulo opcional: calendário menstrual -->
+        <div class="px-6 mb-4">
+          <div class="lift bg-white rounded-xl2 shadow-card border border-soft-100 p-4 flex items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <p class="flex items-center gap-2 text-sm text-bordeaux-900 mb-1">
+                <span aria-hidden="true">🌸</span> Calendário menstrual
+              </p>
+              <p class="text-xs text-bordeaux-700">Módulo opcional. Os dados ficam só neste aparelho e nunca vão ao servidor.</p>
+            </div>
+            <button id="cycle-module" role="switch" aria-checked="false" aria-label="Calendário menstrual"
+              class="relative w-12 h-7 rounded-full shrink-0 transition-colors bg-soft-200">
+              <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all"></span>
+            </button>
           </div>
         </div>
 
@@ -116,6 +147,37 @@ export function renderProfile(app) {
     else if (nivel === 'conclusoes') playComplete();
   });
 
+  // Cor do app — a troca é imediata e vale em todas as telas.
+  const temasEl = $('#theme-options', view);
+  temasEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-theme-id]');
+    if (!btn) return;
+    const id = setTheme(btn.dataset.themeId);
+    $$('[data-theme-id]', temasEl).forEach((b) => {
+      const t = THEMES.find((x) => x.id === b.dataset.themeId);
+      b.replaceWith(h(themeOption(t, t.id === id)));
+    });
+    $('#theme-hint', view).textContent = THEMES.find((t) => t.id === id).label;
+    playTap();
+  });
+
+  // Módulo do calendário menstrual — opcional, desligado por padrão.
+  const cicloBtn = $('#cycle-module', view);
+  function setCicloUi(on) {
+    cicloBtn.setAttribute('aria-checked', String(on));
+    cicloBtn.className = `relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-soft-200'}`;
+    cicloBtn.querySelector('span').className =
+      `absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`;
+  }
+  setCicloUi(isCycleModuleOn());
+  cicloBtn.addEventListener('click', () => {
+    const on = cicloBtn.getAttribute('aria-checked') !== 'true';
+    setCycleModule(on);
+    setCicloUi(on);
+    playTap();
+    toast(on ? 'Calendário menstrual ativado — ele aparece na Agenda.' : 'Calendário menstrual desativado. Seus dados continuam guardados no aparelho.', 3200);
+  });
+
   // Lembrete de tarefas (push) — só aparece se o navegador suportar; o estado
   // real (assinado ou não) é assíncrono, então a checagem chega depois do
   // primeiro paint e ajusta o toggle sem bloquear a tela.
@@ -178,6 +240,19 @@ export function renderProfile(app) {
   });
 
   return view;
+}
+
+/** Amostra de um tema: faixa 60:30:10 (fundo / estrutura / destaque) + marca de selecionado. */
+function themeOption(t, on) {
+  const [bg, estrutura, destaque] = t.swatch;
+  return `
+    <button data-theme-id="${t.id}" role="radio" aria-checked="${on}" aria-label="${t.label}"
+      class="relative min-h-[44px] rounded-xl overflow-hidden border-2 transition ${on ? 'border-accent' : 'border-soft-100'}"
+      style="background:${bg}">
+      <span class="absolute inset-x-0 bottom-0 h-1/3" style="background:${estrutura}"></span>
+      <span class="absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full" style="background:${destaque}"></span>
+      ${on ? '<span class="absolute inset-0 grid place-items-center"><span class="w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold grid place-items-center">✓</span></span>' : ''}
+    </button>`;
 }
 
 /** Frase que explica o nível escolhido, logo abaixo do título. */

@@ -5,6 +5,7 @@
 import { isOnboardingSeen, getUser, restoreSession, initSession, hasSession, onSessionCleared, endBootSync } from './store.js';
 import { toast, renderNav } from './ui.js';
 import { wakeBackend } from './api.js';
+import { applyTheme, themeColor } from './theme.js';
 
 import { renderOnboarding } from './views/onboarding.js';
 import { renderLogin } from './views/login.js';
@@ -25,6 +26,8 @@ const routes = {
   connections: renderConnections,
   profile: renderProfile,
 };
+
+applyTheme();
 
 const appEl = document.getElementById('app');
 
@@ -157,7 +160,7 @@ function hideSplash() {
   // Gera as partículas (carga mental dispersa) que convergem ao centro.
   const host = document.getElementById('splash-particles');
   if (host && !reduce) {
-    const colors = ['#ff8fa3', '#ffccd5', '#ffb3c1']; // Cotton Candy / Pastel Petal / Cherry Blossom
+    const colors = ['soft-300', 'soft-100', 'soft-200'].map(themeColor);
     const N = 14;
     for (let i = 0; i < N; i++) {
       const angle = (i / N) * Math.PI * 2 + Math.random() * 0.4;

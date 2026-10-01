@@ -8,8 +8,9 @@
 
 import {
   todayKey, resolveDue, resolveTime, addDaysKey,
-  cleanPattern, detectRecurrence, firstOccurrence,
+  cleanPattern, detectRecurrence, firstOccurrence, cleanWeekdays, detectWeekdays, detectUntil,
 } from './dates.js';
+import { normalizeCategory, guessCategory } from './categories.js';
 
 // Base da API: em dev local usa o backend local; em produção, o Render.
 // (hostname vazio = arquivo aberto via file://, tratado como local.)
@@ -152,7 +153,7 @@ function fromServer(t) {
   return {
     id: String(t.id),
     title: t.title,
-    category: t.category,
+    category: normalizeCategory(t.category),
     // Prazo estruturado (fonte da verdade); `due` é só o rótulo legado.
     dueDate: t.due_date || null,
     dueTime: t.due_time || null,
@@ -164,6 +165,8 @@ function fromServer(t) {
     parentId: t.parent_id != null ? String(t.parent_id) : null,
     isRecurring: !!t.is_recurring,
     recurrencePattern: t.is_recurring ? cleanPattern(t.recurrence_pattern) : null,
+    recurrenceWeekdays: t.is_recurring ? cleanWeekdays(t.recurrence_weekdays) : null,
+    recurrenceUntil: t.is_recurring ? t.recurrence_until || null : null,
     createdAt: t.created_at ? Date.parse(t.created_at) : Date.now(),
   };
 }
@@ -222,6 +225,7 @@ export async function apiListTasks() {
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
 export async function apiCreateTask({
   title, category, dueDate, dueTime, due, important, parentId, isRecurring, recurrencePattern,
+  recurrenceWeekdays, recurrenceUntil,
 }) {
   if (!_token || !(await ensureOnline())) return null;
   try {
@@ -237,8 +241,34 @@ export async function apiCreateTask({
         important: !!important,
         parent_id: parentId != null ? Number(parentId) : null,
         is_recurring: !!(isRecurring && cleanPattern(recurrencePattern)),
-        recurrence_pattern: isRecurring ? cleanPattern(recurrencePattern) : null,
+        ...recurrenceToServer({ isRecurring, recurrencePattern, recurrenceWeekdays, recurrenceUntil }),
       }),
+    });
+    return fromServer(t);
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Campos de recorrência no formato do backend (dias só valem no semanal). */
+function recurrenceToServer({ isRecurring, recurrencePattern, recurrenceWeekdays, recurrenceUntil }) {
+  const pattern = isRecurring ? cleanPattern(recurrencePattern) : null;
+  return {
+    is_recurring: !!pattern,
+    recurrence_pattern: pattern,
+    recurrence_weekdays: pattern === 'weekly' ? cleanWeekdays(recurrenceWeekdays) : null,
+    recurrence_until: pattern ? recurrenceUntil || null : null,
+  };
+}
+
+/** Atualiza a recorrência (e o prazo) de uma tarefa. Retorna a tarefa (front-format) ou null. */
+export async function apiUpdateRecurrence(id, task) {
+  if (!_token || !(await ensureOnline())) return null;
+  try {
+    const t = await request(`/tasks/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: headers(),
+      body: JSON.stringify({ ...recurrenceToServer(task), due_date: task.dueDate || null }),
     });
     return fromServer(t);
   } catch (_) {
@@ -273,12 +303,14 @@ export async function apiSmartTask(text) {
     const act = r.suggestion && r.suggestion.action;
     return {
       title: r.title || text,
-      category: r.category || 'casa',
+      category: normalizeCategory(r.category),
       dueDate: r.due_date || null,
       dueTime: r.due_time || null,
       due: r.due || '',
       isRecurring: !!r.is_recurring && !!cleanPattern(r.recurrence_pattern),
       recurrencePattern: cleanPattern(r.recurrence_pattern),
+      recurrenceWeekdays: cleanWeekdays(r.recurrence_weekdays),
+      recurrenceUntil: r.recurrence_until || null,
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
       suggestion: r.suggestion
         ? {
@@ -286,7 +318,7 @@ export async function apiSmartTask(text) {
             action: act
               ? {
                   title: act.title,
-                  category: act.category,
+                  category: normalizeCategory(act.category),
                   dueDate: act.due_date || null,
                   dueTime: act.due_time || null,
                   due: act.due || '',
@@ -402,7 +434,7 @@ export async function apiPushUnsubscribe(endpoint) {
 export function decomposeTask(text) {
   const lower = text.toLowerCase();
   const due = extractDue(text);
-  const category = guessCategory(lower);
+  const category = guessCategory(text);
   const title = capitalize(text.trim());
 
   let subtasks = [];
@@ -426,12 +458,38 @@ export function decomposeTask(text) {
       text: 'Quer que eu te lembre de levar as sacolas reutilizáveis?',
       action: { title: 'Levar sacolas reutilizáveis', category, due: due || 'Hoje' },
     };
-  } else if (/(reuni[aã]o|trabalho|projeto|apresenta)/.test(lower)) {
-    subtasks = ['Preparar pauta', 'Revisar materiais'];
+  } else if (/(apresenta[cç][aã]o|apresentar|slides)/.test(lower)) {
+    subtasks = ['Montar os slides', 'Ensaiar a apresentação'];
     suggestion = {
-      text: 'Quer um lembrete 30 min antes para se organizar?',
-      action: { title: 'Preparar para a reunião', category: 'trabalho', due: due || 'Hoje' },
+      text: 'Quer um lembrete na véspera para ensaiar com calma?',
+      action: { title: 'Ensaiar a apresentação', category: 'reunioes', due: 'Véspera' },
     };
+  } else if (/(reuni[aã]o|\bcall\b|1:1|alinhamento|videochamada)/.test(lower)) {
+    subtasks = ['Preparar a pauta', 'Enviar o convite', 'Registrar a ata depois'];
+    suggestion = {
+      text: 'Quer um lembrete na véspera para revisar a pauta?',
+      action: { title: 'Revisar a pauta da reunião', category: 'reunioes', due: 'Véspera' },
+    };
+  } else if (/(relat[oó]rio|entrega|entregar|proposta|projeto|prazo)/.test(lower)) {
+    subtasks = ['Revisar o material', 'Pedir aprovação', 'Enviar'];
+    suggestion = {
+      text: 'Quer reservar um bloco na véspera para a revisão final?',
+      action: { title: 'Revisão final antes da entrega', category: 'trabalho', due: 'Véspera' },
+    };
+  } else if (/(entrevista|curr[ií]culo|linkedin)/.test(lower)) {
+    subtasks = ['Revisar o currículo', 'Pesquisar sobre a empresa'];
+    suggestion = {
+      text: 'Quer um lembrete na véspera para se preparar?',
+      action: { title: 'Preparar-se para a entrevista', category: 'carreira', due: 'Véspera' },
+    };
+  } else if (/(\bprovas?\b|estudar|simulado|certifica)/.test(lower)) {
+    subtasks = ['Separar o material', 'Revisar os pontos principais'];
+    suggestion = {
+      text: 'Quer um lembrete na véspera para uma revisão rápida?',
+      action: { title: 'Revisão rápida antes da prova', category: 'estudos', due: 'Véspera' },
+    };
+  } else if (/(trabalho)/.test(lower)) {
+    subtasks = ['Definir o próximo passo', 'Reservar um bloco de tempo'];
   } else if (/(pagar|conta|boleto|fatura|imposto)/.test(lower)) {
     subtasks = ['Verificar valor', 'Agendar pagamento'];
     suggestion = {
@@ -460,15 +518,17 @@ export function decomposeTask(text) {
   }
 
   // Recorrência por regra (sem IA).
-  const recurrencePattern = detectRecurrence(text);
+  const recurrenceWeekdays = detectWeekdays(text);
+  const recurrencePattern = recurrenceWeekdays ? 'weekly' : detectRecurrence(text);
+  const recurrenceUntil = recurrencePattern ? detectUntil(text, today) : null;
   const base = structure(due);
   if (recurrencePattern && !base.dueDate) {
-    base.dueDate = firstOccurrence(text, recurrencePattern, today);
+    base.dueDate = firstOccurrence(text, recurrencePattern, today, recurrenceWeekdays);
   }
 
   return {
     title, category, due, ...base,
-    isRecurring: recurrencePattern !== null, recurrencePattern,
+    isRecurring: recurrencePattern !== null, recurrencePattern, recurrenceWeekdays, recurrenceUntil,
     subtasks, suggestion,
   };
 }
@@ -487,15 +547,6 @@ function extractDue(text) {
     if (dm) day = `Dia ${dm[1]}`;
   }
   return [day, timeStr].filter(Boolean).join(' • ');
-}
-
-function guessCategory(t) {
-  if (/(vacina|consulta|pediatra|m[eé]dic|dentista|exame|sa[uú]de|rem[eé]dio)/.test(t)) return 'saude';
-  if (/(leo|filh|crian[cç]a|escola|beb[eê]|fralda)/.test(t)) return 'filhos';
-  if (/(reuni[aã]o|trabalho|projeto|cliente|chefe|apresenta)/.test(t)) return 'trabalho';
-  if (/(pagar|conta|boleto|fatura|imposto|banco|dinheiro)/.test(t)) return 'financas';
-  if (/(parceir|marido|esposa|jantar a dois|namoro)/.test(t)) return 'relacionamento';
-  return 'casa';
 }
 
 function capitalize(s) {

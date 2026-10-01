@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MenteLeve">
+  <!-- Versão neutra (cores fixas), usada no favicon e como fonte dos ícones do PWA.
+       Dentro do app o mesmo desenho é inline (js/ui.js::logoMark) e usa as cores do tema. -->
+  <rect x="6" y="10" width="52" height="48" rx="14" fill="#27272a"/>
+  <rect x="19" y="4" width="6" height="14" rx="3" fill="#6366f1"/>
+  <rect x="39" y="4" width="6" height="14" rx="3" fill="#6366f1"/>
+  <path d="M18 47C15 31 28 21 46 22C48 38 36 50 18 47Z" fill="#f4f4f5"/>
+  <path d="M20 45C27 38 33 33 41 27" fill="none" stroke="#6366f1" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M51 41L52.4 45.1L56.5 46.5L52.4 47.9L51 52L49.6 47.9L45.5 46.5L49.6 45.1Z" fill="#818cf8"/>
+</svg>

@@ -159,9 +159,51 @@ function addMonthsKey(key, months) {
   return keyOf(new Date(y, m, Math.min(d.getDate(), new Date(y, m + 1, 0).getDate())));
 }
 
-/** 1ª ocorrência depois de `today` e do prazo (atrasada pula os ciclos perdidos; sem prazo conta de hoje). */
-export function nextOccurrence(dueDate, pattern, today = todayKey()) {
+// Dias da semana como no Python (`date.weekday()`): 0 = segunda ... 6 = domingo.
+// NÃO é o `Date.getDay()` do JS (0 = domingo) — converta com `weekdayOf`.
+export const WORKDAYS = [0, 1, 2, 3, 4];
+const WD_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+/** Dia da semana de "AAAA-MM-DD" no padrão Python (0 = segunda). */
+export function weekdayOf(key) {
+  const d = dateFromKey(key);
+  return d ? (d.getDay() + 6) % 7 : null;
+}
+
+/** [0..6] ordenado e sem repetição; aceita "0,2,4". Vazio, inválido ou os 7 dias → null. */
+export function cleanWeekdays(value) {
+  const arr = typeof value === 'string' ? value.split(',').filter((p) => p.trim()) : value;
+  if (!Array.isArray(arr)) return null;
+  const dias = new Set();
+  for (const v of arr) {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 0 || n > 6) return null;
+    dias.add(n);
+  }
+  if (dias.size === 0 || dias.size === 7) return null;
+  return [...dias].sort((a, b) => a - b);
+}
+
+/**
+ * Próxima ocorrência; null quando a série terminou (passou de `until`).
+ * `weekdays` (só weekly): o primeiro desses dias depois de hoje e do prazo.
+ */
+export function nextOccurrence(dueDate, pattern, today = todayKey(), weekdays = null, until = null) {
   if (!RECURRENCE_PATTERNS.includes(pattern)) return dueDate || null;
+  let next;
+  const dias = pattern === 'weekly' ? cleanWeekdays(weekdays) : null;
+  if (dias) {
+    let d = addDaysKey(dueDate && dueDate > today ? dueDate : today, 1);
+    while (!dias.includes(weekdayOf(d))) d = addDaysKey(d, 1);
+    next = d;
+  } else {
+    next = nextSimple(dueDate, pattern, today);
+  }
+  return until && next > until ? null : next;
+}
+
+/** 1ª ocorrência depois de `today` e do prazo (atrasada pula os ciclos perdidos; sem prazo conta de hoje). */
+function nextSimple(dueDate, pattern, today) {
   const start = dueDate || today;
   const step = (k) => (pattern === 'daily' ? addDaysKey(start, k)
     : pattern === 'weekly' ? addDaysKey(start, 7 * k) : addMonthsKey(start, k));
@@ -174,18 +216,89 @@ export function nextOccurrence(dueDate, pattern, today = todayKey()) {
 const WD = 'segunda|terca|quarta|quinta|sexta|sabado|domingo';
 const RECURRENCE_RES = [
   ['monthly', /\btod[oa]s?\s+(?:os\s+)?dias?\s+(?:[12]\d|3[01]|[1-9])(?![\d:h]|\s*horas?)|\b(?:todo\s+mes|todos\s+os\s+meses|cada\s+mes|mensal(?:mente)?\b)/],
-  ['weekly', new RegExp(`\\b(?:toda\\s+semana|cada\\s+semana|semanal(?:mente)?\\b|toda\\s+(?:${WD})|todas\\s+as\\s+(?:${WD})s|todo\\s+(?:sabado|domingo)|todos\\s+os\\s+(?:sabados|domingos))`)],
+  ['weekly', new RegExp(`\\b(?:toda\\s+semana|cada\\s+semana|semanal(?:mente)?\\b|toda\\s+(?:${WD})|todas\\s+as\\s+(?:${WD})s|todo\\s+(?:sabado|domingo)|todos\\s+os\\s+(?:sabados|domingos)|dias?\\s+uteis|dia\\s+util|de\\s+(?:${WD})(?:[-\\s]feira)?\\s+a\\s+(?:${WD})|(?:as|nas)\\s+(?:${WD})s\\b)`)],
   ['daily', /\b(?:todo\s+dia|todos\s+os\s+dias|cada\s+dia|diari(?:o|a|amente)\b|toda\s+(?:manha|tarde|noite)|todas\s+as\s+(?:manhas|tardes|noites))/],
 ];
 
-/** "todo dia" / "toda segunda" / "todo dia 10" / "todo mês" → daily | weekly | monthly | null. */
+const fold = (text) => String(text || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+const WD_INDEX = { segunda: 0, terca: 1, quarta: 2, quinta: 3, sexta: 4, sabado: 5, domingo: 6 };
+
+/** "todo dia" / "toda segunda" / "todo dia 10" / "todo mês" / "dias úteis" → daily | weekly | monthly | null. */
 export function detectRecurrence(text) {
-  const t = String(text || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const t = fold(text);
   const hit = RECURRENCE_RES.find(([, re]) => re.test(t));
   return hit ? hit[0] : null;
 }
 
-/** 1ª ocorrência sem data explícita: semanal/mensal usam o dia dito ("segunda", "dia 10"); senão, hoje. */
-export function firstOccurrence(text, pattern, today = todayKey()) {
+/**
+ * Dias específicos (espelha recurrence.detect_weekdays): "dias úteis" e "de segunda a
+ * sexta" → [0..4]; "de terça a quinta" → [1,2,3]; "toda segunda e quarta" → [0,2].
+ * Um dia só → null (o semanal simples cobre).
+ */
+export function detectWeekdays(text) {
+  const t = fold(text);
+  if (/\bdias?\s+uteis\b|\bdia\s+util\b/.test(t)) return [...WORKDAYS];
+  const r = new RegExp(`\\bde\\s+(${WD})(?:[-\\s]feira)?\\s+a\\s+(${WD})\\b`).exec(t);
+  if (r) {
+    const a = WD_INDEX[r[1]]; const b = WD_INDEX[r[2]];
+    const n = ((b - a + 7) % 7) + 1;
+    return cleanWeekdays(Array.from({ length: n }, (_, i) => (a + i) % 7));
+  }
+  if (detectRecurrence(t) !== 'weekly') return null;
+  const nomes = new Set([...t.matchAll(new RegExp(`\\b(${WD})s?\\b`, 'g'))].map((m) => WD_INDEX[m[1]]));
+  return nomes.size >= 2 ? cleanWeekdays([...nomes]) : null;
+}
+
+const MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** Fim da série dito no texto (espelha recurrence.detect_until): "até 20/12", "até 15 de março", "até dezembro". */
+export function detectUntil(text, today = todayKey()) {
+  const t = fold(text);
+  let m = /\bate\s+(?:o\s+)?(?:dia\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(t);
+  if (m) {
+    let ano = m[3] ? Number(m[3]) : null;
+    if (ano !== null && ano < 100) ano += 2000;
+    return dataFutura(Number(m[1]), Number(m[2]), ano, today);
+  }
+  m = new RegExp(`\\bate\\s+(?:o\\s+)?(?:(?:dia\\s+)?(\\d{1,2})\\s+de\\s+)?(${MESES.join('|')})(?:\\s+de\\s+(\\d{4}))?\\b`).exec(t);
+  if (m) return dataFutura(m[1] ? Number(m[1]) : null, MESES.indexOf(m[2]) + 1, m[3] ? Number(m[3]) : null, today);
+  return null;
+}
+
+function dataFutura(dia, mes, ano, today) {
+  if (mes < 1 || mes > 12) return null;
+  const hojeAno = Number(today.slice(0, 4));
+  for (const a of ano ? [ano] : [hojeAno, hojeAno + 1]) {
+    const ultimo = new Date(a, mes, 0).getDate();
+    const d = dia === null ? ultimo : dia;
+    if (d < 1 || d > ultimo) return null;
+    const key = `${a}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    if (ano || key >= today) return key;
+  }
+  return null;
+}
+
+/** 1ª ocorrência sem data explícita: dias específicos → o 1º deles a partir de hoje;
+ *  semanal/mensal usam o dia dito ("segunda", "dia 10"); senão, hoje. */
+export function firstOccurrence(text, pattern, today = todayKey(), weekdays = null) {
+  const dias = pattern === 'weekly' ? cleanWeekdays(weekdays) : null;
+  if (dias) {
+    let d = today;
+    while (!dias.includes(weekdayOf(d))) d = addDaysKey(d, 1);
+    return d;
+  }
   return (pattern !== 'daily' && resolveDue(text, today)) || today;
+}
+
+/** Rótulo curto da repetição: "Todo dia", "Dias úteis", "Seg, Qua", "Todo mês · até 20/12". */
+export function recurrenceLabel(task) {
+  if (!task || !task.isRecurring || !cleanPattern(task.recurrencePattern)) return '';
+  const dias = task.recurrencePattern === 'weekly' ? cleanWeekdays(task.recurrenceWeekdays) : null;
+  let base = RECURRENCE_LABELS[task.recurrencePattern];
+  if (dias) base = dias.join(',') === WORKDAYS.join(',') ? 'Dias úteis' : dias.map((d) => WD_SHORT[d]).join(', ');
+  if (task.recurrenceUntil) {
+    const [, mm, dd] = task.recurrenceUntil.split('-');
+    base += ` · até ${dd}/${mm}`;
+  }
+  return base;
 }

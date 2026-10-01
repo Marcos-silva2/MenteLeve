@@ -3,6 +3,7 @@
    ============================================================ */
 
 import { playTap } from './sound.js';
+import { GROUPS, getGroupFilter, setGroupFilter } from './categories.js';
 
 /** Cria um elemento a partir de uma string HTML (primeiro nó). */
 export function h(html) {
@@ -44,31 +45,19 @@ export const icons = {
 };
 
 /**
- * Isotipo da marca — a borboleta com o rosto (`assets/isotipo.webp`).
+ * Logotipo da marca: uma agenda (folha de calendário) com uma folha — "leve" — e a
+ * faísca da IA. É SVG inline, e não imagem, para usar as cores do tema ativo: o
+ * rosa do isotipo antigo (bitmap) não acompanhava a troca de cor do app.
  *
- * Aqui havia uma lótus: primeiro `assets/ML.webp`, depois um redesenho dela em
- * SVG. Nítida, leve, e **marca errada** — o ícone do app, o `manifest.json` e a
- * splash sempre mostraram a borboleta. Quem instalava via a borboleta na tela
- * inicial e encontrava uma flor ao abrir o app.
- *
- * Ficamos com a marca de verdade. É o mesmo arquivo que a splash já usa, então
- * já está no precache do service worker e vem do cache — nenhuma requisição
- * nova. O preço é ser bitmap: não herda `currentColor` (o desenho tem a cor da
- * marca embutida, que é o certo para uma assinatura visual) e o "desabrochar"
- * do traço deixa de existir; `.logo-bloom` virou uma entrada em escala.
- *
- * `width`/`height` são os pixels reais do arquivo (323×300). Não definem o
- * tamanho na tela — quem faz isso é `cls` — mas dão a proporção ao navegador
- * antes do download, o que impede o texto ao lado de pular quando a imagem
- * chega.
+ * O mesmo desenho existe com cores fixas em `assets/logo.svg` (favicon e fonte dos
+ * ícones do PWA, que são estáticos e não seguem o tema) e dentro do `index.html`
+ * (splash, que aparece antes de este módulo carregar). Mudou o desenho? Mude nos três.
  *
  * @param {string} cls    classes de tamanho (ex.: 'h-9 w-auto')
  * @param {boolean} bloom true = entra crescendo
  */
 export function logoMark(cls = 'h-9 w-auto', bloom = false) {
-  return `<img src="assets/isotipo.webp" alt="MenteLeve" width="323" height="300"
-    class="${cls} ${bloom ? 'logo-bloom' : ''} object-contain select-none shrink-0"
-    draggable="false" />`;
+  return `<svg viewBox="0 0 64 64" role="img" aria-label="MenteLeve" class="${cls} ${bloom ? 'logo-bloom' : ''} select-none shrink-0" focusable="false"><rect x="6" y="10" width="52" height="48" rx="14" fill="var(--color-primary-900)"/><rect x="19" y="4" width="6" height="14" rx="3" fill="var(--color-accent)"/><rect x="39" y="4" width="6" height="14" rx="3" fill="var(--color-accent)"/><path d="M18 47C15 31 28 21 46 22C48 38 36 50 18 47Z" fill="var(--color-bg)"/><path d="M20 45C27 38 33 33 41 27" fill="none" stroke="var(--color-accent)" stroke-width="2.4" stroke-linecap="round"/><path d="M51 41L52.4 45.1L56.5 46.5L52.4 47.9L51 52L49.6 47.9L45.5 46.5L49.6 45.1Z" fill="var(--color-accent-hover)"/></svg>`;
 }
 
 /**
@@ -292,3 +281,28 @@ function navSideItem(it, active) {
 
 /** Detecta o modo desktop (≥1024px). */
 export const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
+
+/**
+ * Abas "Tudo / Trabalho / Vida". Preenche `el`, lembra a escolha (compartilhada
+ * entre Home e Agenda) e chama `onChange(grupo)` ao trocar.
+ */
+export function renderGroupTabs(el, onChange) {
+  const draw = () => {
+    const ativo = getGroupFilter();
+    el.setAttribute('role', 'tablist');
+    el.setAttribute('aria-label', 'Mostrar tarefas de');
+    el.innerHTML = [{ id: 'tudo', label: 'Tudo' }, ...GROUPS].map((g) => `
+      <button role="tab" data-group="${g.id}" aria-selected="${g.id === ativo}"
+        class="flex-1 min-h-11 px-3 rounded-full text-sm font-semibold transition
+               ${g.id === ativo ? 'bg-bordeaux-900 text-white shadow-card' : 'text-bordeaux-700 hover:bg-soft-100'}">
+        ${g.label}</button>`).join('');
+  };
+  draw();
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-group]');
+    if (!b) return;
+    playTap();
+    onChange(setGroupFilter(b.dataset.group));
+    draw();
+  });
+}

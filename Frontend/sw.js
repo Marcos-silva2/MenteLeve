@@ -2,14 +2,11 @@
    Service Worker — cache básico para instalação offline (PWA)
    ============================================================ */
 
-const CACHE = 'menteleve-v45';
+const CACHE = 'menteleve-v48';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
-  // mulher-onboard.webp (48 KB, só o 1º slide do onboarding) fica FORA do precache:
-  // o cache de runtime o guarda na primeira exibição. Manter o precache < 150 KB.
-  './assets/isotipo.webp',
   './assets/icon-192.webp',
   // Os PNG dos ícones ficam FORA do precache de propósito: só o manifest e o
   // apple-touch-icon os usam, na instalação. São 333 KB que todo mundo baixaria
@@ -18,10 +15,13 @@ const ASSETS = [
   './js/store.js',
   './js/api.js',
   './js/dates.js',
+  './js/categories.js',
+  './js/theme.js',
   './js/sound.js',
   './js/push.js',
   './js/ui.js',
   './js/components/taskSheet.js',
+  './js/components/recurrencePicker.js',
   './js/views/onboarding.js',
   './js/views/login.js',
   './js/views/register.js',
