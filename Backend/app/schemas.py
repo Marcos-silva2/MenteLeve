@@ -78,6 +78,8 @@ class TaskBase(BaseModel):
     # Prazo estruturado — fonte da verdade para o calendário.
     due_date: date | None = None
     due_time: TimeStr | None = None
+    # Fim do bloco de tempo (duração). Exige due_time e vem depois dele.
+    end_time: TimeStr | None = None
     # Rótulo livre; hoje só fallback de exibição (ver models.Task.due).
     due: str = Field("", max_length=120)
     important: bool = False
@@ -106,6 +108,8 @@ class TaskBase(BaseModel):
         if not self.is_recurring:
             self.recurrence_weekdays = None
             self.recurrence_until = None
+        if self.end_time is not None and (self.due_time is None or self.end_time <= self.due_time):
+            raise ValueError("end_time precisa de due_time e deve ser depois dele.")
         return self
 
 
@@ -118,6 +122,7 @@ class TaskUpdate(BaseModel):
     category: Category | None = None
     due_date: date | None = None
     due_time: TimeStr | None = None
+    end_time: TimeStr | None = None
     due: str | None = Field(None, max_length=120)
     important: bool | None = None
     done: bool | None = None
@@ -189,6 +194,7 @@ class SmartTaskOut(BaseModel):
     category: Category = DEFAULT_CATEGORY
     due_date: date | None = None
     due_time: TimeStr | None = None
+    end_time: TimeStr | None = None
     due: str = ""
     # Recorrência detectada ("todo dia", "toda segunda"…). O cliente repassa
     # estes campos ao criar a tarefa via POST /tasks.

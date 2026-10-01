@@ -73,6 +73,8 @@ class Task(Base):
     # Prazo estruturado — fonte da verdade para posicionar a tarefa no calendário.
     due_date: Mapped[dt_date | None] = mapped_column(Date, nullable=True, index=True)
     due_time: Mapped[str | None] = mapped_column(String(5), nullable=True)  # "HH:MM"
+    # Fim do bloco de tempo ("HH:MM", mesmo dia, depois de due_time). NULL = sem duração.
+    end_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     # Rótulo em texto livre ("Toda semana", "Véspera"). Hoje é apenas fallback de
     # exibição: vale para linhas antigas e para prazos sem uma data única.
     due: Mapped[str] = mapped_column(String(120), default="", nullable=False)

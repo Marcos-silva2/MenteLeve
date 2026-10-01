@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#fff0f3" />
+  <meta name="theme-color" content="#f4f4f5" />
   <!-- Aplica o tema salvo ANTES do primeiro render (sem flash de cor).
        Ids válidos: ver THEMES em js/theme.js. -->
   <script>
     (function () {
       try {
         var t = localStorage.getItem('menteleve.theme');
-        if (t && /^[a-z]+$/.test(t) && t !== 'bordeaux') document.documentElement.setAttribute('data-theme', t);
+        if (t && /^[a-z]+$/.test(t) && t !== 'grafite') document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}
     })();
   </script>

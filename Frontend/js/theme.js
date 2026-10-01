@@ -7,14 +7,14 @@
    ============================================================ */
 
 const KEY = 'menteleve.theme';
-export const DEFAULT_THEME = 'bordeaux';
+export const DEFAULT_THEME = 'grafite';
 
 // `swatch`: [fundo 60%, estrutura 30%, destaque 10%] — igual aos tokens do CSS.
 export const THEMES = [
+  { id: 'grafite',  label: 'Grafite',       swatch: ['#f4f4f5', '#27272a', '#5e61f1'] },
   { id: 'bordeaux', label: 'Bordeaux Pink', swatch: ['#fff0f3', '#590d22', '#d42a4c'] },
   { id: 'oceano',   label: 'Oceano',        swatch: ['#eef6fb', '#0b3a53', '#1c7cac'] },
   { id: 'floresta', label: 'Floresta',      swatch: ['#f0f7f1', '#1e4d2b', '#36844d'] },
-  { id: 'grafite',  label: 'Grafite',       swatch: ['#f4f4f5', '#27272a', '#5e61f1'] },
   { id: 'lavanda',  label: 'Lavanda',       swatch: ['#f6f2fd', '#3b1f6b', '#8452f5'] },
 ];
 

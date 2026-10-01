@@ -36,7 +36,7 @@ O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ON
 - **Bruna — assistente com IA que age:** organiza a agenda e **cria e conclui tarefas pelo chat** ("marca reunião com o cliente amanhã às 10h", "marca o relatório como feito").
 - **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Vida: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
 - **Tarefas recorrentes** (diária, semanal, mensal): reunião semanal, relatório do mês, rotinas pessoais.
-- **Cor do app personalizável:** 5 temas (Bordeaux Pink, Oceano, Floresta, Grafite, Lavanda), escolhidos no Perfil.
+- **Cor do app personalizável:** 5 temas (Grafite é o padrão; Bordeaux Pink, Oceano, Floresta e Lavanda), escolhidos no Perfil.
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Lembretes por notificação push** (opt-in) antes do horário da tarefa.

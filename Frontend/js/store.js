@@ -10,6 +10,7 @@
 import * as api from './api.js';
 import { resolveDue, resolveTime, todayKey, nextOccurrence, cleanPattern, cleanWeekdays, firstOccurrence } from './dates.js';
 import { CATEGORIES, getCategory, normalizeCategory } from './categories.js';
+import { cleanEndTime } from './timeline.js';
 
 export { CATEGORIES, getCategory };
 
@@ -448,6 +449,7 @@ export async function addTask(task) {
     ...recorrenciaLimpa(task),
     createdAt: Date.now(),
   };
+  local.endTime = cleanEndTime(local.dueTime, task.endTime);
   state.tasks.unshift(local);
   persist();
 

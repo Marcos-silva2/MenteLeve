@@ -290,6 +290,30 @@ export function firstOccurrence(text, pattern, today = todayKey(), weekdays = nu
   return (pattern !== 'daily' && resolveDue(text, today)) || today;
 }
 
+/**
+ * Hora de término dita no texto (espelha Backend/app/timerange.py):
+ * "das 10h às 11h30" → 11:30; "call de 1h" / "por 45 min" → início + duração.
+ */
+export function detectEndTime(text, start) {
+  const mi = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start || '');
+  if (!mi) return null;
+  const ini = Number(mi[1]) * 60 + Number(mi[2]);
+  const t = fold(text);
+  const fmt = (min) => (min > ini && min < 24 * 60
+    ? `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}` : null);
+  const iv = /\b(?:das\s+\d{1,2}(?:[:h](?:\d{2})?)?|de\s+\d{1,2}[:h](?:\d{2})?)\s*h?\s*(?:as|ate|a|-)\s*(\d{1,2})(?:[:h](\d{2})?)?\s*h?\b/.exec(t);
+  if (iv) {
+    const h = Number(iv[1]); const m = Number(iv[2] || 0);
+    return h <= 23 && m <= 59 ? fmt(h * 60 + m) : null;
+  }
+  const d = /\b(?:de|por|durante|dura)\s+(?:(\d{1,2})\s*h(?:oras?)?\s*(?:e\s*)?(\d{1,2})?\s*(?:min(?:utos?)?)?|(\d{1,3})\s*min(?:utos?)?)\b/.exec(t);
+  if (d) {
+    const dur = d[3] ? Number(d[3]) : Number(d[1] || 0) * 60 + Number(d[2] || 0);
+    if (dur > 0 && dur <= 12 * 60) return fmt(ini + dur);
+  }
+  return null;
+}
+
 /** Rótulo curto da repetição: "Todo dia", "Dias úteis", "Seg, Qua", "Todo mês · até 20/12". */
 export function recurrenceLabel(task) {
   if (!task || !task.isRecurring || !cleanPattern(task.recurrencePattern)) return '';

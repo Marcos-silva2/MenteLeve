@@ -97,7 +97,7 @@ versão do interruptor booleano migram na leitura — quem tinha desligado fica 
 
 ## Temas de cor
 
-O app tem 5 temas (Bordeaux Pink é o padrão); a escolha fica em **Perfil → Cor do app**.
+O app tem 5 temas (**Grafite é o padrão**); a escolha fica em **Perfil → Cor do app**.
 Cada tema é um bloco `:root[data-theme="..."]` em `css/styles.css` que só redefine os
 canais RGB (`--rgb-*`). Tudo deriva deles: os `--color-*` do CSS e as cores do Tailwind
 (`index.html`, via `rgb(var(--rgb-x) / <alpha-value>)`, então `bg-accent/15` funciona em
@@ -119,6 +119,15 @@ fim da série), `detectWeekdays`, `detectUntil`, `firstOccurrence` e `recurrence
 padrão do Python (**0 = segunda**); use `weekdayOf(chave)`, nunca `Date.getDay()` direto.
 O seletor (`components/recurrencePicker.js`) é o mesmo na criação e na edição; a edição fica
 no menu da tarefa (pressão longa / botão direito) e, offline, entra na fila como `update`.
+
+## Agenda: Mês, Semana e Dia
+
+A Agenda tem três visões (`views/agenda.js`), lembradas em `menteleve.agendaView`; sem
+escolha salva, quem usa o filtro Trabalho começa na Semana. A lógica de horários fica em
+`js/timeline.js` (puro, testado): `intervalOf` (sem `endTime`, 30 min), `conflictIds`
+(sobreposição no mesmo dia; encostar não conta), `layoutDay` (colunas para blocos
+sobrepostos) e `hourRange` (07–20, ampliado se preciso). `endTime` só vale com `dueTime` e
+depois dele (`cleanEndTime`, igual ao backend).
 
 ## Categorias
 

@@ -12,6 +12,7 @@ import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey, labelForKey, r
 import { playComplete, playUndo, playTap, playDelete, playAllDone } from '../sound.js';
 import { openTaskSheet } from '../components/taskSheet.js';
 import { recurrencePicker } from '../components/recurrencePicker.js';
+import { conflictIds, cleanEndTime } from '../timeline.js';
 
 /* Seções da Home. Cada tarefa cai em UMA só, decidida por sectionOf — os dados
    da tarefa não são alterados. */
@@ -209,11 +210,13 @@ export function renderHome(app) {
 
     const revelar = Array.isArray(revealIds) ? revealIds : [];
     const grupos = groupTasks(tasks);
+    // Conflito considera todas as tarefas do dia, não só as do filtro ativo.
+    const conflitos = conflictIds(getTasks());
     listEl.innerHTML = SECTIONS.filter((sec) => grupos[sec.id].length).map((sec) => {
       const cards = grupos[sec.id].map((t) => {
         const subs = getSubtasks(t.id).sort((a, b) => Number(a.done) - Number(b.done));
         const doneCount = subs.filter((s) => s.done).length;
-        return taskCard(t, { total: subs.length, done: doneCount }) +
+        return taskCard(t, { total: subs.length, done: doneCount }, conflitos.has(t.id)) +
           (subs.length ? subtaskGroup(subs, revelar) : '');
       }).join('');
       return sectionHTML(sec, grupos[sec.id].length, cards);
@@ -401,7 +404,7 @@ function escAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function taskCard(t, sub = { total: 0, done: 0 }) {
+function taskCard(t, sub = { total: 0, done: 0 }, conflito = false) {
   const cat = getCategory(t.category);
   const done = t.done;
   // Prioridade: deriva de `priority` (fallback p/ tarefas antigas via `important`).
@@ -420,7 +423,8 @@ function taskCard(t, sub = { total: 0, done: 0 }) {
     <div class="min-w-0 flex-1">
       <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
-        ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}</span>` : ''}
+        ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}${cleanEndTime(t.dueTime, t.endTime) ? `–${t.endTime}` : ''}</span>` : ''}
+        ${conflito ? '<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-600" title="Outra tarefa ocupa o mesmo horário">⚠ Conflito de horário</span>' : ''}
         ${recurrenceLabel(t) ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">${icons.repeat}${recurrenceLabel(t)}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
           <span style="color:${prio.dot}">${icons.flag}</span>${prio.label}</span>` : ''}

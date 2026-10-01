@@ -74,6 +74,8 @@ alter table tasks add column if not exists recurrence_pattern varchar(10);
 -- Recorrência avançada: dias específicos ("0,2,4", 0 = segunda; só weekly) e fim da série.
 alter table tasks add column if not exists recurrence_weekdays varchar(20);
 alter table tasks add column if not exists recurrence_until date;
+-- Duração: fim do bloco de tempo ("HH:MM", mesmo dia, depois de due_time).
+alter table tasks add column if not exists end_time varchar(5);
 
 -- Para bancos criados antes da criptografia (idempotente): o ciphertext em
 -- base64 não cabe no varchar original. O backend também faz isso no boot

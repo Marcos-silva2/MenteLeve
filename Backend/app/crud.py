@@ -142,6 +142,10 @@ def update_task(db: Session, task: models.Task, data: schemas.TaskUpdate) -> mod
         if not task.is_recurring:
             task.recurrence_weekdays = None
             task.recurrence_until = None
+    if "due_time" in changes or "end_time" in changes:
+        # Sem início, ou com o fim antes do início, a duração deixa de valer.
+        if task.end_time and (not task.due_time or task.end_time <= task.due_time):
+            task.end_time = None
     if "due_date" in changes or "due_time" in changes:
         # Reagendou: um lembrete já enviado valia para o horário antigo. Sem
         # zerar aqui, adiar uma tarefa depois do lembrete sair nunca mais

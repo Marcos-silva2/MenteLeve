@@ -8,7 +8,7 @@
 
 import {
   todayKey, resolveDue, resolveTime, addDaysKey,
-  cleanPattern, detectRecurrence, firstOccurrence, cleanWeekdays, detectWeekdays, detectUntil,
+  cleanPattern, detectRecurrence, firstOccurrence, cleanWeekdays, detectWeekdays, detectUntil, detectEndTime,
 } from './dates.js';
 import { normalizeCategory, guessCategory } from './categories.js';
 
@@ -157,6 +157,7 @@ function fromServer(t) {
     // Prazo estruturado (fonte da verdade); `due` é só o rótulo legado.
     dueDate: t.due_date || null,
     dueTime: t.due_time || null,
+    endTime: t.end_time || null,
     due: t.due || '',
     done: !!t.done,
     important: !!t.important,
@@ -224,7 +225,7 @@ export async function apiListTasks() {
 
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
 export async function apiCreateTask({
-  title, category, dueDate, dueTime, due, important, parentId, isRecurring, recurrencePattern,
+  title, category, dueDate, dueTime, endTime, due, important, parentId, isRecurring, recurrencePattern,
   recurrenceWeekdays, recurrenceUntil,
 }) {
   if (!_token || !(await ensureOnline())) return null;
@@ -237,6 +238,7 @@ export async function apiCreateTask({
         category,
         due_date: dueDate || null,
         due_time: dueTime || null,
+        end_time: dueTime && endTime ? endTime : null,
         due: due || '',
         important: !!important,
         parent_id: parentId != null ? Number(parentId) : null,
@@ -306,6 +308,7 @@ export async function apiSmartTask(text) {
       category: normalizeCategory(r.category),
       dueDate: r.due_date || null,
       dueTime: r.due_time || null,
+      endTime: r.end_time || null,
       due: r.due || '',
       isRecurring: !!r.is_recurring && !!cleanPattern(r.recurrence_pattern),
       recurrencePattern: cleanPattern(r.recurrence_pattern),
@@ -526,8 +529,9 @@ export function decomposeTask(text) {
     base.dueDate = firstOccurrence(text, recurrencePattern, today, recurrenceWeekdays);
   }
 
+  const endTime = detectEndTime(text, base.dueTime);
   return {
-    title, category, due, ...base,
+    title, category, due, ...base, endTime,
     isRecurring: recurrencePattern !== null, recurrencePattern, recurrenceWeekdays, recurrenceUntil,
     subtasks, suggestion,
   };
@@ -535,7 +539,10 @@ export function decomposeTask(text) {
 
 function extractDue(text) {
   const t = text.toLowerCase();
-  const time = text.match(/(\d{1,2})[:h](\d{0,2})/);
+  // Início: "às 15h" / "das 10h" vencem; depois, qualquer "10h"/"10:30" que não seja
+  // duração ("call DE 1h", "POR 2h", "durante 1h").
+  const time = text.match(/\b(?:[àa]s|das|a partir das)\s+(\d{1,2})(?:[:h](\d{0,2}))?/i)
+    || [...text.matchAll(/(?<!\b(?:de|por|durante|dura)\s+)\b(\d{1,2})[:h](\d{0,2})/gi)][0];
   const timeStr = time ? `${time[1].padStart(2, '0')}:${(time[2] || '00').padStart(2, '0')}` : '';
 
   let day = '';

@@ -80,6 +80,7 @@ async def analyze_smart_task(
         category=result["category"],
         due_date=result["due_date"],
         due_time=result["due_time"],
+        end_time=result["end_time"],
         due=result["due"],
         is_recurring=result["is_recurring"],
         recurrence_pattern=result["recurrence_pattern"],

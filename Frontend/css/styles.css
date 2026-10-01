@@ -1,25 +1,25 @@
 /* ============================================================
-   MenteLeve — Design System: Bordeaux Pink
+   MenteLeve — Design System: Grafite (padrão) + temas
    Tokens + ajustes que o Tailwind CDN não cobre + animações
    ============================================================ */
 
 /* ---------- Tema ----------
    Cada tema só redefine os canais RGB (--rgb-*). Os --color-* e as cores do
    Tailwind (index.html) derivam deles, então trocar `data-theme` no <html>
-   recolore o app inteiro. O padrão (Bordeaux Pink) vive em :root. */
-:root {
-  --rgb-bg: 255 240 243;
-  --rgb-primary-900: 89 13 34;
-  --rgb-primary-800: 128 15 47;
-  --rgb-primary-700: 164 19 60;
-  --rgb-primary-600: 201 24 74;
-  --rgb-accent: 212 42 76;
-  --rgb-accent-hover: 184 33 63;
-  --rgb-soft-300: 255 143 163;
-  --rgb-soft-200: 255 179 193;
-  --rgb-soft-100: 255 204 213;
-  --rgb-soft-50: 255 227 232;
-  --rgb-muted: 131 97 105;
+   recolore o app inteiro. O padrão (Grafite) vive em :root. */
+:root { /* Grafite */
+  --rgb-bg: 244 244 245;
+  --rgb-primary-900: 39 39 42;
+  --rgb-primary-800: 63 63 70;
+  --rgb-primary-700: 67 56 202;
+  --rgb-primary-600: 79 70 229;
+  --rgb-accent: 94 97 241;
+  --rgb-accent-hover: 75 79 239;
+  --rgb-soft-300: 165 180 252;
+  --rgb-soft-200: 199 210 254;
+  --rgb-soft-100: 224 231 255;
+  --rgb-soft-50: 235 235 237;
+  --rgb-muted: 99 99 107;
   --rgb-surface: 255 255 255;
 }
 :root {
@@ -67,19 +67,19 @@
   --rgb-muted: 86 107 92;
   --rgb-surface: 255 255 255;
 }
-:root[data-theme="grafite"] { /* Grafite */
-  --rgb-bg: 244 244 245;
-  --rgb-primary-900: 39 39 42;
-  --rgb-primary-800: 63 63 70;
-  --rgb-primary-700: 67 56 202;
-  --rgb-primary-600: 79 70 229;
-  --rgb-accent: 94 97 241;
-  --rgb-accent-hover: 75 79 239;
-  --rgb-soft-300: 165 180 252;
-  --rgb-soft-200: 199 210 254;
-  --rgb-soft-100: 224 231 255;
-  --rgb-soft-50: 235 235 237;
-  --rgb-muted: 99 99 107;
+:root[data-theme="bordeaux"] { /* Bordeaux Pink */
+  --rgb-bg: 255 240 243;
+  --rgb-primary-900: 89 13 34;
+  --rgb-primary-800: 128 15 47;
+  --rgb-primary-700: 164 19 60;
+  --rgb-primary-600: 201 24 74;
+  --rgb-accent: 212 42 76;
+  --rgb-accent-hover: 184 33 63;
+  --rgb-soft-300: 255 143 163;
+  --rgb-soft-200: 255 179 193;
+  --rgb-soft-100: 255 204 213;
+  --rgb-soft-50: 255 227 232;
+  --rgb-muted: 131 97 105;
   --rgb-surface: 255 255 255;
 }
 :root[data-theme="lavanda"] { /* Lavanda */

@@ -14,7 +14,7 @@ Permitir que qualquer pessoa gerencie, num único app, as tarefas do **mercado d
 ### Princípios
 
 1. **Nada quebra para quem já usa.** Tarefas, categorias e dados atuais continuam válidos.
-2. **O Design System atual é mantido** como tema padrão ("Bordeaux Pink"). A mudança visual acontece por **personalização de cor**, não por substituição.
+2. **O Design System original ("Bordeaux Pink") é mantido** como tema (em 01/10/2026 o padrão passou a ser o **Grafite**, por decisão do projeto). A mudança visual acontece por **personalização de cor**, não por substituição.
 3. **Módulos de nicho viram opcionais.** O calendário menstrual fica, desligado por padrão.
 4. **Entregas pequenas e publicáveis.** Cada fase vai para produção sozinha.
 
@@ -58,10 +58,10 @@ O CSS já usa tokens (`--color-bg`, `--color-accent`, `--color-accent-hover`, `-
 
   | Tema | Fundo | Estrutura | Destaque | Observação |
   |---|---|---|---|---|
-  | **Bordeaux Pink** (padrão) | `#fff0f3` | `#590d22` | `#ff4d6d` | atual |
+  | **Bordeaux Pink** | `#fff0f3` | `#590d22` | `#ff4d6d` | original (hoje opcional) |
   | Oceano | `#eef6fb` | `#0b3a53` | `#1f8ac0` | neutro/corporativo |
   | Floresta | `#f0f7f1` | `#1e4d2b` | `#3f9a5a` | calmo |
-  | Grafite | `#f4f4f5` | `#27272a` | `#6366f1` | minimalista |
+  | **Grafite** (padrão desde 01/10/2026) | `#f4f4f5` | `#27272a` | `#6366f1` | minimalista |
   | Lavanda | `#f6f2fd` | `#3b1f6b` | `#8b5cf6` | suave |
 
 - [x] Manter a regra 60:30:10 em todos os temas e checar contraste AA (4,5:1 para texto) para cada combinação.
@@ -144,9 +144,11 @@ A base **já existe**: `is_recurring` + `recurrence_pattern` (`daily`/`weekly`/`
 
 ### Fase 7 — Visões diária e semanal + duração
 
-- [ ] Campo opcional de **duração** ou **hora de término** (blocos de tempo).
-- [ ] Visão **semanal** (padrão para quem escolheu "Trabalho") e visão **diária** com linha do tempo.
-- [ ] Destaque de conflitos de horário.
+- [x] Campo opcional de **duração** ou **hora de término** (blocos de tempo).
+- [x] Visão **semanal** (padrão para quem escolheu "Trabalho") e visão **diária** com linha do tempo.
+- [x] Destaque de conflitos de horário.
+
+> ✅ **Entregue (01/10/2026).** Campo `end_time` (até) no backend e no formulário; a IA e o modo sem IA entendem "das 10h às 11h30", "call de 1h", "por 45 min". Agenda com abas **Mês / Semana / Dia** (lembrada; quem usa para Trabalho começa na Semana). A visão Dia é uma linha do tempo com blocos proporcionais à duração e tarefas sobrepostas lado a lado; conflitos aparecem na Home, na Semana e no Dia. Sem fim informado, a tarefa conta como 30 min. Fora do escopo: arrastar blocos para remarcar e editar o horário de uma tarefa já criada.
 
 ### Fase 8 — Futuro (fora deste plano)
 
@@ -160,7 +162,7 @@ A base **já existe**: `is_recurring` + `recurrence_pattern` (`daily`/`weekly`/`
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| Perder a identidade que atrai o público atual | Médio | Bordeaux Pink continua como padrão; o público prioritário segue na comunicação |
+| Perder a identidade que atrai o público atual | Médio | Bordeaux Pink segue disponível como tema; o público prioritário segue na comunicação |
 | IA classifica pior ao ampliar o escopo | Alto | Conjunto de frases de teste (Fase 3) antes de publicar |
 | Cores fixas escondidas quebram os temas | Baixo | Varredura de hex na Fase 1 e revisão visual tema a tema |
 | Migração de categorias corrompe dados | Médio | Migração idempotente, testada em cópia do banco, com backup antes |

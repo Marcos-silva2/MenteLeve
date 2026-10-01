@@ -92,3 +92,20 @@ describe('decomposeTask — sugestões de trabalho', () => {
     assert.equal(r.suggestion.action.category, 'saude');
   });
 });
+
+describe('decomposeTask — início e término do horário (sem IA)', () => {
+  for (const [frase, ini, fim] of [
+    ['call de 1h amanhã às 15h', '15:00', '16:00'],
+    ['reunião das 10h às 11h30', '10:00', '11:30'],
+    ['dentista 15h', '15:00', null],
+    ['consulta amanhã 9:30', '09:30', null],
+    ['treino por 45 min às 7h', '07:00', '07:45'],
+    ['aula 19h de 1h30', '19:00', '20:30'],
+  ]) {
+    it(frase, () => {
+      const r = decomposeTask(frase);
+      assert.equal(r.dueTime, ini);
+      assert.equal(r.endTime, fim);
+    });
+  }
+});

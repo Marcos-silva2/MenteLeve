@@ -1,5 +1,7 @@
 /* ============================================================
    Agenda / Calendário (Tela 5)
+   - Três visões: MÊS (grade + lista do dia), SEMANA (7 dias em lista) e DIA
+     (linha do tempo com blocos de horário e conflitos). A escolha é lembrada.
    - Calendário MENSAL navegável (‹ mês ›) + lista do dia.
    - Camada opcional de CICLO MENSTRUAL (fases nos dias + previsões).
      Dados do ciclo são 100% locais/privados (localStorage).
@@ -12,11 +14,30 @@ import {
   getCycle, setCycle, logPeriodToday, cyclePhase, cycleSummary, isCycleModuleOn,
 } from '../store.js';
 import { openTaskSheet } from '../components/taskSheet.js';
-import { resolveTime } from '../dates.js';
+import { resolveTime, addDaysKey, weekdayOf } from '../dates.js';
+import { conflictIds, layoutDay, hourRange, rangeLabel, toMinutes } from '../timeline.js';
 import { playCycle, playTap } from '../sound.js';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+
+const VIEW_KEY = 'menteleve.agendaView';
+const VIEWS = [{ id: 'mes', label: 'Mês' }, { id: 'semana', label: 'Semana' }, { id: 'dia', label: 'Dia' }];
+const WD_LONG = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];   // 0 = segunda
+const WD_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const PX_POR_MIN = 1;   // 60 px por hora na linha do tempo
+
+/** Visão salva; sem escolha, quem usa para Trabalho começa na semana. */
+function visaoInicial() {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (VIEWS.some((x) => x.id === v)) return v;
+  } catch { /* storage bloqueado */ }
+  return getGroupFilter() === 'trabalho' ? 'semana' : 'mes';
+}
+function salvarVisao(v) {
+  try { localStorage.setItem(VIEW_KEY, v); } catch { /* vale só nesta sessão */ }
+}
 
 const PHASE = {
   period:    { label: 'Menstruação',    color: 'var(--color-primary-600)', bg: 'bg-soft-200' },
@@ -33,6 +54,7 @@ export function renderAgenda(app) {
   const cicloLigado = isCycleModuleOn();                // módulo opcional (Perfil)
   let showCycle = cicloLigado && getCycle().enabled;   // mostra a camada de ciclo
   let cycleEdit = false;                // mostra o formulário de configuração
+  let modo = visaoInicial();            // 'mes' | 'semana' | 'dia'
 
   const view = h(`
     <div class="h-full flex flex-col relative">
@@ -47,9 +69,12 @@ export function renderAgenda(app) {
           </div>
         </header>
 
-        <div id="group-tabs" class="mx-5 lg:mx-0 mb-3 p-1 flex gap-1 rounded-full bg-white border border-soft-100"></div>
+        <div id="group-tabs" class="mx-5 lg:mx-0 mb-2 p-1 flex gap-1 rounded-full bg-white border border-soft-100"></div>
+        <div id="view-tabs" role="tablist" aria-label="Visão da agenda" class="mx-5 lg:mx-0 mb-3 flex gap-1"></div>
 
-        <div class="px-5 lg:px-0">
+        <div id="span-view" class="px-5 lg:px-0 pb-2 safe-bottom"></div>
+
+        <div id="month-card" class="px-5 lg:px-0">
           <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-3">
             <div class="grid grid-cols-7 mb-1">
               ${WEEKDAYS.map((w) => `<div class="text-center text-[10px] font-semibold text-muted py-1">${w}</div>`).join('')}
@@ -74,7 +99,24 @@ export function renderAgenda(app) {
   const dayEl = $('#day', view);
   const cycleEl = $('#cyclepanel', view);
   const toggleBtn = $('#cycle-toggle', view);
+  const viewTabs = $('#view-tabs', view);
+  const spanEl = $('#span-view', view);
   renderGroupTabs($('#group-tabs', view), () => render());
+
+  function renderViewTabs() {
+    viewTabs.innerHTML = VIEWS.map((v) => `
+      <button role="tab" data-view="${v.id}" aria-selected="${v.id === modo}"
+        class="flex-1 min-h-11 rounded-xl text-sm font-semibold border transition
+               ${v.id === modo ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100 hover:bg-soft-100'}">${v.label}</button>`).join('');
+  }
+  viewTabs.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-view]');
+    if (!b || b.dataset.view === modo) return;
+    playTap();
+    modo = b.dataset.view;
+    salvarVisao(modo);
+    render();
+  });
 
   function buildIndex() {
     const byDay = new Map();
@@ -100,6 +142,28 @@ export function renderAgenda(app) {
 
   function render() {
     const { byDay, undated } = buildIndex();
+    renderViewTabs();
+    const emMes = modo === 'mes';
+    $('#month-card', view).hidden = !emMes;
+    dayEl.hidden = !emMes;
+    cycleEl.hidden = !emMes;
+    spanEl.hidden = emMes;
+    $('#prev', view).setAttribute('aria-label', emMes ? 'Mês anterior' : modo === 'semana' ? 'Semana anterior' : 'Dia anterior');
+    $('#next', view).setAttribute('aria-label', emMes ? 'Próximo mês' : modo === 'semana' ? 'Próxima semana' : 'Próximo dia');
+    if (!emMes) {
+      // Conflito olha todas as tarefas do dia, não só as do grupo filtrado.
+      const conflitos = conflictIds(getTasks());
+      if (modo === 'semana') {
+        const ini = addDaysKey(selectedKey, -weekdayOf(selectedKey));
+        monthLabel.textContent = `${fmtCurto(ini)} – ${fmtCurto(addDaysKey(ini, 6))}`;
+        spanEl.innerHTML = weekHtml(ini, byDay, todayKey, conflitos);
+      } else {
+        const [, m, d] = selectedKey.split('-').map(Number);
+        monthLabel.textContent = `${WD_LONG[weekdayOf(selectedKey)]}, ${d} de ${MONTHS[m - 1].toLowerCase()}`;
+        spanEl.innerHTML = dayHtml(selectedKey, byDay.get(selectedKey) || [], todayKey, conflitos);
+      }
+      return;
+    }
     monthLabel.textContent = `${MONTHS[viewM]} ${viewY}`;
     if (toggleBtn) toggleBtn.className = `text-xs font-semibold px-3 py-1.5 min-h-11 rounded-full border transition ${showCycle ? 'bg-accent text-white border-accent' : 'text-bordeaux-700 border-soft-100 hover:bg-soft-100'}`;
 
@@ -232,14 +296,127 @@ export function renderAgenda(app) {
   }
 
   // eventos de navegação
-  $('#prev', view).addEventListener('click', () => { playTap(); viewM--; if (viewM < 0) { viewM = 11; viewY--; } render(); });
-  $('#next', view).addEventListener('click', () => { playTap(); viewM++; if (viewM > 11) { viewM = 0; viewY++; } render(); });
+  function passo(delta) {
+    playTap();
+    if (modo === 'mes') {
+      viewM += delta;
+      if (viewM < 0) { viewM = 11; viewY--; }
+      if (viewM > 11) { viewM = 0; viewY++; }
+    } else {
+      selectedKey = addDaysKey(selectedKey, delta * (modo === 'semana' ? 7 : 1));
+      const [y, m] = selectedKey.split('-').map(Number);
+      viewY = y; viewM = m - 1;   // voltar ao mês mostra o mês do dia escolhido
+    }
+    render();
+  }
+  $('#prev', view).addEventListener('click', () => passo(-1));
+  $('#next', view).addEventListener('click', () => passo(1));
+  // Na semana, tocar no dia abre a visão de dia.
+  spanEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-goday]');
+    if (!b) return;
+    playTap();
+    selectedKey = b.dataset.goday;
+    modo = 'dia';
+    salvarVisao(modo);
+    render();
+  });
   $('#today-btn', view).addEventListener('click', () => { playTap(); viewY = today.getFullYear(); viewM = today.getMonth(); selectedKey = todayKey; render(); });
   if (toggleBtn) toggleBtn.addEventListener('click', () => { showCycle = !showCycle; setCycle({ enabled: showCycle }); cycleEdit = false; render(); });
   $('#fab', view).addEventListener('click', () => openTaskSheet(app, render));
 
   render();
   return view;
+}
+
+/* ---------------- visões Semana e Dia ---------------- */
+function fmtCurto(key) {
+  const [, m, d] = key.split('-').map(Number);
+  return `${d} ${MONTHS[m - 1].slice(0, 3).toLowerCase()}`;
+}
+
+function porHorario(a, b) {
+  if (a.done !== b.done) return Number(a.done) - Number(b.done);
+  const ma = toMinutes(a.dueTime); const mb = toMinutes(b.dueTime);
+  if (ma === null && mb === null) return 0;
+  if (ma === null) return -1;          // sem horário primeiro: é o "a qualquer hora" do dia
+  if (mb === null) return 1;
+  return ma - mb;
+}
+
+const AVISO_CONFLITO = '<span class="shrink-0 text-[11px] font-semibold text-bordeaux-600" title="Outra tarefa ocupa o mesmo horário">⚠ conflito</span>';
+
+function linhaCompacta(t, conflito) {
+  const cat = getCategory(t.category);
+  const faixa = rangeLabel(t);
+  return `
+    <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border ${conflito ? 'border-bordeaux-600' : 'border-soft-100'}">
+      <span class="shrink-0 w-2 h-2 rounded-full" style="background:${cat ? cat.dot : 'var(--color-accent)'}"></span>
+      <span class="shrink-0 w-[5.5rem] text-xs font-semibold text-bordeaux-700">${faixa || 'Sem horário'}</span>
+      <span class="min-w-0 flex-1 truncate text-sm ${t.done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</span>
+      ${conflito ? AVISO_CONFLITO : ''}
+    </div>`;
+}
+
+function weekHtml(inicio, byDay, hoje, conflitos) {
+  return `<div class="flex flex-col gap-3">${Array.from({ length: 7 }, (_, i) => {
+    const k = addDaysKey(inicio, i);
+    const tarefas = (byDay.get(k) || []).filter((t) => !t.parentId).sort(porHorario);
+    const d = Number(k.slice(8, 10));
+    const ehHoje = k === hoje;
+    const abertas = tarefas.filter((t) => !t.done).length;
+    return `
+      <section>
+        <button data-goday="${k}" class="w-full min-h-11 flex items-center justify-between px-1 mb-1 text-left">
+          <span class="font-serif font-bold text-base ${ehHoje ? 'text-accent' : 'text-bordeaux-900'}">${WD_SHORT[i]} ${d}${ehHoje ? ' · hoje' : ''}</span>
+          <span class="text-xs text-bordeaux-700">${tarefas.length ? `${abertas} em aberto` : 'livre'} ›</span>
+        </button>
+        ${tarefas.length ? `<div class="flex flex-col gap-1.5">${tarefas.map((t) => linhaCompacta(t, conflitos.has(t.id))).join('')}</div>` : ''}
+      </section>`;
+  }).join('')}</div>`;
+}
+
+function dayHtml(key, tarefasDoDia, hoje, conflitos) {
+  const tarefas = tarefasDoDia.filter((t) => !t.parentId);
+  const semHora = tarefas.filter((t) => toMinutes(t.dueTime) === null).sort(porHorario);
+  const layout = layoutDay(tarefas.filter((t) => toMinutes(t.dueTime) !== null));
+  const [h0, h1] = hourRange(layout);
+  const altura = (h1 - h0) * 60 * PX_POR_MIN;
+  const agora = new Date();
+  const minAgora = agora.getHours() * 60 + agora.getMinutes();
+  const linhaAgora = key === hoje && minAgora >= h0 * 60 && minAgora <= h1 * 60
+    ? `<div class="absolute left-12 right-0 h-0.5 bg-accent z-10" style="top:${(minAgora - h0 * 60) * PX_POR_MIN}px" aria-hidden="true"><span class="absolute -left-1 -top-1 w-2.5 h-2.5 rounded-full bg-accent"></span></div>`
+    : '';
+
+  const horas = Array.from({ length: h1 - h0 + 1 }, (_, i) => `
+    <div class="absolute left-0 right-0 flex items-start" style="top:${i * 60 * PX_POR_MIN}px" aria-hidden="true">
+      <span class="w-12 -mt-2 text-[11px] text-muted">${String(h0 + i).padStart(2, '0')}:00</span>
+      <span class="flex-1 border-t border-soft-100"></span>
+    </div>`).join('');
+
+  const blocos = layout.map((b) => {
+    const t = b.task;
+    const cat = getCategory(t.category);
+    const conflito = conflitos.has(t.id);
+    const alto = Math.max((b.end - b.start) * PX_POR_MIN, 26);
+    return `
+      <div role="listitem" data-bloco="${t.id}" class="absolute rounded-lg bg-white shadow-card border px-2 py-1 overflow-hidden ${conflito ? 'border-bordeaux-600' : 'border-soft-100'}"
+        style="top:${(b.start - h0 * 60) * PX_POR_MIN}px; height:${alto}px; left:calc(3rem + (100% - 3rem) * ${b.col / b.cols}); width:calc((100% - 3rem) / ${b.cols} - 4px); border-left:4px solid ${cat ? cat.dot : 'var(--color-accent)'}">
+        <p class="text-xs font-semibold leading-tight truncate ${t.done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
+        ${alto >= 40 ? `<p class="text-[11px] text-bordeaux-700 truncate">${rangeLabel(t)}${conflito ? ' · ⚠ conflito' : ''}</p>` : ''}
+      </div>`;
+  }).join('');
+
+  const nConf = tarefas.filter((t) => conflitos.has(t.id)).length;
+  return `
+    ${nConf ? `<p class="mb-3 px-3 py-2 rounded-xl bg-soft-100 text-sm text-bordeaux-800">⚠ ${nConf} tarefas com horário sobreposto neste dia.</p>` : ''}
+    ${semHora.length ? `
+      <h3 class="text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">Sem horário</h3>
+      <div class="flex flex-col gap-1.5 mb-4">${semHora.map((t) => linhaCompacta(t, false)).join('')}</div>` : ''}
+    ${!tarefas.length ? '<p class="text-sm text-bordeaux-700 text-center mb-4">Nada agendado para este dia.</p>' : ''}
+    <div class="relative mb-6 mt-3" style="height:${altura + 8}px" role="list" aria-label="Linha do tempo do dia">
+      ${horas}${linhaAgora}${blocos}
+    </div>`;
 }
 
 /* ---------------- helpers ---------------- */
@@ -257,7 +434,7 @@ function taskRow(t) {
   const cat = getCategory(t.category);
   const done = t.done;
   // Horário estruturado; cai no texto legado só para tarefas antigas.
-  const time = t.dueTime || resolveTime(t.due) || '';
+  const time = rangeLabel(t) || resolveTime(t.due) || '';
   return `
     <div class="lift flex items-center gap-3 bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3">
       <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : 'var(--color-accent)'}"></span>

@@ -85,6 +85,13 @@ export function openTaskSheet(app, onDone) {
           class="w-[7.5rem] shrink-0 px-3 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
                  focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
       </div>
+      <!-- término (duração) — só faz sentido com horário de início -->
+      <label id="end-row" class="mt-2 hidden items-center justify-end gap-2 text-xs text-bordeaux-700">
+        até
+        <input id="task-end" type="time" aria-label="Horário de término (opcional)"
+          class="w-[7.5rem] shrink-0 px-3 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
+                 focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
+      </label>
 
       <!-- repetição -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
@@ -134,6 +141,13 @@ export function openTaskSheet(app, onDone) {
 
   const dateInput = $('#task-date', sheet);
   const timeInput = $('#task-time', sheet);
+  const endInput = $('#task-end', sheet);
+  const endRow = $('#end-row', sheet);
+  timeInput.addEventListener('input', () => {
+    endRow.classList.toggle('hidden', !timeInput.value);
+    endRow.classList.toggle('flex', !!timeInput.value);
+    endInput.min = timeInput.value || '';
+  });
 
   // seleção de data rápida (atalhos). Escolher um atalho limpa o calendário.
   $$('[data-due]', sheet).forEach((b) =>
@@ -239,6 +253,8 @@ export function openTaskSheet(app, onDone) {
       (rec.isRecurring ? firstOccurrence(text, rec.recurrencePattern, todayKey(), rec.recurrenceWeekdays) : null);
     // Horário: escolha manual > palpite da IA.
     const finalDueTime = timeInput.value || result.dueTime || null;
+    // Término: escolha manual > IA. Inválido (antes do início) é descartado no store.
+    const finalEndTime = (timeInput.value ? endInput.value : '') || (timeInput.value ? null : result.endTime) || null;
 
     // Cria e persiste a tarefa principal (aguarda para reconciliar o id real).
     // Guardamos a tarefa-mãe para fixar as sugestões da IA como subtarefas.
@@ -247,6 +263,7 @@ export function openTaskSheet(app, onDone) {
       category,
       dueDate: finalDueDate,
       dueTime: finalDueTime,
+      endTime: finalEndTime,
       priority: selectedPriority,
       ...rec,
     });

@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app import ai, crud, recurrence, schemas
+from app import ai, crud, recurrence, schemas, timerange
 from app.categories import DEFAULT_CATEGORY, normalize_category
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -73,6 +73,7 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
         categoria = DEFAULT_CATEGORY
     due_date = ai._clean_date(args.get("due_date"))
     due_time = ai._clean_time(args.get("due_time"))
+    end_time = timerange.clean_end_time(due_time, ai._clean_time(args.get("hora_fim")))         or timerange.detect_end_time(titulo, due_time)
     rec = recurrence.resolve(
         titulo, today, pattern=args.get("recorrencia"), weekdays=args.get("dias_semana"),
         until=ai._clean_date(args.get("ate")), due_date=due_date,
@@ -89,7 +90,7 @@ def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dic
         db,
         user.id,
         schemas.TaskCreate(
-            title=titulo, category=categoria, due_date=due_date, due_time=due_time,
+            title=titulo, category=categoria, due_date=due_date, due_time=due_time, end_time=end_time,
             is_recurring=rec["is_recurring"], recurrence_pattern=rec["recurrence_pattern"],
             recurrence_weekdays=rec["recurrence_weekdays"], recurrence_until=rec["recurrence_until"],
         ),

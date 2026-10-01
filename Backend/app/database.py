@@ -66,6 +66,7 @@ _ADDITIVE_COLUMNS = (
     ("tasks", "recurrence_pattern", "VARCHAR(10)"),
     ("tasks", "recurrence_weekdays", "VARCHAR(20)"),
     ("tasks", "recurrence_until", "DATE"),
+    ("tasks", "end_time", "VARCHAR(5)"),
 )
 
 

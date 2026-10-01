@@ -222,6 +222,13 @@ erra os campos), pelo fallback sem IA do `/tasks/smart` e pela Bruna (`dias_sema
 `PATCH /tasks/{id}` edita a recorrência depois de criada e mantém os campos coerentes
 (desligar limpa tudo; trocar para diário/mensal descarta os dias).
 
+## Duração (end_time)
+
+`end_time` ("HH:MM") é o fim do bloco de tempo: exige `due_time` e vem depois dele (senão 422).
+Num `PATCH`, mudar ou tirar o `due_time` descarta um `end_time` que deixou de valer. A IA
+devolve o campo, e `app/timerange.py` detecta no texto quando ela não devolve ("das 10h às
+11h30", "call de 1h", "por 45 min"). A Bruna aceita `hora_fim`.
+
 ## Testes
 
 ```

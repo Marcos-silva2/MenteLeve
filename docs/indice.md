@@ -47,7 +47,7 @@ O MVP do MenteLeve foca em velocidade de navegação e entrega imediata de valor
 * **Micro-interações de Recompensa:** O app utiliza efeitos visuais (fade-outs suaves) e sonoros prazerosos ao concluir uma pendência, liberando endorfina e incentivando o uso contínuo.
 
 ### 4. Identidade Visual (Design System: Bordeaux Pink + temas)
-A interface foi rigorosamente pensada para não gerar estresse visual, guiando-se pela regra 60:30:10. O **Bordeaux Pink** é o tema padrão; a pessoa pode trocar a cor do app em Perfil → Cor do app (Oceano, Floresta, Grafite e Lavanda), e todas as paletas passam no contraste de texto AA. A paleta padrão, sofisticada e acolhedora:
+A interface foi rigorosamente pensada para não gerar estresse visual, guiando-se pela regra 60:30:10. O **Grafite** é o tema padrão (o Bordeaux Pink, identidade original, segue como opção); a pessoa pode trocar a cor do app em Perfil → Cor do app (Oceano, Floresta, Grafite e Lavanda), e todas as paletas passam no contraste de texto AA. A paleta padrão, sofisticada e acolhedora:
 * **Fundo (60%):** O *Lavender Blush* (#fff0f3) substitui o branco clínico ou cinza, criando um ambiente de leveza e conforto logo no primeiro contato.
 * **Estrutura (30%):** O *Night Bordeaux* (#590d22) e tons de vinho trazem elegância, contraste e clareza para a tipografia e cabeçalhos.
 * **Ação (10%):** O *Bubblegum Pink* (#ff4d6d) é a cor de sotaque (accent), usada estrategicamente para guiar a atenção aos botões de conversão e elementos interativos essenciais.
@@ -317,9 +317,10 @@ Documentação de referência: [`../README.md`](../README.md) (visão geral e de
 
 ### 3. Design system — Bordeaux Pink
 
-> **Atualização (01/10/2026):** o Bordeaux Pink agora é o **tema padrão** de 5 (Oceano,
-> Floresta, Grafite e Lavanda são os outros), escolhidos em Perfil → Cor do app. A paleta
-> abaixo segue valendo para o padrão; os temas só redefinem os mesmos tokens. Detalhes na
+> **Atualização (01/10/2026):** o **Grafite** agora é o **tema padrão** de 5 (Bordeaux Pink,
+> Oceano, Floresta e Lavanda são os outros), escolhidos em Perfil → Cor do app. A paleta
+> Bordeaux Pink descrita abaixo é a original e continua disponível como tema; os temas só
+> redefinem os mesmos tokens. Detalhes na
 > [Parte 6](#parte-6--readme-do-frontend-cópia), seção "Temas de cor".
 
 
@@ -1541,6 +1542,13 @@ erra os campos), pelo fallback sem IA do `/tasks/smart` e pela Bruna (`dias_sema
 `PATCH /tasks/{id}` edita a recorrência depois de criada e mantém os campos coerentes
 (desligar limpa tudo; trocar para diário/mensal descarta os dias).
 
+### Duração (end_time)
+
+`end_time` ("HH:MM") é o fim do bloco de tempo: exige `due_time` e vem depois dele (senão 422).
+Num `PATCH`, mudar ou tirar o `due_time` descarta um `end_time` que deixou de valer. A IA
+devolve o campo, e `app/timerange.py` detecta no texto quando ela não devolve ("das 10h às
+11h30", "call de 1h", "por 45 min"). A Bruna aceita `hora_fim`.
+
 ### Testes
 
 ```
@@ -1671,7 +1679,7 @@ versão do interruptor booleano migram na leitura — quem tinha desligado fica 
 
 ### Temas de cor
 
-O app tem 5 temas (Bordeaux Pink é o padrão); a escolha fica em **Perfil → Cor do app**.
+O app tem 5 temas (Grafite é o padrão); a escolha fica em **Perfil → Cor do app**.
 Cada tema é um bloco `:root[data-theme="..."]` em `css/styles.css` que só redefine os
 canais RGB (`--rgb-*`). Tudo deriva deles: os `--color-*` do CSS e as cores do Tailwind
 (`index.html`, via `rgb(var(--rgb-x) / <alpha-value>)`, então `bg-accent/15` funciona em
@@ -1693,6 +1701,15 @@ fim da série), `detectWeekdays`, `detectUntil`, `firstOccurrence` e `recurrence
 padrão do Python (**0 = segunda**); use `weekdayOf(chave)`, nunca `Date.getDay()` direto.
 O seletor (`components/recurrencePicker.js`) é o mesmo na criação e na edição; a edição fica
 no menu da tarefa (pressão longa / botão direito) e, offline, entra na fila como `update`.
+
+### Agenda: Mês, Semana e Dia
+
+A Agenda tem três visões (`views/agenda.js`), lembradas em `menteleve.agendaView`; sem
+escolha salva, quem usa o filtro Trabalho começa na Semana. A lógica de horários fica em
+`js/timeline.js` (puro, testado): `intervalOf` (sem `endTime`, 30 min), `conflictIds`
+(sobreposição no mesmo dia; encostar não conta), `layoutDay` (colunas para blocos
+sobrepostos) e `hourRange` (07–20, ampliado se preciso). `endTime` só vale com `dueTime` e
+depois dele (`cleanEndTime`, igual ao backend).
 
 ### Categorias
 

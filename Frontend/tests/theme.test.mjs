@@ -26,7 +26,7 @@ const toHex = (rgb) => '#' + rgb.trim().split(/\s+/).map((n) => Number(n).toStri
 
 /** Canais --rgb-* de um tema, lidos do CSS real. */
 function tokens(id) {
-  const sel = id === DEFAULT_THEME ? ':root {\n  --rgb-bg' : `:root[data-theme="${id}"] {`;
+  const sel = id === DEFAULT_THEME ? ':root { /* Grafite */' : `:root[data-theme="${id}"] {`;
   const ini = css.indexOf(sel);
   assert.ok(ini >= 0, `bloco do tema ${id} não encontrado no CSS`);
   const bloco = css.slice(ini, css.indexOf('}', ini));
@@ -34,8 +34,8 @@ function tokens(id) {
 }
 
 describe('temas', () => {
-  it('o padrão é o Bordeaux Pink e há 5 temas', () => {
-    assert.equal(DEFAULT_THEME, 'bordeaux');
+  it('o padrão é o Grafite e há 5 temas', () => {
+    assert.equal(DEFAULT_THEME, 'grafite');
     assert.equal(THEMES.length, 5);
   });
 
@@ -74,7 +74,7 @@ describe('escolha do tema', () => {
 
   it('voltar ao padrão limpa o storage', () => {
     setTheme('lavanda');
-    setTheme('bordeaux');
+    setTheme('grafite');
     assert.equal(mem.has('menteleve.theme'), false);
   });
 

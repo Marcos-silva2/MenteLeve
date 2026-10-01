@@ -22,7 +22,7 @@ from datetime import date
 
 import httpx
 
-from app import recurrence
+from app import recurrence, timerange
 from app.categories import CATEGORIES, DEFAULT_CATEGORY, normalize_category
 from app.circuit import CircuitBreaker
 from app.config import settings
@@ -53,6 +53,7 @@ _SYSTEM = (
     '  "category": "uma de: ' + " | ".join(CATEGORIES) + '",\n'
     '  "due_date": "data ISO AAAA-MM-DD, ou null se não houver data",\n'
     '  "due_time": "horário HH:MM em 24h, ou null se não houver horário",\n'
+    '  "end_time": "HH:MM de término só se o texto der a duração ou o fim (das 10h às 11h, reunião de 1h); senão null",\n'
     '  "is_recurring": "true se a tarefa se repete; false caso contrário",\n'
     '  "recurrence_pattern": "daily | weekly | monthly, ou null se não se repete",\n'
     '  "recurrence_weekdays": "só para weekly em dias específicos: lista com 0=segunda ... 6=domingo; senão null",\n'
@@ -168,6 +169,10 @@ _TOOL_SPECS = [
                         "due_time": {
                             "type": "string",
                             "description": "Horário HH:MM em 24h. Omita se não houver.",
+                        },
+                        "hora_fim": {
+                            "type": "string",
+                            "description": "Horário de término HH:MM, só se a pessoa disse a duração ou até que horas. Omita se não houver.",
                         },
                         "dias_semana": {
                             "type": "array",
@@ -601,6 +606,8 @@ def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dic
 
     due_date = _clean_date(data.get("due_date"))
     due_time = _clean_time(data.get("due_time"))
+    end_time = timerange.clean_end_time(due_time, _clean_time(data.get("end_time"))) \
+        or timerange.detect_end_time(fallback_title, due_time)
 
     # O padrão manda; a flag `is_recurring` é derivada dele. Um "is_recurring:
     # true" sem padrão válido não tem como ser usado (não há ciclo a calcular).
@@ -639,6 +646,7 @@ def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dic
         "category": category,
         "due_date": due_date,
         "due_time": due_time,
+        "end_time": end_time,
         # O rótulo livre deixa de ser produzido pela IA: o frontend deriva o
         # texto amigável a partir de due_date/due_time (ver formatDue).
         "due": "",
