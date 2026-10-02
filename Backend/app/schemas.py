@@ -85,6 +85,8 @@ class TaskBase(BaseModel):
     important: bool = False
     # Subtarefa: id da tarefa-mãe (None = tarefa principal).
     parent_id: int | None = None
+    # Espaço compartilhado (None = pessoal). Subtarefa herda o da mãe, qualquer que seja o enviado.
+    space_id: int | None = None
     # Recorrência. `is_recurring` e `recurrence_pattern` andam juntos: o
     # validador abaixo os mantém coerentes (nunca "recorrente sem padrão").
     is_recurring: bool = False
@@ -137,7 +139,42 @@ class TaskOut(TaskBase):
 
     id: int
     user_id: int
+    # Nome de quem criou; só vem nas tarefas de espaço compartilhado.
+    author_name: str | None = None
     done: bool
+    created_at: datetime
+
+
+# ------------------- Espaços compartilhados -------------------
+class SpaceCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+
+    @field_validator("name")
+    @classmethod
+    def _nome(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Dê um nome ao espaço.")
+        return v
+
+
+class SpaceJoin(BaseModel):
+    code: str = Field(..., min_length=4, max_length=24)
+
+
+class SpaceMemberOut(BaseModel):
+    user_id: int
+    name: str
+    is_owner: bool
+
+
+class SpaceOut(BaseModel):
+    id: int
+    name: str
+    owner_id: int
+    # Quem está no espaço pode ver o código (é como se convida alguém).
+    invite_code: str
+    members: list[SpaceMemberOut]
     created_at: datetime
 
 

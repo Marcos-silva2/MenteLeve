@@ -16,9 +16,12 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 def _get_owned_task(task_id: int, user: User, db: Session) -> Task:
-    """Recupera a tarefa garantindo que pertence ao usuário autenticado."""
+    """Recupera a tarefa se o usuário puder acessá-la: é dele ou de um espaço de que participa.
+
+    Responde 404 (e não 403) para não confirmar que uma tarefa alheia existe.
+    """
     task = crud.get_task(db, task_id)
-    if task is None or task.user_id != user.id:
+    if task is None or not crud.can_access_task(db, task, user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarefa não encontrada.")
     return task
 
@@ -34,6 +37,12 @@ def create_task(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if data.space_id is not None and not crud.is_member(db, data.space_id, user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Espaço não encontrado.")
+    if data.parent_id is not None:
+        parent = crud.get_task(db, data.parent_id)
+        if parent is None or not crud.can_access_task(db, parent, user.id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarefa não encontrada.")
     return crud.create_task(db, user.id, data)
 
 
@@ -133,4 +142,9 @@ def delete_task(
     db: Session = Depends(get_db),
 ):
     task = _get_owned_task(task_id, user, db)
+    if not crud.can_delete_task(db, task, user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Só quem criou a tarefa ou o dono do espaço pode apagá-la.",
+        )
     crud.delete_task(db, task)

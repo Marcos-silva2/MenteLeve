@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import models, recurrence, schemas, security
+from app import models, recurrence, schemas, security, spaces
 
 
 # ----------------------- Users -----------------------
@@ -55,10 +55,45 @@ def authenticate_user(db: Session, email: str, password: str) -> models.User | N
 
 
 # ----------------------- Tasks -----------------------
+def member_space_ids(db: Session, user_id: int) -> list[int]:
+    return list(db.scalars(select(models.SpaceMember.space_id).where(models.SpaceMember.user_id == user_id)))
+
+
+def _visible(user_id: int):
+    """Tarefas pessoais do usuário + as dos espaços de que ele participa.
+
+    Tarefa de espaço NÃO entra só por ter sido criada por ele: quem sai do espaço
+    deixa de ver até as que criou (ver `can_access_task`, a mesma regra).
+    """
+    mine = select(models.SpaceMember.space_id).where(models.SpaceMember.user_id == user_id)
+    return or_(
+        (models.Task.user_id == user_id) & models.Task.space_id.is_(None),
+        models.Task.space_id.in_(mine),
+    )
+
+
+def can_access_task(db: Session, task: models.Task, user_id: int) -> bool:
+    """Ver, editar e concluir: o criador ou qualquer membro do espaço da tarefa."""
+    if task.user_id == user_id:
+        # Quem saiu do espaço perde o acesso às tarefas que deixou lá.
+        return task.space_id is None or is_member(db, task.space_id, user_id)
+    return task.space_id is not None and is_member(db, task.space_id, user_id)
+
+
+def can_delete_task(db: Session, task: models.Task, user_id: int) -> bool:
+    """Apagar: só quem criou ou o dono do espaço (o resto pode editar e concluir)."""
+    if not can_access_task(db, task, user_id):
+        return False
+    if task.space_id is None or task.user_id == user_id:
+        return True
+    space = db.get(models.Space, task.space_id)
+    return space is not None and space.owner_id == user_id
+
+
 def list_tasks(db: Session, user_id: int) -> list[models.Task]:
     stmt = (
         select(models.Task)
-        .where(models.Task.user_id == user_id)
+        .where(_visible(user_id))
         .order_by(models.Task.done.asc(), models.Task.created_at.desc())
     )
     return list(db.scalars(stmt))
@@ -78,7 +113,7 @@ def list_open_tasks(db: Session, user_id: int) -> list[models.Task]:
     """Tarefas em aberto — usadas para casar o título dito no chat da Bruna."""
     stmt = (
         select(models.Task)
-        .where(models.Task.user_id == user_id, models.Task.done.is_(False))
+        .where(_visible(user_id), models.Task.done.is_(False))
         .order_by(models.Task.created_at.desc())
     )
     return list(db.scalars(stmt))
@@ -113,7 +148,13 @@ def find_recent_duplicate(
 
 
 def create_task(db: Session, user_id: int, data: schemas.TaskCreate) -> models.Task:
-    task = models.Task(user_id=user_id, **data.model_dump())
+    values = data.model_dump()
+    if data.parent_id is not None:
+        # A subtarefa vive no mesmo espaço da mãe (e só pode ser criada por quem a enxerga).
+        parent = db.get(models.Task, data.parent_id)
+        if parent is not None and can_access_task(db, parent, user_id):
+            values["space_id"] = parent.space_id
+    task = models.Task(user_id=user_id, **values)
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -182,6 +223,79 @@ def set_task_done(
     db.commit()
     db.refresh(task)
     return task
+
+
+# ----------------------- Espaços compartilhados -----------------------
+def is_member(db: Session, space_id: int, user_id: int) -> bool:
+    return db.get(models.SpaceMember, (space_id, user_id)) is not None
+
+
+def get_space(db: Session, space_id: int) -> models.Space | None:
+    return db.get(models.Space, space_id)
+
+
+def get_space_by_code(db: Session, code: str) -> models.Space | None:
+    return db.scalar(select(models.Space).where(models.Space.invite_code == spaces.normalize_code(code)))
+
+
+def list_spaces(db: Session, user_id: int) -> list[models.Space]:
+    ids = select(models.SpaceMember.space_id).where(models.SpaceMember.user_id == user_id)
+    return list(db.scalars(select(models.Space).where(models.Space.id.in_(ids)).order_by(models.Space.created_at)))
+
+
+def create_space(db: Session, owner_id: int, name: str) -> models.Space:
+    for _ in range(5):   # colisão de código é praticamente impossível; a repetição é só rede de segurança
+        code = spaces.new_invite_code()
+        if get_space_by_code(db, code) is None:
+            break
+    space = models.Space(name=name, invite_code=code, owner_id=owner_id)
+    space.members.append(models.SpaceMember(user_id=owner_id))
+    db.add(space)
+    db.commit()
+    db.refresh(space)
+    return space
+
+
+def add_member(db: Session, space: models.Space, user_id: int) -> None:
+    db.add(models.SpaceMember(space_id=space.id, user_id=user_id))
+    db.commit()
+    db.refresh(space)
+
+
+def remove_member(db: Session, space: models.Space, user_id: int) -> None:
+    """Tira o usuário do espaço. Sem membros, o espaço e as tarefas dele são apagados;
+    se quem saiu era o dono, o dono passa a ser o membro mais antigo."""
+    member = db.get(models.SpaceMember, (space.id, user_id))
+    if member is not None:
+        db.delete(member)
+        db.commit()
+        db.refresh(space)
+    if not space.members:
+        db.execute(delete(models.Task).where(models.Task.space_id == space.id))
+        db.delete(space)
+        db.commit()
+        return
+    if space.owner_id == user_id:
+        space.owner_id = space.members[0].user_id
+        db.commit()
+
+
+def reset_invite_code(db: Session, space: models.Space) -> models.Space:
+    while True:
+        code = spaces.new_invite_code()
+        if get_space_by_code(db, code) is None:
+            break
+    space.invite_code = code
+    db.commit()
+    db.refresh(space)
+    return space
+
+
+def reminder_recipients(db: Session, task: models.Task) -> list[int]:
+    """Quem recebe o lembrete push: o criador, ou todos os membros se for de um espaço."""
+    if task.space_id is None:
+        return [task.user_id]
+    return list(db.scalars(select(models.SpaceMember.user_id).where(models.SpaceMember.space_id == task.space_id)))
 
 
 def delete_task(db: Session, task: models.Task) -> None:

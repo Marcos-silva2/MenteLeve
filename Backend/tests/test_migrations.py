@@ -38,7 +38,7 @@ def test_colunas_novas_sao_adicionadas_e_dados_antigos_sobrevivem(tmp_path, monk
     database._ensure_columns()
 
     cols_tasks = {c["name"] for c in inspect(legado).get_columns("tasks")}
-    assert {"is_recurring", "recurrence_pattern", "recurrence_weekdays", "recurrence_until"} <= cols_tasks
+    assert {"is_recurring", "recurrence_pattern", "recurrence_weekdays", "recurrence_until", "end_time", "space_id"} <= cols_tasks
 
     # As linhas existentes nascem com os valores neutros — via ORM, como o app lê.
     with Session(legado) as db:

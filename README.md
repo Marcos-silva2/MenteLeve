@@ -4,7 +4,7 @@
 
 **MenteLeve** é uma agenda inteligente para **profissionais do mercado de trabalho** — um "Segundo Cérebro" que reúne, num só lugar, as tarefas do trabalho (reuniões, entregas, prazos, estudos, carreira) e da vida pessoal (casa, saúde, família, finanças). Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis de cada compromisso (o *Aha Moment*).
 
-> O app nasceu voltado a mulheres e mães e foi ampliado para profissionais em geral (Fases 1 a 5 do [plano de migração](docs/plano_migracao_vida_trabalho.md)). Falta a recorrência avançada, as visões diária e semanal e as integrações com calendários.
+
 
 🔗 **App (PWA):** https://mente-leve-teal.vercel.app
 🔗 **API:** https://menteleve.onrender.com · [`/docs`](https://menteleve.onrender.com/docs)
@@ -34,13 +34,13 @@ O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ON
 - **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
 - **Subtarefas da IA fixadas** na tarefa-mãe (a sugestão vira filho da tarefa que você criou).
 - **Bruna — assistente com IA que age:** organiza a agenda e **cria e conclui tarefas pelo chat** ("marca reunião com o cliente amanhã às 10h", "marca o relatório como feito").
-- **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Vida: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
+- **Trabalho e vida pessoal no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Pessoal: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
 - **Tarefas recorrentes** (diária, semanal, mensal): reunião semanal, relatório do mês, rotinas pessoais.
 - **Cor do app personalizável:** 5 temas (Grafite é o padrão; Bordeaux Pink, Oceano, Floresta e Lavanda), escolhidos no Perfil.
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Lembretes por notificação push** (opt-in) antes do horário da tarefa.
-- **Rede de apoio** (compartilhar tarefas com família ou equipe) — app 100% gratuito, sem limite de tarefas nem plano pago.
+- **Espaços compartilhados:** uma lista de tarefas em comum com a família ou a equipe. Cria-se o espaço, convida-se por **código** e todos veem e editam; apagar fica com quem criou a tarefa ou com o dono. App 100% gratuito, sem limite de tarefas nem plano pago.
 - **🌸 Calendário menstrual** (módulo opcional, desligado por padrão, ativado no Perfil; 100% privado/local): fases do ciclo, período fértil e previsão.
 - **PWA instalável** e com suporte offline (Service Worker) — 264 KB de precache em
   disco, ~149 KB transferidos (o gzip do servidor comprime os textos; as imagens já
@@ -74,7 +74,7 @@ MenteLeve/
 │   └── js/
 │       ├── app.js            # bootstrap + mini-router
 │       ├── store.js          # estado local (localStorage) + sync
-│       ├── categories.js     # categorias Trabalho/Vida + filtro de grupo
+│       ├── categories.js     # categorias Trabalho/Pessoal + filtro de grupo
 │       ├── theme.js          # temas de cor
 │       ├── api.js            # cliente REST (JWT) + heurística de fallback
 │       ├── dates.js          # prazo estruturado (resolução + exibição)
@@ -172,6 +172,9 @@ Detalhes da troca entre provedores em [`Backend/README.md`](Backend/README.md).
 | `POST` | `/tasks/smart` | Analisa texto livre com IA (título, data, horário, subtarefas, sugestão) |
 | `PUT` | `/tasks/{id}/complete` · `/uncomplete` | Concluir / reabrir |
 | `DELETE` | `/tasks/{id}` | Excluir (remove subtarefas) |
+| `GET` · `POST` | `/spaces` | Listar / criar espaço compartilhado |
+| `POST` | `/spaces/join` · `/spaces/{id}/leave` · `/spaces/{id}/invite/reset` | Entrar por código / sair / trocar o código (dono) |
+| `DELETE` | `/spaces/{id}/members/{user_id}` | Dono remove um membro |
 | `POST` | `/ai/chat` | Conversa com a **Bruna** — pode criar/concluir tarefas (function calling) |
 | `GET` | `/push/public-key` · `POST` `/push/subscribe` · `/push/unsubscribe` | Lembrete de tarefa por notificação push (opt-in, no Perfil) |
 | `POST` | `/push/scan` | Varredura de tarefas prestes a vencer — chamada por cron externo, não pelo usuário (requer `X-Scan-Secret`) |
@@ -266,7 +269,7 @@ sprints e de melhorias.
 **Próximos passos:**
 - [ ] **Recuperação de senha** — hoje não há caminho de autoatendimento para quem esquece a senha
 - [ ] **Revogação de sessão** — sem forma de invalidar um token antes de expirar (30 dias)
-- [ ] OAuth real (Apple / Google) e notificações da rede de apoio
+- [ ] OAuth real (Apple / Google)
 - [ ] CI rodando a suíte de testes (a suíte já existe)
 - [ ] Ampliação para vida + trabalho — ver [`docs/plano_migracao_vida_trabalho.md`](docs/plano_migracao_vida_trabalho.md)
 

@@ -1,7 +1,7 @@
 /* ============================================================
    Onboarding — Carrossel de 3 slides + escolha de uso (Tela 1)
    O último passo pergunta "Para que você vai usar o MenteLeve?" e define o
-   filtro inicial (Trabalho / Vida / Os dois) — ver categories.js.
+   filtro inicial (Trabalho / Pessoal / Os dois) — ver categories.js.
    ============================================================ */
 
 import { h, $, $$, icons, logoMark } from '../ui.js';
@@ -29,7 +29,7 @@ const SLIDES = [
 // Último passo: o uso escolhido vira o filtro inicial da Home e da Agenda.
 const USOS = [
   { id: 'trabalho', label: 'Trabalho', hint: 'Reuniões, entregas, estudos e carreira' },
-  { id: 'vida',     label: 'Vida pessoal', hint: 'Casa, família, saúde e finanças' },
+  { id: 'vida',     label: 'Pessoal', hint: 'Casa, família, saúde e finanças' },
   { id: 'tudo',     label: 'Os dois', hint: 'Tudo junto, num só lugar' },
 ];
 const TOTAL = SLIDES.length + 1;
@@ -190,7 +190,7 @@ function artAgenda() {
           ${linha('Pagar a fatura', 'Concluída · Finanças', true, 'var(--color-soft-300)')}
         </div>
       </div>
-      <span class="onboard-float absolute -top-3 -right-2 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-fab">Trabalho + Vida</span>
+      <span class="onboard-float absolute -top-3 -right-2 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-fab">Trabalho + Pessoal</span>
     </div>
   </div>`;
 }

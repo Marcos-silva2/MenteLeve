@@ -12,6 +12,17 @@ export function h(html) {
   return tpl.content.firstElementChild;
 }
 
+/**
+ * Escapa texto para entrar em innerHTML (conteúdo e atributos entre aspas).
+ * OBRIGATÓRIO para tudo que vem de outra pessoa — título de tarefa e nome de quem
+ * participa de um espaço compartilhado —, senão um membro injeta HTML na tela dos outros.
+ */
+export function esc(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 /** Atalho para querySelector dentro de um root. */
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -283,7 +294,7 @@ function navSideItem(it, active) {
 export const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
 
 /**
- * Abas "Tudo / Trabalho / Vida". Preenche `el`, lembra a escolha (compartilhada
+ * Abas "Tudo / Trabalho / Pessoal". Preenche `el`, lembra a escolha (compartilhada
  * entre Home e Agenda) e chama `onChange(grupo)` ao trocar.
  */
 export function renderGroupTabs(el, onChange) {

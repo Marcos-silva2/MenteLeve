@@ -74,7 +74,7 @@ export function renderProfile(app) {
               <p class="text-xs text-bordeaux-700">Módulo opcional. Os dados ficam só neste aparelho e nunca vão ao servidor.</p>
             </div>
             <button id="cycle-module" role="switch" aria-checked="false" aria-label="Calendário menstrual"
-              class="relative w-12 h-7 rounded-full shrink-0 transition-colors bg-soft-200">
+              class="relative w-12 h-7 rounded-full shrink-0 transition-colors bg-muted/70">
               <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all"></span>
             </button>
           </div>
@@ -90,7 +90,7 @@ export function renderProfile(app) {
               <p class="text-xs text-bordeaux-700">Um aviso no aparelho perto do horário da tarefa.</p>
             </div>
             <button id="push-toggle" aria-checked="false"
-              class="relative w-12 h-7 rounded-full shrink-0 transition-colors bg-soft-200">
+              class="relative w-12 h-7 rounded-full shrink-0 transition-colors bg-muted/70">
               <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all"></span>
             </button>
           </div>
@@ -165,7 +165,7 @@ export function renderProfile(app) {
   const cicloBtn = $('#cycle-module', view);
   function setCicloUi(on) {
     cicloBtn.setAttribute('aria-checked', String(on));
-    cicloBtn.className = `relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-soft-200'}`;
+    cicloBtn.className = `relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-muted/70'}`;
     cicloBtn.querySelector('span').className =
       `absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`;
   }
@@ -211,7 +211,7 @@ export function renderProfile(app) {
   });
   function setPushToggle(on) {
     pushToggle.setAttribute('aria-checked', String(on));
-    pushToggle.className = `relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-soft-200'}`;
+    pushToggle.className = `relative w-12 h-7 rounded-full shrink-0 transition-colors ${on ? 'bg-accent' : 'bg-muted/70'}`;
     pushToggle.querySelector('span').className =
       `absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`;
   }

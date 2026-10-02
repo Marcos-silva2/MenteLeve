@@ -41,6 +41,7 @@ const defaultState = () => ({
   token: null,       // JWT de acesso (null = sessão não autenticada)
   soundLevel: 'tudo',  // 'tudo' | 'conclusoes' | 'silencio' — ver SOUND_LEVELS
   tasks: [],
+  spaces: [],        // espaços compartilhados de que a conta participa (cache do servidor)
   pending: [],       // fila de escritas que ainda não subiram (ver "Fila offline")
   cycle: defaultCycle(),
 });
@@ -145,6 +146,8 @@ async function hydrateTasks({ onlyIfNotEmpty = false } = {}) {
   // Sobe o que ficou pendente ANTES de ler: o que subir agora volta na própria
   // resposta do servidor, sem virar duplicata.
   await flushPending();
+  // Espaços antes das tarefas: as tarefas compartilhadas se apoiam neles (nome, dono).
+  await refreshSpaces();
 
   const remote = await api.apiListTasks();
   if (!remote) return;
@@ -424,6 +427,79 @@ export async function flushPending() {
   return true;
 }
 
+// ------- Espaços compartilhados -------
+export const getSpaces = () => state.spaces || [];
+export const getSpace = (id) => getSpaces().find((s) => s.id === String(id)) || null;
+
+/** Subtarefa vive no espaço da mãe; tarefa nova só entra num espaço de que a conta participa. */
+function espacoDaNovaTarefa(task) {
+  if (task.parentId != null) {
+    const mae = state.tasks.find((x) => x.id === String(task.parentId));
+    return mae ? mae.spaceId || null : null;
+  }
+  return task.spaceId != null && getSpace(task.spaceId) ? String(task.spaceId) : null;
+}
+
+/**
+ * Apagar: tarefa pessoal, a que a pessoa criou, ou qualquer uma se ela é dona do espaço.
+ * Espelha crud.can_delete_task no backend (que é quem decide de verdade).
+ */
+export function canDeleteTask(t) {
+  if (!t || !t.spaceId) return true;
+  if (t.userId != null && t.userId === state.userId) return true;
+  const e = getSpace(t.spaceId);
+  return !!e && e.ownerId === state.userId;
+}
+
+/** Atualiza a lista de espaços a partir do servidor. Offline: mantém o cache. */
+export async function refreshSpaces() {
+  if (state.userId == null) return false;
+  const lista = await api.apiListSpaces();
+  if (!lista) return false;
+  state.spaces = lista;
+  // Tarefa de um espaço que a pessoa não integra mais não pode ficar no aparelho.
+  const ids = new Set(lista.map((e) => e.id));
+  state.tasks = state.tasks.filter((t) => !t.spaceId || ids.has(t.spaceId));
+  persist();
+  return true;
+}
+
+/** Cria um espaço e já o inclui na lista local. Lança ApiError/NetworkError. */
+export async function createSpace(name) {
+  const e = await api.apiCreateSpace(name);
+  state.spaces = [...getSpaces().filter((x) => x.id !== e.id), e];
+  persist();
+  return e;
+}
+
+/** Entra por código, e baixa as tarefas do espaço. Lança ApiError/NetworkError. */
+export async function joinSpace(code) {
+  const e = await api.apiJoinSpace(code);
+  state.spaces = [...getSpaces().filter((x) => x.id !== e.id), e];
+  persist();
+  await hydrateTasks();
+  return e;
+}
+
+export async function leaveSpace(id) {
+  await api.apiLeaveSpace(id);
+  state.spaces = getSpaces().filter((x) => x.id !== String(id));
+  state.tasks = state.tasks.filter((t) => t.spaceId !== String(id));
+  persist();
+}
+
+export async function resetSpaceInvite(id) {
+  const e = await api.apiResetInvite(id);
+  state.spaces = getSpaces().map((x) => (x.id === e.id ? e : x));
+  persist();
+  return e;
+}
+
+export async function removeSpaceMember(id, userId) {
+  await api.apiRemoveMember(id, userId);
+  await refreshSpaces();
+}
+
 // ------- Tarefas -------
 /**
  * Cria uma tarefa. Otimista localmente; se online, troca pelo registro
@@ -446,6 +522,9 @@ export async function addTask(task) {
     priority,
     important: task.important != null ? !!task.important : priority === 'alta',
     parentId: task.parentId != null ? String(task.parentId) : null,
+    userId: state.userId,   // quem criou
+    authorName: null,
+    spaceId: espacoDaNovaTarefa(task),
     ...recorrenciaLimpa(task),
     createdAt: Date.now(),
   };

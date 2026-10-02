@@ -7,7 +7,7 @@
      Dados do ciclo são 100% locais/privados (localStorage).
    ============================================================ */
 
-import { h, $, $$, icons, renderGroupTabs } from '../ui.js';
+import { h, $, $$, icons, renderGroupTabs, esc } from '../ui.js';
 import { getGroupFilter, inGroup } from '../categories.js';
 import {
   getTasks, getCategory,
@@ -16,6 +16,7 @@ import {
 import { openTaskSheet } from '../components/taskSheet.js';
 import { resolveTime, addDaysKey, weekdayOf } from '../dates.js';
 import { conflictIds, layoutDay, hourRange, rangeLabel, toMinutes } from '../timeline.js';
+import { weekBalance, formatMinutes } from '../balance.js';
 import { playCycle, playTap } from '../sound.js';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -156,11 +157,13 @@ export function renderAgenda(app) {
       if (modo === 'semana') {
         const ini = addDaysKey(selectedKey, -weekdayOf(selectedKey));
         monthLabel.textContent = `${fmtCurto(ini)} – ${fmtCurto(addDaysKey(ini, 6))}`;
-        spanEl.innerHTML = weekHtml(ini, byDay, todayKey, conflitos);
+        // O equilíbrio compara os dois lados, então olha TODAS as tarefas (não só as do filtro).
+        spanEl.innerHTML = balanceHtml(weekBalance(getTasks(), ini)) + weekHtml(ini, byDay, todayKey, conflitos);
       } else {
         const [, m, d] = selectedKey.split('-').map(Number);
         monthLabel.textContent = `${WD_LONG[weekdayOf(selectedKey)]}, ${d} de ${MONTHS[m - 1].toLowerCase()}`;
         spanEl.innerHTML = dayHtml(selectedKey, byDay.get(selectedKey) || [], todayKey, conflitos);
+        centralizarDia();
       }
       return;
     }
@@ -191,7 +194,7 @@ export function renderAgenda(app) {
 
       cells.push(`
         <button data-date="${k}"
-          class="relative aspect-square min-h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition active:scale-90 border ${base} ${cycleRing}">
+          class="relative aspect-square lg:aspect-auto lg:h-14 min-h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition active:scale-90 border ${base} ${cycleRing}">
           ${ph ? `<span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style="background:${ph.color}"></span>` : ''}
           <span class="font-semibold leading-none">${d}</span>
           <span class="h-1.5 flex items-center">${count
@@ -296,6 +299,19 @@ export function renderAgenda(app) {
   }
 
   // eventos de navegação
+  /** Rola a linha do tempo até a hora atual (ou a primeira tarefa), em vez de abrir às 07:00. */
+  function centralizarDia() {
+    const tl = $('[data-timeline]', spanEl);
+    const sc = spanEl.closest('.overflow-y-auto');
+    if (!tl || !sc) return;
+    const h0 = Number(tl.dataset.h0);
+    const alvo = Number(tl.dataset.alvo);
+    requestAnimationFrame(() => {
+      const topo = tl.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+      sc.scrollTop = Math.max(0, topo + (alvo - h0 * 60) * PX_POR_MIN - 140);
+    });
+  }
+
   function passo(delta) {
     playTap();
     if (modo === 'mes') {
@@ -353,18 +369,48 @@ function linhaCompacta(t, conflito) {
     <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border ${conflito ? 'border-bordeaux-600' : 'border-soft-100'}">
       <span class="shrink-0 w-2 h-2 rounded-full" style="background:${cat ? cat.dot : 'var(--color-accent)'}"></span>
       <span class="shrink-0 w-[5.5rem] text-xs font-semibold text-bordeaux-700">${faixa || 'Sem horário'}</span>
-      <span class="min-w-0 flex-1 truncate text-sm ${t.done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</span>
+      <span class="min-w-0 flex-1 truncate text-sm ${t.done ? 'line-through text-muted' : 'text-bordeaux-900'}">${esc(t.title)}</span>
       ${conflito ? AVISO_CONFLITO : ''}
     </div>`;
 }
 
+function balanceHtml(b) {
+  const pct = b.share === null ? null : Math.round(b.share * 100);
+  const linha = (nome, g, cor) => `
+    <div class="flex items-center justify-between text-sm">
+      <span class="inline-flex items-center gap-2 text-bordeaux-900"><span class="w-2.5 h-2.5 rounded-full" style="background:${cor}"></span>${nome}</span>
+      <span class="text-bordeaux-700"><b>${formatMinutes(g.minutes)}</b> · ${g.count} ${g.count === 1 ? 'tarefa' : 'tarefas'}${g.count ? ` (${g.done} ${g.done === 1 ? 'feita' : 'feitas'})` : ''}</span>
+    </div>`;
+  return `
+    <section class="mb-4 p-4 rounded-xl2 bg-white border border-soft-100 shadow-card" aria-labelledby="eq-titulo" data-balance>
+      <h2 id="eq-titulo" class="font-serif font-bold text-bordeaux-900 text-base mb-3">Equilíbrio da semana</h2>
+      <div class="flex h-2.5 rounded-full overflow-hidden bg-soft-100 mb-3" role="img"
+        aria-label="${pct === null ? 'Sem horários agendados' : `Trabalho ${pct}% do tempo agendado, vida ${100 - pct}%`}">
+        ${pct === null ? '' : `<span style="width:${pct}%; background:var(--color-primary-900)"></span><span style="width:${100 - pct}%; background:var(--color-accent)"></span>`}
+      </div>
+      <div class="flex flex-col gap-1.5 mb-3">
+        ${linha('Trabalho', b.trabalho, 'var(--color-primary-900)')}
+        ${linha('Pessoal', b.vida, 'var(--color-accent)')}
+      </div>
+      <p class="text-xs text-bordeaux-700">${b.mensagem}</p>
+    </section>`;
+}
+
 function weekHtml(inicio, byDay, hoje, conflitos) {
-  return `<div class="flex flex-col gap-3">${Array.from({ length: 7 }, (_, i) => {
+  return `<div class="flex flex-col gap-2">${Array.from({ length: 7 }, (_, i) => {
     const k = addDaysKey(inicio, i);
     const tarefas = (byDay.get(k) || []).filter((t) => !t.parentId).sort(porHorario);
     const d = Number(k.slice(8, 10));
     const ehHoje = k === hoje;
     const abertas = tarefas.filter((t) => !t.done).length;
+    if (!tarefas.length) {
+      return `
+      <section>
+        <button data-goday="${k}" class="w-full min-h-11 flex items-center justify-between px-3 rounded-xl text-left text-sm ${ehHoje ? 'text-accent font-semibold' : 'text-muted'} hover:bg-soft-100 transition">
+          <span>${WD_SHORT[i]} ${d}${ehHoje ? ' · hoje' : ''}</span><span class="text-xs">livre ›</span>
+        </button>
+      </section>`;
+    }
     return `
       <section>
         <button data-goday="${k}" class="w-full min-h-11 flex items-center justify-between px-1 mb-1 text-left">
@@ -388,6 +434,10 @@ function dayHtml(key, tarefasDoDia, hoje, conflitos) {
     ? `<div class="absolute left-12 right-0 h-0.5 bg-accent z-10" style="top:${(minAgora - h0 * 60) * PX_POR_MIN}px" aria-hidden="true"><span class="absolute -left-1 -top-1 w-2.5 h-2.5 rounded-full bg-accent"></span></div>`
     : '';
 
+  // Para onde rolar: a hora atual (se o dia é hoje), senão a primeira tarefa, senão 08:00.
+  const alvoMin = key === hoje && minAgora >= h0 * 60 && minAgora <= h1 * 60 ? minAgora
+    : layout.length ? layout[0].start : 8 * 60;
+
   const horas = Array.from({ length: h1 - h0 + 1 }, (_, i) => `
     <div class="absolute left-0 right-0 flex items-start" style="top:${i * 60 * PX_POR_MIN}px" aria-hidden="true">
       <span class="w-12 -mt-2 text-[11px] text-muted">${String(h0 + i).padStart(2, '0')}:00</span>
@@ -402,7 +452,7 @@ function dayHtml(key, tarefasDoDia, hoje, conflitos) {
     return `
       <div role="listitem" data-bloco="${t.id}" class="absolute rounded-lg bg-white shadow-card border px-2 py-1 overflow-hidden ${conflito ? 'border-bordeaux-600' : 'border-soft-100'}"
         style="top:${(b.start - h0 * 60) * PX_POR_MIN}px; height:${alto}px; left:calc(3rem + (100% - 3rem) * ${b.col / b.cols}); width:calc((100% - 3rem) / ${b.cols} - 4px); border-left:4px solid ${cat ? cat.dot : 'var(--color-accent)'}">
-        <p class="text-xs font-semibold leading-tight truncate ${t.done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
+        <p class="text-[13px] font-semibold leading-tight truncate ${t.done ? 'line-through text-muted' : 'text-bordeaux-900'}">${esc(t.title)}</p>
         ${alto >= 40 ? `<p class="text-[11px] text-bordeaux-700 truncate">${rangeLabel(t)}${conflito ? ' · ⚠ conflito' : ''}</p>` : ''}
       </div>`;
   }).join('');
@@ -414,7 +464,8 @@ function dayHtml(key, tarefasDoDia, hoje, conflitos) {
       <h3 class="text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">Sem horário</h3>
       <div class="flex flex-col gap-1.5 mb-4">${semHora.map((t) => linhaCompacta(t, false)).join('')}</div>` : ''}
     ${!tarefas.length ? '<p class="text-sm text-bordeaux-700 text-center mb-4">Nada agendado para este dia.</p>' : ''}
-    <div class="relative mb-6 mt-3" style="height:${altura + 8}px" role="list" aria-label="Linha do tempo do dia">
+    <div class="relative mb-6 mt-3" style="height:${altura + 8}px" role="list" aria-label="Linha do tempo do dia"
+      data-timeline data-h0="${h0}" data-alvo="${alvoMin}">
       ${horas}${linhaAgora}${blocos}
     </div>`;
 }
@@ -439,7 +490,7 @@ function taskRow(t) {
     <div class="lift flex items-center gap-3 bg-white rounded-2xl shadow-card border border-soft-100 px-4 py-3">
       <span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:${cat ? cat.dot : 'var(--color-accent)'}"></span>
       <div class="min-w-0 flex-1">
-        <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
+        <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${esc(t.title)}</p>
         <p class="text-xs text-bordeaux-700 mt-0.5">${cat ? cat.label : ''}${t.parentId ? ' • subtarefa' : ''}</p>
       </div>
       ${time ? `<span class="shrink-0 text-xs font-semibold text-bordeaux-700">${time}</span>` : ''}

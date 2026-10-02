@@ -3,12 +3,13 @@
    Fluxo: digitar texto natural → IA processa → sugestão preventiva
    ============================================================ */
 
-import { h, $, $$, icons, toast, isDesktop } from '../ui.js';
-import { PRIORITIES, addTask } from '../store.js';
+import { h, $, $$, icons, toast, isDesktop, esc } from '../ui.js';
+import { PRIORITIES, addTask, getSpaces } from '../store.js';
 import { GROUPS, categoriesOf, DEFAULT_CATEGORY } from '../categories.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
 import { todayKey, resolveDue, firstOccurrence, recurrenceLabel } from '../dates.js';
 import { recurrencePicker } from './recurrencePicker.js';
+import { simplifySuggestions } from '../suggestions.js';
 import { playAha, playTap, playAdd } from '../sound.js';
 
 /**
@@ -25,6 +26,7 @@ export function openTaskSheet(app, onDone) {
   // sobrescrevia a escolha. Um valor que significa "não escolhido" não pode
   // ser um valor válido.
   let selectedCat = null;
+  let selectedSpace = null;   // null = tarefa pessoal; senão o id do espaço compartilhado
   let due = '';
   let selectedPriority = 'media';
   // Data mínima do seletor = hoje (evita agendar no passado).
@@ -35,7 +37,7 @@ export function openTaskSheet(app, onDone) {
   // Desktop → modal central (foco no teclado) | Mobile → bottom sheet (foco no polegar)
   const scrim = h(`<div class="scrim ${desktop ? 'grid place-items-center px-6' : ''}"></div>`);
   const sheet = h(`
-    <div class="${desktop ? 'modal-card w-full max-w-[440px] rounded-xl2 bg-white px-6 pt-6 pb-6' : 'sheet px-5 pt-3 pb-6'}">
+    <div class="${desktop ? 'modal-card w-full max-w-[460px] max-h-[92dvh] overflow-y-auto rounded-xl2 bg-white px-6 pt-6 pb-6' : 'sheet px-5 pt-3 pb-6'}">
       ${desktop ? '' : '<div class="w-10 h-1.5 rounded-full bg-soft-100 mx-auto mb-4"></div>'}
       <div class="flex items-center gap-2.5 mb-4">
         <span class="w-9 h-9 rounded-full bg-accent/15 text-accent grid place-items-center shrink-0">${icons.spark}</span>
@@ -50,20 +52,15 @@ export function openTaskSheet(app, onDone) {
                focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition resize-none text-[15px]"
         placeholder="Ex: Reunião com o cliente sexta às 10h ou Dentista dia 15..."></textarea>
 
-      <!-- categorias -->
-      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
-        Categoria <span id="cat-hint" class="font-normal text-muted">— a IA escolhe se você não marcar</span>
-      </p>
-      ${GROUPS.map((g) => `
-      <p class="text-[11px] font-semibold text-muted uppercase tracking-wide mt-2 mb-1.5">${g.label}</p>
-      <div class="flex flex-wrap gap-2">
-        ${categoriesOf(g.id).map((c) => `
-          <button data-cat="${c.id}"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition
-                   ${c.id === selectedCat ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}">
-            <span class="w-2 h-2 rounded-full" style="background:${c.dot}"></span>${c.label}
-          </button>`).join('')}
-      </div>`).join('')}
+      ${getSpaces().length ? `
+      <!-- onde: pessoal ou um espaço compartilhado -->
+      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Onde</p>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Onde guardar a tarefa">
+        <button type="button" data-space="" aria-pressed="true" class="px-3 py-1.5 rounded-full text-sm font-medium border transition bg-accent text-white border-accent">Só para mim</button>
+        ${getSpaces().map((e) => `
+          <button type="button" data-space="${esc(e.id)}" aria-pressed="false"
+            class="px-3 py-1.5 rounded-full text-sm font-medium border transition bg-white text-bordeaux-700 border-soft-100">👥 ${esc(e.name)}</button>`).join('')}
+      </div>` : ''}
 
       <!-- data rápida -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">Quando</p>
@@ -93,6 +90,28 @@ export function openTaskSheet(app, onDone) {
                  focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
       </label>
 
+      <!-- o essencial acima; o resto é opcional (a IA escolhe categoria e prioridade sozinha) -->
+      <button type="button" id="more-toggle" aria-expanded="false" aria-controls="more-opts"
+        class="mt-4 w-full min-h-11 flex items-center justify-between gap-2 px-4 rounded-2xl border border-soft-100 bg-white text-sm font-medium text-bordeaux-700 hover:bg-soft-100 transition">
+        <span>Mais opções <span class="font-normal text-muted">— categoria, repetição e prioridade</span></span>
+        <span id="more-chevron" class="transition-transform" aria-hidden="true">▾</span>
+      </button>
+      <div id="more-opts" hidden>
+      <!-- categorias -->
+      <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
+        Categoria <span id="cat-hint" class="font-normal text-muted">— a IA escolhe se você não marcar</span>
+      </p>
+      ${GROUPS.map((g) => `
+      <p class="text-[11px] font-semibold text-muted uppercase tracking-wide mt-2 mb-1.5">${g.label}</p>
+      <div class="flex flex-wrap gap-2">
+        ${categoriesOf(g.id).map((c) => `
+          <button data-cat="${c.id}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition
+                   ${c.id === selectedCat ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}">
+            <span class="w-2 h-2 rounded-full" style="background:${c.dot}"></span>${c.label}
+          </button>`).join('')}
+      </div>`).join('')}
+
       <!-- repetição -->
       <p class="text-xs font-medium text-bordeaux-700 mt-4 mb-2">
         Repetir <span id="rec-hint" class="font-normal text-muted">— a IA percebe “todo dia”, “dias úteis”, “até 20/12”…</span>
@@ -110,6 +129,8 @@ export function openTaskSheet(app, onDone) {
           </button>`).join('')}
       </div>
 
+      </div>
+
       <button id="save-task"
         class="btn btn-primary mt-6 w-full py-3.5">
         <span id="save-label">Salvar</span>
@@ -118,8 +139,13 @@ export function openTaskSheet(app, onDone) {
     </div>
   `);
 
-  host.appendChild(scrim);
-  host.appendChild(sheet);
+  if (desktop) {
+    scrim.appendChild(sheet);   // centralizado pelo grid do fundo escuro
+    host.appendChild(scrim);
+  } else {
+    host.appendChild(scrim);
+    host.appendChild(sheet);
+  }
 
   const input = $('#task-input', sheet);
   setTimeout(() => input.focus(), 80);
@@ -170,6 +196,29 @@ export function openTaskSheet(app, onDone) {
     });
   });
 
+  // "Mais opções": começa recolhido para o formulário caber na tela do celular
+  const moreBtn = $('#more-toggle', sheet);
+  const moreBox = $('#more-opts', sheet);
+  moreBtn.addEventListener('click', () => {
+    const abrir = moreBox.hidden;
+    moreBox.hidden = !abrir;
+    moreBtn.setAttribute('aria-expanded', String(abrir));
+    $('#more-chevron', sheet).style.transform = abrir ? 'rotate(180deg)' : '';
+    if (abrir) moreBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+
+  // onde guardar: pessoal ou espaço compartilhado
+  $$('[data-space]', sheet).forEach((b) =>
+    b.addEventListener('click', () => {
+      selectedSpace = b.dataset.space || null;
+      $$('[data-space]', sheet).forEach((x) => {
+        const on = (x.dataset.space || null) === selectedSpace;
+        x.setAttribute('aria-pressed', String(on));
+        x.className = `px-3 py-1.5 rounded-full text-sm font-medium border transition ${on ? 'bg-accent text-white border-accent' : 'bg-white text-bordeaux-700 border-soft-100'}`;
+      });
+    })
+  );
+
   // repetição — nada escolhido = vale o que a IA percebeu
   const picker = recurrencePicker({
     onChange: (v) => { const hint = $('#rec-hint', sheet); if (hint) hint.classList.toggle('hidden', v !== null); },
@@ -194,7 +243,7 @@ export function openTaskSheet(app, onDone) {
     scrim.style.animation = 'fadeOut .25s ease both';
     setTimeout(() => { sheet.remove(); scrim.remove(); }, 250);
   }
-  scrim.addEventListener('click', close);
+  scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
 
   $('#save-task', sheet).addEventListener('click', async () => {
     const text = input.value.trim();
@@ -264,6 +313,7 @@ export function openTaskSheet(app, onDone) {
       dueDate: finalDueDate,
       dueTime: finalDueTime,
       endTime: finalEndTime,
+      spaceId: selectedSpace,
       priority: selectedPriority,
       ...rec,
     });
@@ -271,15 +321,13 @@ export function openTaskSheet(app, onDone) {
     close();
     onDone && onDone();
 
-    // Aha Moment: se houver subtarefas/lembrete sugeridos, mostra o modal
-    if ((result.subtasks && result.subtasks.length) || result.suggestion) {
-      setTimeout(() => openAiModal(app, {
-        ...result,
-        category,
-        dueDate: finalDueDate,
-        dueTime: finalDueTime,
-        parentId: parent.id,
-      }, onDone), 300);
+    // Sugestões da Bruna: toda tarefa recebe até 2 passos curtos (e, com data futura, 1
+    // lembrete na véspera) — o que a IA mandou, simplificado, ou o padrão da categoria.
+    const sugestoes = simplifySuggestions({
+      ...result, title: result.title || text, category, dueDate: finalDueDate, dueTime: finalDueTime,
+    });
+    if (sugestoes.subtasks.length || sugestoes.suggestion) {
+      setTimeout(() => openAiModal(app, { ...sugestoes, parentId: parent.id }, onDone), 300);
     } else {
       // Sem Aha Moment não há playAha; este é o único retorno sonoro do
       // registro. Quando o modal abre, o playAha dele já cumpre esse papel.
@@ -302,31 +350,26 @@ function openAiModal(app, result, onDone) {
     <div class="modal-card relative w-full max-w-[340px] bg-white rounded-xl2 p-6 shadow-card">
       <div class="flex items-center gap-2 mb-3">
         <span class="w-9 h-9 rounded-full bg-accent text-white grid place-items-center shadow-fab">${icons.spark}</span>
-        <h3 class="font-serif font-bold text-bordeaux-900 text-lg">A IA pensou nisso por você</h3>
+        <h3 class="font-serif font-bold text-bordeaux-900 text-lg">A Bruna sugere</h3>
+      </div>
+      <p class="text-sm text-bordeaux-700 mb-3">Quer adicionar? Desmarque o que não servir.</p>
+
+      <div class="flex flex-col gap-2 mb-4">
+        ${subs.map((s, i) => `
+          <label class="reveal flex items-center gap-3 bg-bg rounded-2xl px-3 min-h-11 py-2 cursor-pointer" style="--i:${i}">
+            <input type="checkbox" data-sub="${encodeURIComponent(s)}" checked class="w-5 h-5 accent-accent rounded" />
+            <span class="text-sm text-bordeaux-900">${esc(s)}</span>
+          </label>`).join('')}
+        ${sug ? `
+          <label class="reveal flex items-center gap-3 bg-soft-100/60 rounded-2xl px-3 min-h-11 py-2 cursor-pointer" style="--i:${subs.length}">
+            <input type="checkbox" data-sug ${sug.action ? 'checked' : 'disabled'} class="w-5 h-5 accent-accent rounded" />
+            <span class="text-sm text-bordeaux-800">${esc(sug.text)}</span>
+          </label>` : ''}
       </div>
 
-      ${subs.length ? `
-        <p class="text-sm text-bordeaux-700 mb-2">Posso dividir em passos menores:</p>
-        <div class="flex flex-col gap-2 mb-4">
-          ${subs.map((s, i) => `
-            <label class="reveal flex items-center gap-3 bg-bg rounded-2xl px-3 py-2.5 cursor-pointer" style="--i:${i}">
-              <input type="checkbox" data-sub="${encodeURIComponent(s)}" checked
-                class="w-5 h-5 accent-accent rounded" />
-              <span class="text-sm text-bordeaux-900">${s}</span>
-            </label>`).join('')}
-        </div>` : ''}
-
-      ${sug ? `
-        <div class="reveal bg-soft-100/60 rounded-2xl p-3 mb-4" style="--i:${subs.length}">
-          <p class="text-sm text-bordeaux-800">${sug.text}</p>
-        </div>` : ''}
-
       <div class="flex flex-col gap-2">
-        <button id="ai-accept"
-          class="btn btn-primary w-full py-3">
-          Sim, adicionar
-        </button>
-        <button id="ai-decline" class="btn btn-secondary w-full">Não, obrigada</button>
+        <button id="ai-accept" class="btn btn-primary w-full py-3">Adicionar</button>
+        <button id="ai-decline" class="btn btn-secondary w-full">Agora não</button>
       </div>
     </div>
   `);
@@ -366,7 +409,8 @@ function openAiModal(app, result, onDone) {
     }
     // adiciona a sugestão preventiva (também como subtarefa da tarefa-mãe).
     // Ela tem data própria — é o lembrete ANTES/DEPOIS do evento.
-    if (sug && sug.action) {
+    const querLembrete = $('[data-sug]', card);
+    if (sug && sug.action && querLembrete && querLembrete.checked) {
       const nova = await addTask({
         title: sug.action.title,
         category: sug.action.category || result.category,
@@ -379,6 +423,6 @@ function openAiModal(app, result, onDone) {
     }
     close();
     onDone && onDone(criadas);
-    toast('Pronto, deixei tudo organizado ✨');
+    if (criadas.length) toast('Pronto, deixei tudo organizado ✨');
   });
 }

@@ -85,12 +85,16 @@ def _run_scan(db: Session) -> dict:
 
     notified = 0
     for task in tasks:
-        sent = push.send_to_user(
-            db,
-            task.user_id,
-            title="MenteLeve ⏰",
-            body=f"{task.title} — {task.due_time}",
-            tag=f"task-{task.id}",
+        # Tarefa de espaço compartilhado avisa todos os membros, não só quem a criou.
+        sent = sum(
+            push.send_to_user(
+                db,
+                uid,
+                title="MenteLeve ⏰",
+                body=f"{task.title} — {task.due_time}",
+                tag=f"task-{task.id}",
+            )
+            for uid in crud.reminder_recipients(db, task)
         )
         crud.mark_reminder_sent(db, task)
         if sent:

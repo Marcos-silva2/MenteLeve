@@ -1,5 +1,5 @@
 /* ============================================================
-   Categorias e grupos (Trabalho / Vida)
+   Categorias e grupos (Trabalho / Pessoal)
    Fonte única no frontend; o backend espelha em app/categories.py.
    As cores são tokens do tema ativo (var(--color-*)), então acompanham
    a troca de tema sem precisar de nada aqui.
@@ -7,7 +7,8 @@
 
 export const GROUPS = [
   { id: 'trabalho', label: 'Trabalho' },
-  { id: 'vida',     label: 'Vida' },
+  // O id continua 'vida' (está salvo no aparelho em menteleve.group); só o rótulo é "Pessoal".
+  { id: 'vida',     label: 'Pessoal' },
 ];
 
 // Trabalho usa a família "estrutura" do tema; Vida usa a família "destaque".

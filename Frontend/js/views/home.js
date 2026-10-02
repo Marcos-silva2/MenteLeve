@@ -4,8 +4,8 @@
    Desktop: lista principal + painel de agenda semanal (aside)
    ============================================================ */
 
-import { h, $, $$, icons, toast, confirmDialog, renderGroupTabs } from '../ui.js';
-import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, updateRecurrence, isSyncing, hasSession, restoreSession } from '../store.js';
+import { h, $, $$, icons, toast, confirmDialog, renderGroupTabs, esc } from '../ui.js';
+import { getUser, getTasks, getTopTasks, getSubtasks, getCategory, getPriority, toggleTask, removeTask, updateRecurrence, getSpaces, getSpace, getUserId, canDeleteTask, isSyncing, hasSession, restoreSession } from '../store.js';
 import { categoriesOf, getGroupFilter, inGroup } from '../categories.js';
 import { isOnline, ensureOnline } from '../api.js';
 import { formatDue, isOverdue, todayKey, addDaysKey, dateFromKey, labelForKey, resolveDue, recurrenceLabel } from '../dates.js';
@@ -85,7 +85,7 @@ export function renderHome(app) {
           <div id="group-tabs" class="mx-6 lg:mx-0 mb-2 p-1 flex gap-1 rounded-full bg-white border border-soft-100"></div>
 
           <!-- filtros -->
-          <div class="px-6 lg:px-0 pb-2 overflow-x-auto no-scrollbar">
+          <div class="px-6 lg:px-0 pb-2 overflow-x-auto no-scrollbar fade-r">
             <div id="filters" class="flex gap-2 w-max lg:flex-wrap lg:w-full pr-6 lg:pr-0"></div>
           </div>
 
@@ -152,11 +152,12 @@ export function renderHome(app) {
   function renderFilters() {
     filtersEl.setAttribute('role', 'group');
     filtersEl.setAttribute('aria-label', 'Filtrar por categoria');
-    const all = [{ id: 'tudo', label: 'Tudo' }, ...categoriesOf(grupo)];
+    const espacos = getSpaces().map((e) => ({ id: `space:${e.id}`, label: `👥 ${esc(e.name)}` }));
+    const all = [{ id: 'tudo', label: 'Tudo' }, ...categoriesOf(grupo), ...espacos];
     filtersEl.innerHTML = all.map((c) => {
       const on = c.id === filter;
       const dot = c.dot ? `<span class="w-1.5 h-1.5 rounded-full" style="background:${c.dot}"></span>` : '';
-      return `<button data-filter="${c.id}" aria-pressed="${on}"
+      return `<button data-filter="${esc(c.id)}" aria-pressed="${on}"
         class="inline-flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
                ${on ? 'bg-bordeaux-700 text-white shadow-card' : 'bg-white text-bordeaux-700 border border-soft-100 hover:border-soft-200'}">
         ${dot}${c.label}</button>`;
@@ -194,7 +195,7 @@ export function renderHome(app) {
   function renderList(revealIds) {
     renderProgress();
     // Apenas tarefas principais na lista; as subtarefas vêm aninhadas.
-    const tasks = getTopTasks().filter((t) => inGroup(t, grupo) && (filter === 'tudo' || t.category === filter));
+    const tasks = getTopTasks().filter((t) => inGroup(t, grupo) && (filter === 'tudo' || (filter.startsWith('space:') ? t.spaceId === filter.slice(6) : t.category === filter)));
 
     if (tasks.length === 0) {
       // Lista vazia é ambígua: pode ser "não há nada" ou "ainda não chegou".
@@ -340,7 +341,7 @@ export function renderHome(app) {
       <div class="sheet px-5 pt-4 pb-8">
         <div class="w-10 h-1.5 rounded-full bg-soft-100 mx-auto mb-4"></div>
         <button data-act="repeat" class="btn btn-secondary w-full !justify-start">${icons.repeat} Editar repetição</button>
-        <button data-act="delete" class="btn btn-danger w-full !justify-start">Excluir tarefa</button>
+        ${canDeleteTask(getTasks().find((x) => x.id === id)) ? '<button data-act="delete" class="btn btn-danger w-full !justify-start">Excluir tarefa</button>' : ''}
         <button data-act="cancel" class="btn btn-secondary w-full !justify-start">Cancelar</button>
       </div>`);
     scrim.appendChild(menu);
@@ -348,7 +349,8 @@ export function renderHome(app) {
     const close = () => { scrim.style.animation = 'fadeOut .2s ease both'; setTimeout(() => scrim.remove(), 200); };
     scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
     $('[data-act="cancel"]', menu).addEventListener('click', close);
-    $('[data-act="delete"]', menu).addEventListener('click', () => { close(); confirmDelete(id); });
+    const apagar = $('[data-act="delete"]', menu);
+    if (apagar) apagar.addEventListener('click', () => { close(); confirmDelete(id); });
     $('[data-act="repeat"]', menu).addEventListener('click', () => { close(); setTimeout(() => openRecurrenceEditor(id), 220); });
   }
 
@@ -421,21 +423,22 @@ function taskCard(t, sub = { total: 0, done: 0 }, conflito = false) {
       <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
     </button>
     <div class="min-w-0 flex-1">
-      <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${t.title}</p>
+      <p class="text-[15px] font-medium leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-900'}">${esc(t.title)}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
         ${formatDue(t) ? `<span class="inline-flex items-center gap-1 text-xs ${done ? 'text-muted' : (isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700')}">${icons.clock}${formatDue(t)}${cleanEndTime(t.dueTime, t.endTime) ? `–${t.endTime}` : ''}</span>` : ''}
         ${conflito ? '<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-600" title="Outra tarefa ocupa o mesmo horário">⚠ Conflito de horário</span>' : ''}
         ${recurrenceLabel(t) ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">${icons.repeat}${recurrenceLabel(t)}</span>` : ''}
+        ${t.spaceId ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700" title="Tarefa compartilhada">👥 ${esc((getSpace(t.spaceId) || {}).name || 'Espaço')}${t.userId !== getUserId() && t.authorName ? ` · ${esc(t.authorName.split(' ')[0])}` : ''}</span>` : ''}
         ${!done && prio.id !== 'media' ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-700">
           <span style="color:${prio.dot}">${icons.flag}</span>${prio.label}</span>` : ''}
         ${hasSubs ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-bordeaux-600">✨ ${sub.done}/${sub.total} passos</span>` : ''}
       </div>
     </div>
     <!-- excluir: sempre visível (não depende de hover), alvo de 44px e confirmação antes -->
-    <button data-del="${t.id}" title="Excluir" aria-label="Excluir tarefa ${escAttr(t.title)}"
+    ${canDeleteTask(t) ? `<button data-del="${t.id}" title="Excluir" aria-label="Excluir tarefa ${escAttr(t.title)}"
       class="grid place-items-center shrink-0 w-11 h-11 -mr-2 rounded-full text-muted hover:text-bordeaux-600 hover:bg-soft-100 transition">
       ${icons.trash}
-    </button>
+    </button>` : ''}
   </div>`;
 }
 
@@ -468,7 +471,7 @@ function subtaskRow(t, revealIndex = null) {
         <span class="${done ? 'check-pop' : ''}">${icons.check}</span>
       </span>
     </button>
-    <p class="flex-1 min-w-0 text-[13px] leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-800'}">${t.title}</p>
+    <p class="flex-1 min-w-0 text-[13px] leading-tight ${done ? 'line-through text-muted' : 'text-bordeaux-800'}">${esc(t.title)}</p>
     ${formatDue(t) && !done ? `<span class="text-[11px] shrink-0 ${isOverdue(t) ? 'text-bordeaux-600 font-semibold' : 'text-bordeaux-700'}">${formatDue(t)}</span>` : ''}
     <button data-del="${t.id}" title="Excluir" aria-label="Excluir tarefa ${escAttr(t.title)}"
       class="grid place-items-center shrink-0 w-11 h-11 -my-3 -mr-2 rounded-full text-muted hover:text-bordeaux-600 hover:bg-soft-100 transition">
@@ -522,8 +525,9 @@ function skeletonList() {
    anotar) e "não consegui buscar" (sem servidor — não dá para afirmar que está
    tudo tranquilo). */
 function emptyState(filter, semConexao, grupo = 'tudo') {
-  const onde = filter !== 'tudo' ? `em ${getCategory(filter)?.label || 'esta categoria'}`
-    : grupo !== 'tudo' ? `em ${grupo === 'trabalho' ? 'Trabalho' : 'Vida'}` : 'por aqui';
+  const onde = filter.startsWith('space:') ? `em ${esc((getSpace(filter.slice(6)) || {}).name || 'este espaço')}`
+    : filter !== 'tudo' ? `em ${getCategory(filter)?.label || 'esta categoria'}`
+    : grupo !== 'tudo' ? `em ${grupo === 'trabalho' ? 'Trabalho' : 'Pessoal'}` : 'por aqui';
   const titulo = semConexao ? 'Sem conexão por enquanto.' : `Tudo tranquilo ${onde}. Respire fundo!`;
   const texto = semConexao
     ? 'Não consegui buscar suas tarefas agora. O que você criar fica salvo aqui e sincroniza depois.'

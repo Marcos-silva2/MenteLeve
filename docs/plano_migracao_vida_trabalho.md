@@ -32,7 +32,7 @@ Permitir que qualquer pessoa gerencie, num único app, as tarefas do **mercado d
 | 5 | Nova logo e identidade | 2–4 dias | Fase 1 |
 | 6 | Recorrência avançada (base já existe) | 3–5 dias | Fase 2 |
 | 7 | Visões diária e semanal + duração | 1 sprint | Fase 6 |
-| 8 | Integrações e compartilhamento (futuro) | várias sprints | Fases 6–7 |
+| 8 | Compartilhamento com equipe e relatório de equilíbrio (futuro, opcional) | várias sprints | Fases 6–7 |
 
 As fases 1 e 2 são independentes e podem correr em paralelo.
 
@@ -82,13 +82,13 @@ O CSS já usa tokens (`--color-bg`, `--color-accent`, `--color-accent-hover`, `-
 | Grupo | Categorias |
 |---|---|
 | Trabalho | Trabalho, Reuniões, Carreira, Estudos |
-| Vida | Casa, Família, Saúde, Finanças, Pessoal |
+| Vida (exibido como "Pessoal") | Casa, Família, Saúde, Finanças, Pessoal |
 
 **Tarefas:**
 - [x] Levantar as categorias atuais em `api.js`, `taskSheet.js`, `store.js`, `home.js`, `agenda.js` e no backend (`schemas.py`, `ai.py`).
 - [x] Centralizar a lista de categorias em **um único módulo** no frontend e numa constante no backend.
 - [x] Mapear as categorias antigas para as novas (tabela de-para) e escrever uma micro-migração em `database.py` (a coluna de categoria não é criptografada, então dá para atualizar via SQL).
-- [x] Adicionar um filtro **Trabalho / Vida / Tudo** na Home e na Agenda.
+- [x] Adicionar um filtro **Trabalho / Pessoal / Tudo** na Home e na Agenda.
 - [x] Atribuir cor a cada categoria, derivada do tema ativo. *(Ícone por categoria: não feito — hoje é só o ponto colorido.)*
 - [x] Atualizar os testes (`store.test.mjs`, `test_tasks.py`).
 
@@ -115,7 +115,7 @@ O CSS já usa tokens (`--color-bg`, `--color-accent`, `--color-accent-hover`, `-
 > ✅ **Entregue (01/10/2026).** Fora do que está nos itens: a splash e o `manifest.json` ganharam texto/descrição novos, e o `sw.js` foi para a versão v47. Os textos das notificações push já eram neutros. As mensagens de erro de `ui.js` mantêm o 💗 (tom mais informal que o resto).
 
 - [x] Revisar os textos de `onboarding`, `login`, `register`, `home`, `profile`, `chat` e `connections`, trocando a linguagem exclusiva a "mães" por uma linguagem inclusiva e neutra.
-- [x] Onboarding com a pergunta **"Para que você vai usar o MenteLeve?"** (Trabalho / Vida / Os dois), que define o filtro inicial e o tom das sugestões.
+- [x] Onboarding com a pergunta **"Para que você vai usar o MenteLeve?"** (Trabalho / Pessoal / Os dois), que define o filtro inicial e o tom das sugestões.
 - [x] **Calendário menstrual:** vira um módulo opcional, desligado por padrão, com ativação no Perfil. Para quem já usa, continua ligado (migração do estado local).
 - [x] **Rede de apoio:** manter como está e ajustar o texto para "família ou equipe".
 - [x] Atualizar `manifest.json` (nome, descrição), metatags e o texto de cache do `sw.js` (subir a versão do cache).
@@ -152,9 +152,9 @@ A base **já existe**: `is_recurring` + `recurrence_pattern` (`daily`/`weekly`/`
 
 ### Fase 8 — Futuro (fora deste plano)
 
-- Integração com Google Calendar e Outlook (depende do OAuth que já está no roadmap).
-- Espaços compartilhados com equipe.
-- Relatório semanal de equilíbrio trabalho × vida (tempo por grupo de categorias).
+- ~~Integração com Google Calendar e Outlook~~ — **descartada** por decisão do projeto (02/10/2026).
+- [x] Espaços compartilhados com equipe. *(Entregue em 02/10/2026, versão enxuta: lista comum, convite por código, todos editam; apagar só quem criou ou o dono. Ver "Espaços compartilhados" nos READMEs. Fora do escopo: atribuir tarefa a uma pessoa, permissões por papel, histórico de quem mudou o quê, atualização em tempo real — hoje é consulta a cada minuto.)*
+- [x] Relatório semanal de equilíbrio trabalho × vida (tempo por grupo de categorias). *(Entregue em 02/10/2026: cartão "Equilíbrio da semana" no topo da visão Semana da Agenda — tempo agendado, tarefas e concluídas por grupo, dia mais carregado e uma mensagem. Conta só tarefas com horário; recorrentes entram pela ocorrência atual.)*
 
 ---
 

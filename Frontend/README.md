@@ -29,7 +29,7 @@ Frontend/
     ├── store.js            # estado + localStorage + sincronização
     ├── api.js              # cliente REST (JWT) + heurística local de fallback
     ├── dates.js            # prazo estruturado: resolução e exibição de datas
-    ├── categories.js       # categorias (Trabalho / Vida), mapeamento das antigas, grupo escolhido
+    ├── categories.js       # categorias (Trabalho / Pessoal), mapeamento das antigas, grupo escolhido
     ├── theme.js            # temas de cor: lista, persistência e aplicação
     ├── sound.js            # feedback sonoro sintetizado (Web Audio)
     ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
@@ -42,7 +42,7 @@ Frontend/
         ├── home.js         # dashboard "Minha Mente"
         ├── agenda.js       # calendário mensal + ciclo menstrual (local)
         ├── chat.js         # Bruna (IA)
-        ├── connections.js  # rede de apoio (estático)
+        ├── connections.js  # espaços compartilhados (criar, entrar por código, membros)
         └── profile.js      # perfil / conta
 ```
 
@@ -95,6 +95,29 @@ não da conta: sobrevive ao logout, assim como os dados do ciclo. Estados gravad
 versão do interruptor booleano migram na leitura — quem tinha desligado fica em
 `silencio`.
 
+## Sugestões da Bruna
+
+Depois de criar uma tarefa, a Bruna sugere **até 2 passos curtos** (≤ 40 caracteres, verbo no
+infinitivo) e, se a tarefa tem data futura, **1 lembrete na véspera** (frase ≤ 90 caracteres). Vale
+para **toda** tarefa. `js/suggestions.js` (`simplifySuggestions`, puro e testado) é a única tabela:
+aplica-se ao resultado de qualquer origem — IA, heurística sem IA ou offline —, corta o que vier
+longo e, se não veio nada aproveitável, usa os passos padrão da categoria. O modal ("A Bruna
+sugere") deixa desmarcar cada item, inclusive o lembrete. Os limites são espelhados em
+`Backend/app/ai.py` (`MAX_STEPS`, `MAX_STEP_LEN`, `MAX_TEXT_LEN`) e no prompt da IA.
+
+## Convenções de interface
+
+- **Formulário de nova tarefa** (`components/taskSheet.js`): o essencial fica à vista (texto, **Onde**,
+  Quando, hora); categoria, repetição e prioridade ficam em **Mais opções**, recolhido por padrão —
+  a IA já escolhe categoria e prioridade. No computador é um modal **dentro** do fundo escuro
+  (`scrim`), com altura máxima e rolagem própria; no celular é uma folha na base.
+- **Rolagem** fina e na cor do tema (`scrollbar-width: thin` em `css/styles.css`); `.app-screen` e
+  `.no-scrollbar` não mostram barra. `.fade-r` esmaece o fim de uma fileira que rola para o lado.
+- **Interruptores** desligados usam `bg-muted/70` (≥ 3:1 contra o cartão branco); `soft-200` era
+  claro demais para um controle.
+- **Agenda**: no computador as células do mês são baixas (`lg:h-14`), dias livres da Semana ocupam
+  uma linha, e a visão Dia rola sozinha até a hora atual (ou a primeira tarefa).
+
 ## Temas de cor
 
 O app tem 5 temas (**Grafite é o padrão**); a escolha fica em **Perfil → Cor do app**.
@@ -129,13 +152,35 @@ escolha salva, quem usa o filtro Trabalho começa na Semana. A lógica de horár
 sobrepostos) e `hourRange` (07–20, ampliado se preciso). `endTime` só vale com `dueTime` e
 depois dele (`cleanEndTime`, igual ao backend).
 
+## Espaços compartilhados
+
+A tela **Conexões** (`views/connections.js`) cria espaços, entra por código, mostra membros e
+deixa o dono trocar o código ou remover alguém. O `store.js` guarda a lista em `state.spaces`
+(cache; offline mostra a última) e a Home ganha um chip de filtro por espaço, o selo
+"👥 Espaço · Autor" e o campo **Onde** no formulário de nova tarefa. Subtarefa herda o espaço
+da mãe. `canDeleteTask` só esconde a lixeira; quem decide é o backend (403).
+
+- **Escape obrigatório:** título de tarefa e nome de pessoa agora vêm de **outros usuários**.
+  Tudo que entra em `innerHTML` passa por `esc()` (`ui.js`); sem isso um membro injeta HTML na
+  tela dos outros. Ao criar um template novo com texto de tarefa/nome, use `esc()`.
+- **Atualização:** o que os outros fazem só chega se o app perguntar. `app.js` busca de novo ao
+  voltar para o app e a cada minuto (no máximo 1 vez por 30 s), sem redesenhar por cima de
+  formulário ou diálogo aberto.
+
+## Equilíbrio da semana
+
+`js/balance.js` (`weekBalance`, puro e testado) resume a semana por grupo: tempo agendado (só tarefas
+com horário; sem fim contam 30 min), tarefas e concluídas, e uma mensagem. Aparece no topo da
+visão Semana da Agenda e compara Trabalho × Pessoal **sempre com todas as tarefas**, mesmo com o
+filtro de grupo ligado. Subtarefas ficam de fora e recorrentes contam só a ocorrência atual.
+
 ## Categorias
 
 `js/categories.js` é a fonte única: 4 de **Trabalho** (trabalho, reuniões, carreira, estudos)
-e 5 de **Vida** (casa, família, saúde, finanças, pessoal). O backend espelha em
+e 5 de **Pessoal** (casa, família, saúde, finanças, pessoal). O backend espelha em
 `Backend/app/categories.py`. As ids antigas (`filhos` → `familia`, `relacionamento` →
 `pessoal`) são convertidas ao carregar o estado local e nas respostas da API.
-O filtro **Tudo / Trabalho / Vida** (Home e Agenda) é lembrado em `menteleve.group`.
+O filtro **Tudo / Trabalho / Pessoal** (Home e Agenda) é lembrado em `menteleve.group` (o id interno do grupo continua `vida`, só o rótulo exibido é "Pessoal").
 
 ## Imagens
 
@@ -167,7 +212,7 @@ simulados) e as mensagens de erro. Os casos de recorrência espelham `Backend/te
 ## Notas
 
 - Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.
-- Conexões tem visual completo, mas o convite de parceiro(a) ainda é simulado.
+- **Espaços compartilhados** são reais e exigem conta no servidor (ver a seção abaixo).
 - O **calendário menstrual é um módulo opcional** (Perfil → Calendário menstrual; desligado
   por padrão) e 100% local (`localStorage`), nunca vai ao backend — e sobrevive à expiração
   da sessão, por não pertencer à conta. Quem já o usava antes do módulo existir continua

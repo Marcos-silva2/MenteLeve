@@ -50,6 +50,7 @@ def init_db() -> None:
     _ensure_columns()
     _widen_columns()
     _migrate_categories()
+    _ensure_indexes()
 
 
 # Colunas adicionadas depois da criação original das tabelas.
@@ -67,6 +68,7 @@ _ADDITIVE_COLUMNS = (
     ("tasks", "recurrence_weekdays", "VARCHAR(20)"),
     ("tasks", "recurrence_until", "DATE"),
     ("tasks", "end_time", "VARCHAR(5)"),
+    ("tasks", "space_id", "INTEGER REFERENCES spaces(id) ON DELETE CASCADE"),
 )
 
 
@@ -103,6 +105,21 @@ def _ensure_columns() -> None:
                     "Não foi possível adicionar a coluna %s.%s — siga com a migração manual.",
                     table, column,
                 )
+
+
+def _ensure_indexes() -> None:
+    """Índices de colunas adicionadas depois (o create_all só cobre tabelas novas)."""
+    import logging
+
+    from sqlalchemy import inspect, text
+
+    if not inspect(engine).has_table("tasks"):
+        return
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_space_id ON tasks (space_id)"))
+    except Exception:
+        logging.getLogger("uvicorn.error").warning("Não foi possível criar o índice ix_tasks_space_id.")
 
 
 def _migrate_categories() -> None:

@@ -112,3 +112,33 @@ alter default privileges in schema public revoke all on tables from anon, authen
 -- preferir converter antes do deploy. Idempotente.
 update tasks set category = 'familia' where category = 'filhos';
 update tasks set category = 'pessoal' where category = 'relacionamento';
+
+
+-- Espaços compartilhados (idempotente). O backend cria tudo isto sozinho no boot; rode
+-- aqui só se preferir criar antes do deploy. O nome do espaço é guardado criptografado
+-- (por isso `text`), como o título das tarefas.
+create table if not exists spaces (
+    id          bigint generated always as identity primary key,
+    name        text not null,
+    invite_code varchar(12) not null unique,
+    owner_id    bigint not null references users (id) on delete cascade,
+    created_at  timestamptz not null default now()
+);
+create index if not exists ix_spaces_owner_id on spaces (owner_id);
+
+create table if not exists space_members (
+    space_id  bigint not null references spaces (id) on delete cascade,
+    user_id   bigint not null references users (id) on delete cascade,
+    joined_at timestamptz not null default now(),
+    primary key (space_id, user_id)
+);
+create index if not exists ix_space_members_user_id on space_members (user_id);
+
+-- NULL = tarefa pessoal.
+alter table tasks add column if not exists space_id bigint references spaces (id) on delete cascade;
+create index if not exists ix_tasks_space_id on tasks (space_id);
+
+-- Mesma defesa das outras tabelas: o isolamento é feito pelo backend (role postgres).
+alter table spaces enable row level security;
+alter table space_members enable row level security;
+revoke all on spaces, space_members from anon, authenticated;

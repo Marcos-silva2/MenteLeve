@@ -58,10 +58,10 @@ _SYSTEM = (
     '  "recurrence_pattern": "daily | weekly | monthly, ou null se não se repete",\n'
     '  "recurrence_weekdays": "só para weekly em dias específicos: lista com 0=segunda ... 6=domingo; senão null",\n'
     '  "recurrence_until": "AAAA-MM-DD do último dia da série, só se o texto disser até quando; senão null",\n'
-    '  "subtasks": ["até 3 passos menores; [] se não fizer sentido"],\n'
+    '  "subtasks": ["1 ou 2 passos CURTOS (até 5 palavras, verbo no infinitivo)"],\n'
     '  "suggestion": {\n'
-    '     "text": "uma sugestão preventiva gentil (1 frase) ou null",\n'
-    '     "action": {"title": "tarefa preventiva", "category": "...",\n'
+    '     "text": "UMA frase curta (até 12 palavras) oferecendo um lembrete, ou null",\n'
+    '     "action": {"title": "lembrete curto (até 5 palavras)", "category": "...",\n'
     '                "due_date": "AAAA-MM-DD ou null", "due_time": "HH:MM ou null"}\n'
     "  }\n"
     "}\n"
@@ -95,17 +95,18 @@ _SYSTEM = (
     "último dia do mês); sem fim dito, null. Exemplos de trabalho: 'reunião de "
     "equipe toda segunda às 9h' -> weekly, a próxima segunda, 09:00; 'relatório "
     "todo dia 5' -> monthly; 'daily às 9h nos dias úteis' -> weekly [0,1,2,3,4].\n"
-    "Subtarefas e sugestão: gere subtarefas apenas quando houver dependências "
-    "reais. Exemplos de trabalho: reunião com cliente -> preparar pauta, enviar "
-    "o convite, registrar a ata depois; entrega de relatório/projeto -> revisar, "
-    "pedir aprovação, enviar; apresentação -> montar os slides, ensaiar; "
-    "entrevista -> pesquisar a empresa, revisar o currículo; prova -> separar "
-    "o material, revisar. Exemplos de vida: viagem, consulta, festa, compras, "
-    "conta a pagar. A 'suggestion' deve antecipar algo a preparar ANTES/DEPOIS "
-    "do evento (ex.: reunião amanhã às 10h -> revisar a pauta na véspera; "
-    "viagem no dia 12 -> comprar protetor solar no dia 10; relatório na sexta "
-    "-> reservar um bloco para revisar na quinta). "
-    "Se não houver sugestão útil, use \"suggestion\": null."
+    "Sugestões: SEMPRE devolva 1 ou 2 subtarefas, para TODA tarefa — mesmo "
+    "uma tarefa simples tem um primeiro passo (ex.: 'comprar pão' -> 'Fazer uma "
+    "lista'). Seja SIMPLES: cada passo com até 5 palavras, começando com verbo no "
+    "infinitivo, concreto e fácil de fazer; nunca mais de 2 passos. Exemplos: "
+    "reunião com cliente -> 'Preparar a pauta', 'Enviar o convite'; relatório -> "
+    "'Revisar o material', 'Enviar'; apresentação -> 'Montar os slides', 'Ensaiar'; "
+    "consulta -> 'Confirmar o horário', 'Separar documentos'; viagem -> 'Fazer a "
+    "mala', 'Conferir documentos'; conta a pagar -> 'Conferir o valor', 'Agendar o "
+    "pagamento'. Se a tarefa tem data (hoje ou futura), use também 'suggestion': "
+    "UMA frase curta oferecendo um lembrete ANTES do evento (ex.: 'Quer um lembrete "
+    "na véspera para rever a pauta?'), com a 'action' do lembrete no dia anterior. "
+    "Sem data, use \"suggestion\": null. Não explique nem justifique."
 )
 
 
@@ -589,6 +590,21 @@ def _clean_time(value: object) -> str | None:
     return value if _TIME_RE.match(value) else None
 
 
+# Sugestões da Bruna: simples (ver o prompt e Frontend/js/suggestions.js, que espelha estes limites).
+MAX_STEPS = 2
+MAX_STEP_LEN = 40
+MAX_TEXT_LEN = 90
+
+
+def _short(value: object, limit: int) -> str:
+    """Texto em uma linha, cortado no limite sem partir palavra nem deixar pontuação no fim."""
+    t = " ".join(str(value or "").split())
+    if len(t) > limit:
+        corte = t[:limit]
+        t = corte[: corte.rfind(" ")] if corte.rfind(" ") > limit * 0.5 else corte
+    return t.rstrip(".,;: ")
+
+
 def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dict:
     """Valida/limpa a saída do modelo para o formato esperado pelo app.
 
@@ -623,7 +639,15 @@ def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dic
     due_date = rec["due_date"]
 
     subtasks_raw = data.get("subtasks") or []
-    subtasks = [str(s).strip()[:200] for s in subtasks_raw if str(s).strip()][:3]
+    # Simples: no máximo MAX_STEPS passos curtos, sem repetir o título nem entre si.
+    subtasks, vistos = [], {title.casefold()}
+    for raw in subtasks_raw:
+        passo = _short(raw, MAX_STEP_LEN)
+        if passo and passo.casefold() not in vistos:
+            vistos.add(passo.casefold())
+            subtasks.append(passo)
+        if len(subtasks) == MAX_STEPS:
+            break
 
     suggestion = None
     sug = data.get("suggestion")
@@ -633,13 +657,13 @@ def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dic
         if isinstance(act, dict) and str(act.get("title") or "").strip():
             act_cat = normalize_category(act.get("category"))
             action = {
-                "title": str(act["title"]).strip()[:500],
+                "title": _short(act["title"], MAX_STEP_LEN),
                 "category": act_cat if act_cat in CATEGORIES else category,
                 "due_date": _clean_date(act.get("due_date")),
                 "due_time": _clean_time(act.get("due_time")),
                 "due": "",
             }
-        suggestion = {"text": str(sug["text"]).strip()[:300], "action": action}
+        suggestion = {"text": _short(sug["text"], MAX_TEXT_LEN), "action": action}
 
     return {
         "title": title,

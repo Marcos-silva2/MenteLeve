@@ -30,6 +30,7 @@ from app import database  # noqa: E402
 from app.database import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.routers import auth as auth_router  # noqa: E402
+from app.routers import spaces as spaces_router  # noqa: E402
 
 # Trava de segurança: se algo mudar a ordem dos imports e o .env vencer, os
 # testes param aqui em vez de escrever em outro banco.
@@ -45,6 +46,8 @@ def _banco_limpo():
     for limiter in (
         auth_router._login_by_email,
         auth_router._login_by_ip,
+        spaces_router._join_by_user,
+        spaces_router._join_by_ip,
     ):
         limiter._hits.clear()
     yield

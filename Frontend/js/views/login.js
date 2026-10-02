@@ -69,7 +69,7 @@ export function renderLogin(app) {
           </button>`).join('')}
       </div>
 
-      <p class="mt-auto text-center text-[11px] text-muted pt-8">
+      <p class="mt-auto lg:mt-10 text-center text-[11px] text-muted pt-8">
         Ao continuar você concorda com os Termos e a Política de Privacidade.
       </p>
     </div>

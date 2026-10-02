@@ -786,6 +786,18 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="swi
 /* utilidades */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Rolagem fina e discreta, na cor do tema. O padrão do navegador (barra larga e escura)
+   pesava no desktop. Onde a barra não deve aparecer (.app-screen, .no-scrollbar) ela some. */
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--rgb-primary-900) / 0.28) transparent; }
+.app-screen, .no-scrollbar { scrollbar-width: none; }
+
+/* Dica de que a fileira rola para o lado: o fim some num degradê (só no celular). */
+.fade-r {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+@media (min-width: 1024px) { .fade-r { -webkit-mask-image: none; mask-image: none; } }
 .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); }
 @media (min-width: 1024px) {
   .safe-bottom { padding-bottom: 32px; } /* sem bottom bar no desktop */

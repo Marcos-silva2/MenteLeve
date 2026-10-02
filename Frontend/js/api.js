@@ -164,6 +164,10 @@ function fromServer(t) {
     // Backend ainda não tem coluna de prioridade: deriva de `important`.
     priority: t.important ? 'alta' : 'media',
     parentId: t.parent_id != null ? String(t.parent_id) : null,
+    // Espaço compartilhado (null = pessoal), quem criou e o nome dessa pessoa.
+    spaceId: t.space_id != null ? String(t.space_id) : null,
+    userId: t.user_id != null ? Number(t.user_id) : null,
+    authorName: t.author_name || null,
     isRecurring: !!t.is_recurring,
     recurrencePattern: t.is_recurring ? cleanPattern(t.recurrence_pattern) : null,
     recurrenceWeekdays: t.is_recurring ? cleanWeekdays(t.recurrence_weekdays) : null,
@@ -226,7 +230,7 @@ export async function apiListTasks() {
 /** Cria uma tarefa. Retorna a tarefa persistida (front-format) ou null. */
 export async function apiCreateTask({
   title, category, dueDate, dueTime, endTime, due, important, parentId, isRecurring, recurrencePattern,
-  recurrenceWeekdays, recurrenceUntil,
+  recurrenceWeekdays, recurrenceUntil, spaceId,
 }) {
   if (!_token || !(await ensureOnline())) return null;
   try {
@@ -242,6 +246,7 @@ export async function apiCreateTask({
         due: due || '',
         important: !!important,
         parent_id: parentId != null ? Number(parentId) : null,
+        space_id: spaceId != null ? Number(spaceId) : null,
         is_recurring: !!(isRecurring && cleanPattern(recurrencePattern)),
         ...recurrenceToServer({ isRecurring, recurrencePattern, recurrenceWeekdays, recurrenceUntil }),
       }),
@@ -251,6 +256,39 @@ export async function apiCreateTask({
     return null;
   }
 }
+
+// ----------------------- Espaços compartilhados -----------------------
+function fromServerSpace(s) {
+  return {
+    id: String(s.id),
+    name: s.name,
+    ownerId: Number(s.owner_id),
+    inviteCode: s.invite_code,
+    members: (s.members || []).map((m) => ({ userId: Number(m.user_id), name: m.name, isOwner: !!m.is_owner })),
+  };
+}
+
+/** Espaços de que o usuário participa, ou null (offline/erro). */
+export async function apiListSpaces() {
+  if (!_token || !(await ensureOnline())) return null;
+  try {
+    return (await request('/spaces', { headers: headers() })).map(fromServerSpace);
+  } catch (_) {
+    return null;
+  }
+}
+
+// As demais mexem em dados de outras pessoas: erro vira exceção (ApiError/NetworkError)
+// para a tela explicar o motivo ("código inválido", "espaço cheio"…).
+async function spaceCall(path, method, body) {
+  if (!_token || !(await ensureOnline())) throw new NetworkError();
+  return request(path, { method, headers: headers(), body: body ? JSON.stringify(body) : undefined });
+}
+export const apiCreateSpace = async (name) => fromServerSpace(await spaceCall('/spaces', 'POST', { name }));
+export const apiJoinSpace = async (code) => fromServerSpace(await spaceCall('/spaces/join', 'POST', { code }));
+export const apiLeaveSpace = (id) => spaceCall(`/spaces/${encodeURIComponent(id)}/leave`, 'POST');
+export const apiResetInvite = async (id) => fromServerSpace(await spaceCall(`/spaces/${encodeURIComponent(id)}/invite/reset`, 'POST'));
+export const apiRemoveMember = (id, userId) => spaceCall(`/spaces/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, 'DELETE');
 
 /** Campos de recorrência no formato do backend (dias só valem no semanal). */
 function recurrenceToServer({ isRecurring, recurrencePattern, recurrenceWeekdays, recurrenceUntil }) {

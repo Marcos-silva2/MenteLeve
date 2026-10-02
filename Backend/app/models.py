@@ -51,11 +51,49 @@ class User(Base):
     )
 
 
+class Space(Base):
+    """Espaço compartilhado: uma lista de tarefas comum a vários usuários.
+
+    Entra-se por um código de convite. Todos os membros veem e editam as tarefas do
+    espaço; apagar fica com quem criou a tarefa ou com o dono (ver crud.can_delete_task).
+    """
+
+    __tablename__ = "spaces"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    # Criptografado como o título das tarefas: o nome de uma equipe também é conteúdo.
+    name: Mapped[str] = mapped_column(EncryptedText, nullable=False)
+    # Sem hífen, em maiúsculas (ver app/spaces.py). Único: é o que identifica o espaço no convite.
+    invite_code: Mapped[str] = mapped_column(String(12), unique=True, index=True, nullable=False)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    members: Mapped[list["SpaceMember"]] = relationship(
+        back_populates="space", cascade="all, delete-orphan", order_by="SpaceMember.joined_at"
+    )
+
+
+class SpaceMember(Base):
+    __tablename__ = "space_members"
+
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    space: Mapped["Space"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship()
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+
+    # Espaço compartilhado (NULL = tarefa pessoal). Quem criou continua em `user_id`.
+    space_id: Mapped[int | None] = mapped_column(
+        ForeignKey("spaces.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
     # Subtarefa: aponta para a tarefa-mãe (NULL = tarefa principal).
     # As sugestões da IA são fixadas como subtarefas da tarefa do usuário.
@@ -97,6 +135,11 @@ class Task(Base):
     reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="tasks")
+
+    @property
+    def author_name(self) -> str | None:
+        """Quem criou — só interessa nas tarefas compartilhadas."""
+        return self.user.name if self.space_id is not None and self.user is not None else None
 
 
 class PushSubscription(Base):

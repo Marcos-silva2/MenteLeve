@@ -193,7 +193,7 @@ Detalhes que economizam depuração:
 ## Categorias
 
 `app/categories.py` é a fonte única: **Trabalho** (`trabalho`, `reunioes`, `carreira`, `estudos`) e
-**Vida** (`casa`, `familia`, `saude`, `financas`, `pessoal`). O frontend espelha em `js/categories.js`.
+**Pessoal** (`casa`, `familia`, `saude`, `financas`, `pessoal`). O frontend espelha em `js/categories.js`.
 
 As categorias antigas (`filhos` → `familia`, `relacionamento` → `pessoal`) continuam aceitas na
 entrada e são convertidas pelo schema (`BeforeValidator`) — clientes com cache antigo e filas
@@ -221,6 +221,34 @@ A detecção por texto (`recurrence.resolve`) reconhece "dias úteis", "de segun
 erra os campos), pelo fallback sem IA do `/tasks/smart` e pela Bruna (`dias_semana`, `ate`).
 `PATCH /tasks/{id}` edita a recorrência depois de criada e mantém os campos coerentes
 (desligar limpa tudo; trocar para diário/mensal descarta os dias).
+
+## Espaços compartilhados
+
+`/spaces` (`app/routers/spaces.py`). Um espaço é uma lista comum a vários usuários: entra-se por
+um **código** de 8 caracteres (`app/spaces.py`, sem 0/O/1/I/L). Todos os membros veem, editam e
+concluem as tarefas do espaço; **apagar** é só de quem criou a tarefa ou do dono (403 para os
+demais). Quem sai ou é removido deixa de ver tudo do espaço, até o que criou lá (as tarefas
+ficam com a equipe); o último a sair apaga o espaço e as tarefas; se sai o dono, o membro mais
+antigo assume.
+
+- **Acesso:** `crud.can_access_task` / `can_delete_task` / `_visible` são a única fonte da regra.
+  Tarefa alheia responde 404 (não 403) para não confirmar que existe. `space_id` não muda depois
+  de criada; subtarefa herda o espaço da mãe.
+- **Convite:** entrar é uma adivinhação de código, então só **falhas** contam num limitador
+  (10 por usuário e 30 por IP em 10 min → 429). O dono pode gerar outro código
+  (`/invite/reset`), o que invalida o antigo. Limites: 20 membros por espaço, 10 espaços por pessoa.
+- **Privacidade:** o nome do espaço e o título das tarefas ficam criptografados no banco (AES-256-GCM),
+  como já eram. Os **membros veem o nome uns dos outros**.
+- **Lembretes push** de tarefa de espaço vão para **todos os membros**, não só para quem criou.
+- Banco: tabelas `spaces` e `space_members` e a coluna `tasks.space_id` são criadas no boot (SQL
+  equivalente no fim de `supabase_schema.sql`).
+
+## Sugestões simples
+
+O prompt de `/tasks/smart` pede **sempre** 1 ou 2 passos curtos (até 5 palavras) e, com data, uma
+frase de lembrete; `_sanitize` impõe os limites (`MAX_STEPS`=2, `MAX_STEP_LEN`=40, `MAX_TEXT_LEN`=90),
+sem repetir o título nem entre si. O preenchimento quando a IA não manda nada é do frontend
+(`js/suggestions.js`), que cobre também o modo sem IA.
 
 ## Duração (end_time)
 

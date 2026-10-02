@@ -54,7 +54,7 @@ export function renderRegister(app) {
         <button id="go-login" class="font-semibold text-bordeaux-600 hover:underline min-h-11 px-1">Entrar</button>
       </p>
 
-      <p class="mt-auto text-center text-[11px] text-muted pt-8">
+      <p class="mt-auto lg:mt-10 text-center text-[11px] text-muted pt-8">
         Ao criar sua conta você concorda com os Termos e a Política de Privacidade.
       </p>
     </div>

@@ -133,6 +133,19 @@ function start() {
       if ((updated || comEsqueleto) && TAB_ROUTES.includes(app.current)) app.refresh();
     });
 
+  // Espaços compartilhados: o que os outros fazem só chega se a gente perguntar. Ao voltar
+  // para o app e, enquanto ele está aberto, a cada minuto, busca de novo (no máximo 1 vez
+  // por 30 s). Não redesenha por cima de um formulário/diálogo aberto.
+  let ultimaBusca = Date.now();
+  const buscarNovidades = async () => {
+    if (document.visibilityState !== 'visible' || !hasSession() || Date.now() - ultimaBusca < 30000) return;
+    ultimaBusca = Date.now();
+    const mudou = await restoreSession().catch(() => false);
+    if (mudou && TAB_ROUTES.includes(app.current) && !document.querySelector('.scrim')) app.refresh();
+  };
+  document.addEventListener('visibilitychange', buscarNovidades);
+  setInterval(buscarNovidades, 60000);
+
   const hashRoute = location.hash.slice(1);
   if (!isOnboardingSeen()) {
     navigate('onboarding');

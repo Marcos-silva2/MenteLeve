@@ -40,9 +40,9 @@ O MVP do MenteLeve foca em velocidade de navegação e entrega imediata de valor
 
 * **Onboarding e Acesso Sem Atrito:** Fluxos rápidos de cadastro por e-mail e senha. Social Login (Apple/Google) está planejado, hoje aparece como "em breve".
 * **Criação Inteligente de Tarefas (NLP e IA):** A pessoa digita ou fala de forma natural ("reunião com o cliente sexta às 10h"). A Inteligência Artificial atua nos bastidores sugerindo subtarefas (pauta, convite, ata), lembretes ou automações (o *Aha Moment*), pensando nos detalhes antes da própria pessoa.
-* **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos — Trabalho (trabalho, reuniões, carreira, estudos) e Vida (casa, família, saúde, finanças, pessoal) — com filtro Tudo / Trabalho / Vida na Home e na Agenda. O onboarding pergunta para que a pessoa vai usar o app e define o filtro inicial.
+* **Trabalho e vida pessoal no mesmo lugar:** 9 categorias em dois grupos — Trabalho (trabalho, reuniões, carreira, estudos) e Pessoal (casa, família, saúde, finanças, pessoal) — com filtro Tudo / Trabalho / Pessoal na Home e na Agenda. O onboarding pergunta para que a pessoa vai usar o app e define o filtro inicial.
 * **Tarefas recorrentes:** diária, semanal ou mensal (reunião semanal, relatório do mês).
-* **Compartilhamento / Rede de Apoio:** Visão de convidar familiares ou colegas de equipe para dividir responsabilidades. Hoje é fachada (tela pronta, sem convite real).
+* **Espaços compartilhados:** uma lista de tarefas em comum com familiares ou colegas de equipe. Cria-se o espaço, convida-se por código e todos veem e editam; apagar é de quem criou a tarefa ou do dono.
 * **Módulos opcionais:** o calendário menstrual (100% privado, só no aparelho) é um módulo desligado por padrão, ativado em Perfil. Quem já o usava continua com ele ligado.
 * **Micro-interações de Recompensa:** O app utiliza efeitos visuais (fade-outs suaves) e sonoros prazerosos ao concluir uma pendência, liberando endorfina e incentivando o uso contínuo.
 
@@ -127,6 +127,7 @@ Custo mensal: **R$ 0** — tudo em plano gratuito.
   horário, categoria, subtarefas sugeridas e um lembrete preventivo — o *Aha Moment*.
 - **Bruna, a assistente que age**: pelo chat, cria e conclui tarefas de verdade
   (*function calling*). Excluir ficou de fora de propósito.
+- **Espaços compartilhados** (02/10/2026): lista comum por código de convite, com membros, dono e regras de quem apaga (backend em `app/routers/spaces.py`). O que os outros fazem chega por consulta a cada minuto, não em tempo real.
 - **Agenda** em calendário mensal navegável.
 - **Calendário menstrual** — fases, período fértil, ovulação e previsão. **100% local**,
   nunca vai ao backend.
@@ -151,7 +152,6 @@ Custo mensal: **R$ 0** — tudo em plano gratuito.
 
 Visual completo, ação simulada — proposital, para medir interesse:
 
-- **Rede de apoio** (Conexões): não há convite real nem notificação.
 - **Login social (Apple/Google)**: botões desabilitados com aviso "em breve".
 - Itens do menu do Perfil, exceto o seletor de nível de som, mostram
   "Recurso disponível na versão final".
@@ -267,7 +267,7 @@ Legível de propósito: **e-mail** (chave de busca do login, índice UNIQUE), **
 - **Recorrência** já existe (`daily`/`weekly`/`monthly` — ver
   [`historico_melhorias.md`](#parte-3--histórico-de-melhorias)). Falta: dias específicos da
   semana, data de término e a IA *sugerir* ciclos por conta própria.
-- **OAuth real** (Apple/Google) e notificações da rede de apoio.
+- **OAuth real** (Apple/Google).
 
 **Operacional**
 - Plano gratuito do Gemini: ~20 requisições/minuto. Estoura fácil; por isso existe a
@@ -1038,7 +1038,7 @@ O que as 45 verificações do navegador cobriram: 4 seções na ordem certa com 
 
 **MenteLeve** é uma agenda inteligente para **profissionais do mercado de trabalho** — um "Segundo Cérebro" que reúne, num só lugar, as tarefas do trabalho (reuniões, entregas, prazos, estudos, carreira) e da vida pessoal (casa, saúde, família, finanças). Ele organiza a rotina sem atrito, com **Inteligência Artificial** que antecipa os passos invisíveis de cada compromisso (o *Aha Moment*).
 
-> O app nasceu voltado a mulheres e mães e foi ampliado para profissionais em geral (Fases 1 a 5 do [plano de migração](../docs/plano_migracao_vida_trabalho.md)). Falta a recorrência avançada, as visões diária e semanal e as integrações com calendários.
+
 
 🔗 **App (PWA):** https://mente-leve-teal.vercel.app
 🔗 **API:** https://menteleve.onrender.com · [`/docs`](https://menteleve.onrender.com/docs)
@@ -1068,13 +1068,13 @@ O projeto se alinha a dois Objetivos de Desenvolvimento Sustentável (ODS) da ON
 - **Criação inteligente de tarefas (IA):** escreva em linguagem natural e a IA normaliza o título, extrai **data e horário**, categoria, sugere subtarefas e um **lembrete preventivo**.
 - **Subtarefas da IA fixadas** na tarefa-mãe (a sugestão vira filho da tarefa que você criou).
 - **Bruna — assistente com IA que age:** organiza a agenda e **cria e conclui tarefas pelo chat** ("marca reunião com o cliente amanhã às 10h", "marca o relatório como feito").
-- **Trabalho e Vida no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Vida: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
+- **Trabalho e vida pessoal no mesmo lugar:** 9 categorias em dois grupos (Trabalho: trabalho, reuniões, carreira, estudos · Pessoal: casa, família, saúde, finanças, pessoal) e filtro **Tudo / Trabalho / Vida** na Home e na Agenda.
 - **Tarefas recorrentes** (diária, semanal, mensal): reunião semanal, relatório do mês, rotinas pessoais.
-- **Cor do app personalizável:** 5 temas (Bordeaux Pink, Oceano, Floresta, Grafite, Lavanda), escolhidos no Perfil.
+- **Cor do app personalizável:** 5 temas (Grafite é o padrão; Bordeaux Pink, Oceano, Floresta e Lavanda), escolhidos no Perfil.
 - **Agenda em calendário mensal** navegável, com as tarefas distribuídas por data.
 - **Categorias, prioridade, data e horário** por tarefa; micro-interações de recompensa ao concluir.
 - **Lembretes por notificação push** (opt-in) antes do horário da tarefa.
-- **Rede de apoio** (compartilhar tarefas com família ou equipe) — app 100% gratuito, sem limite de tarefas nem plano pago.
+- **Espaços compartilhados:** uma lista de tarefas em comum com a família ou a equipe. Cria-se o espaço, convida-se por **código** e todos veem e editam; apagar fica com quem criou a tarefa ou com o dono. App 100% gratuito, sem limite de tarefas nem plano pago.
 - **🌸 Calendário menstrual** (módulo opcional, desligado por padrão, ativado no Perfil; 100% privado/local): fases do ciclo, período fértil e previsão.
 - **PWA instalável** e com suporte offline (Service Worker) — 264 KB de precache em
   disco, ~149 KB transferidos (o gzip do servidor comprime os textos; as imagens já
@@ -1108,7 +1108,7 @@ MenteLeve/
 │   └── js/
 │       ├── app.js            # bootstrap + mini-router
 │       ├── store.js          # estado local (localStorage) + sync
-│       ├── categories.js     # categorias Trabalho/Vida + filtro de grupo
+│       ├── categories.js     # categorias Trabalho/Pessoal + filtro de grupo
 │       ├── theme.js          # temas de cor
 │       ├── api.js            # cliente REST (JWT) + heurística de fallback
 │       ├── dates.js          # prazo estruturado (resolução + exibição)
@@ -1206,6 +1206,9 @@ Detalhes da troca entre provedores em [`Backend/README.md`](../Backend/README.md
 | `POST` | `/tasks/smart` | Analisa texto livre com IA (título, data, horário, subtarefas, sugestão) |
 | `PUT` | `/tasks/{id}/complete` · `/uncomplete` | Concluir / reabrir |
 | `DELETE` | `/tasks/{id}` | Excluir (remove subtarefas) |
+| `GET` · `POST` | `/spaces` | Listar / criar espaço compartilhado |
+| `POST` | `/spaces/join` · `/spaces/{id}/leave` · `/spaces/{id}/invite/reset` | Entrar por código / sair / trocar o código (dono) |
+| `DELETE` | `/spaces/{id}/members/{user_id}` | Dono remove um membro |
 | `POST` | `/ai/chat` | Conversa com a **Bruna** — pode criar/concluir tarefas (function calling) |
 | `GET` | `/push/public-key` · `POST` `/push/subscribe` · `/push/unsubscribe` | Lembrete de tarefa por notificação push (opt-in, no Perfil) |
 | `POST` | `/push/scan` | Varredura de tarefas prestes a vencer — chamada por cron externo, não pelo usuário (requer `X-Scan-Secret`) |
@@ -1300,7 +1303,7 @@ sprints e de melhorias.
 **Próximos passos:**
 - [ ] **Recuperação de senha** — hoje não há caminho de autoatendimento para quem esquece a senha
 - [ ] **Revogação de sessão** — sem forma de invalidar um token antes de expirar (30 dias)
-- [ ] OAuth real (Apple / Google) e notificações da rede de apoio
+- [ ] OAuth real (Apple / Google)
 - [ ] CI rodando a suíte de testes (a suíte já existe)
 - [ ] Ampliação para vida + trabalho — ver [`docs/plano_migracao_vida_trabalho.md`](../docs/plano_migracao_vida_trabalho.md)
 
@@ -1513,7 +1516,7 @@ Detalhes que economizam depuração:
 ### Categorias
 
 `app/categories.py` é a fonte única: **Trabalho** (`trabalho`, `reunioes`, `carreira`, `estudos`) e
-**Vida** (`casa`, `familia`, `saude`, `financas`, `pessoal`). O frontend espelha em `js/categories.js`.
+**Pessoal** (`casa`, `familia`, `saude`, `financas`, `pessoal`). O frontend espelha em `js/categories.js`.
 
 As categorias antigas (`filhos` → `familia`, `relacionamento` → `pessoal`) continuam aceitas na
 entrada e são convertidas pelo schema (`BeforeValidator`) — clientes com cache antigo e filas
@@ -1541,6 +1544,34 @@ A detecção por texto (`recurrence.resolve`) reconhece "dias úteis", "de segun
 erra os campos), pelo fallback sem IA do `/tasks/smart` e pela Bruna (`dias_semana`, `ate`).
 `PATCH /tasks/{id}` edita a recorrência depois de criada e mantém os campos coerentes
 (desligar limpa tudo; trocar para diário/mensal descarta os dias).
+
+### Espaços compartilhados
+
+`/spaces` (`app/routers/spaces.py`). Um espaço é uma lista comum a vários usuários: entra-se por
+um **código** de 8 caracteres (`app/spaces.py`, sem 0/O/1/I/L). Todos os membros veem, editam e
+concluem as tarefas do espaço; **apagar** é só de quem criou a tarefa ou do dono (403 para os
+demais). Quem sai ou é removido deixa de ver tudo do espaço, até o que criou lá (as tarefas
+ficam com a equipe); o último a sair apaga o espaço e as tarefas; se sai o dono, o membro mais
+antigo assume.
+
+- **Acesso:** `crud.can_access_task` / `can_delete_task` / `_visible` são a única fonte da regra.
+  Tarefa alheia responde 404 (não 403) para não confirmar que existe. `space_id` não muda depois
+  de criada; subtarefa herda o espaço da mãe.
+- **Convite:** entrar é uma adivinhação de código, então só **falhas** contam num limitador
+  (10 por usuário e 30 por IP em 10 min → 429). O dono pode gerar outro código
+  (`/invite/reset`), o que invalida o antigo. Limites: 20 membros por espaço, 10 espaços por pessoa.
+- **Privacidade:** o nome do espaço e o título das tarefas ficam criptografados no banco (AES-256-GCM),
+  como já eram. Os **membros veem o nome uns dos outros**.
+- **Lembretes push** de tarefa de espaço vão para **todos os membros**, não só para quem criou.
+- Banco: tabelas `spaces` e `space_members` e a coluna `tasks.space_id` são criadas no boot (SQL
+  equivalente no fim de `supabase_schema.sql`).
+
+### Sugestões simples
+
+O prompt de `/tasks/smart` pede **sempre** 1 ou 2 passos curtos (até 5 palavras) e, com data, uma
+frase de lembrete; `_sanitize` impõe os limites (`MAX_STEPS`=2, `MAX_STEP_LEN`=40, `MAX_TEXT_LEN`=90),
+sem repetir o título nem entre si. O preenchimento quando a IA não manda nada é do frontend
+(`js/suggestions.js`), que cobre também o modo sem IA.
 
 ### Duração (end_time)
 
@@ -1611,7 +1642,7 @@ Frontend/
     ├── store.js            # estado + localStorage + sincronização
     ├── api.js              # cliente REST (JWT) + heurística local de fallback
     ├── dates.js            # prazo estruturado: resolução e exibição de datas
-    ├── categories.js       # categorias (Trabalho / Vida), mapeamento das antigas, grupo escolhido
+    ├── categories.js       # categorias (Trabalho / Pessoal), mapeamento das antigas, grupo escolhido
     ├── theme.js            # temas de cor: lista, persistência e aplicação
     ├── sound.js            # feedback sonoro sintetizado (Web Audio)
     ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
@@ -1624,7 +1655,7 @@ Frontend/
         ├── home.js         # dashboard "Minha Mente"
         ├── agenda.js       # calendário mensal + ciclo menstrual (local)
         ├── chat.js         # Bruna (IA)
-        ├── connections.js  # rede de apoio (estático)
+        ├── connections.js  # espaços compartilhados (criar, entrar por código, membros)
         └── profile.js      # perfil / conta
 ```
 
@@ -1677,9 +1708,32 @@ não da conta: sobrevive ao logout, assim como os dados do ciclo. Estados gravad
 versão do interruptor booleano migram na leitura — quem tinha desligado fica em
 `silencio`.
 
+### Sugestões da Bruna
+
+Depois de criar uma tarefa, a Bruna sugere **até 2 passos curtos** (≤ 40 caracteres, verbo no
+infinitivo) e, se a tarefa tem data futura, **1 lembrete na véspera** (frase ≤ 90 caracteres). Vale
+para **toda** tarefa. `js/suggestions.js` (`simplifySuggestions`, puro e testado) é a única tabela:
+aplica-se ao resultado de qualquer origem — IA, heurística sem IA ou offline —, corta o que vier
+longo e, se não veio nada aproveitável, usa os passos padrão da categoria. O modal ("A Bruna
+sugere") deixa desmarcar cada item, inclusive o lembrete. Os limites são espelhados em
+`Backend/app/ai.py` (`MAX_STEPS`, `MAX_STEP_LEN`, `MAX_TEXT_LEN`) e no prompt da IA.
+
+### Convenções de interface
+
+- **Formulário de nova tarefa** (`components/taskSheet.js`): o essencial fica à vista (texto, **Onde**,
+  Quando, hora); categoria, repetição e prioridade ficam em **Mais opções**, recolhido por padrão —
+  a IA já escolhe categoria e prioridade. No computador é um modal **dentro** do fundo escuro
+  (`scrim`), com altura máxima e rolagem própria; no celular é uma folha na base.
+- **Rolagem** fina e na cor do tema (`scrollbar-width: thin` em `css/styles.css`); `.app-screen` e
+  `.no-scrollbar` não mostram barra. `.fade-r` esmaece o fim de uma fileira que rola para o lado.
+- **Interruptores** desligados usam `bg-muted/70` (≥ 3:1 contra o cartão branco); `soft-200` era
+  claro demais para um controle.
+- **Agenda**: no computador as células do mês são baixas (`lg:h-14`), dias livres da Semana ocupam
+  uma linha, e a visão Dia rola sozinha até a hora atual (ou a primeira tarefa).
+
 ### Temas de cor
 
-O app tem 5 temas (Grafite é o padrão); a escolha fica em **Perfil → Cor do app**.
+O app tem 5 temas (**Grafite é o padrão**); a escolha fica em **Perfil → Cor do app**.
 Cada tema é um bloco `:root[data-theme="..."]` em `css/styles.css` que só redefine os
 canais RGB (`--rgb-*`). Tudo deriva deles: os `--color-*` do CSS e as cores do Tailwind
 (`index.html`, via `rgb(var(--rgb-x) / <alpha-value>)`, então `bg-accent/15` funciona em
@@ -1711,13 +1765,35 @@ escolha salva, quem usa o filtro Trabalho começa na Semana. A lógica de horár
 sobrepostos) e `hourRange` (07–20, ampliado se preciso). `endTime` só vale com `dueTime` e
 depois dele (`cleanEndTime`, igual ao backend).
 
+### Espaços compartilhados
+
+A tela **Conexões** (`views/connections.js`) cria espaços, entra por código, mostra membros e
+deixa o dono trocar o código ou remover alguém. O `store.js` guarda a lista em `state.spaces`
+(cache; offline mostra a última) e a Home ganha um chip de filtro por espaço, o selo
+"👥 Espaço · Autor" e o campo **Onde** no formulário de nova tarefa. Subtarefa herda o espaço
+da mãe. `canDeleteTask` só esconde a lixeira; quem decide é o backend (403).
+
+- **Escape obrigatório:** título de tarefa e nome de pessoa agora vêm de **outros usuários**.
+  Tudo que entra em `innerHTML` passa por `esc()` (`ui.js`); sem isso um membro injeta HTML na
+  tela dos outros. Ao criar um template novo com texto de tarefa/nome, use `esc()`.
+- **Atualização:** o que os outros fazem só chega se o app perguntar. `app.js` busca de novo ao
+  voltar para o app e a cada minuto (no máximo 1 vez por 30 s), sem redesenhar por cima de
+  formulário ou diálogo aberto.
+
+### Equilíbrio da semana
+
+`js/balance.js` (`weekBalance`, puro e testado) resume a semana por grupo: tempo agendado (só tarefas
+com horário; sem fim contam 30 min), tarefas e concluídas, e uma mensagem. Aparece no topo da
+visão Semana da Agenda e compara Trabalho × Pessoal **sempre com todas as tarefas**, mesmo com o
+filtro de grupo ligado. Subtarefas ficam de fora e recorrentes contam só a ocorrência atual.
+
 ### Categorias
 
 `js/categories.js` é a fonte única: 4 de **Trabalho** (trabalho, reuniões, carreira, estudos)
-e 5 de **Vida** (casa, família, saúde, finanças, pessoal). O backend espelha em
+e 5 de **Pessoal** (casa, família, saúde, finanças, pessoal). O backend espelha em
 `Backend/app/categories.py`. As ids antigas (`filhos` → `familia`, `relacionamento` →
 `pessoal`) são convertidas ao carregar o estado local e nas respostas da API.
-O filtro **Tudo / Trabalho / Vida** (Home e Agenda) é lembrado em `menteleve.group`.
+O filtro **Tudo / Trabalho / Pessoal** (Home e Agenda) é lembrado em `menteleve.group` (o id interno do grupo continua `vida`, só o rótulo exibido é "Pessoal").
 
 ### Imagens
 
@@ -1749,7 +1825,7 @@ simulados) e as mensagens de erro. Os casos de recorrência espelham `Backend/te
 ### Notas
 
 - Login social (Apple/Google) está **desabilitado** com aviso "em breve" — não há OAuth real.
-- Conexões tem visual completo, mas o convite de parceiro(a) ainda é simulado.
+- **Espaços compartilhados** são reais e exigem conta no servidor (ver a seção abaixo).
 - O **calendário menstrual é um módulo opcional** (Perfil → Calendário menstrual; desligado
   por padrão) e 100% local (`localStorage`), nunca vai ao backend — e sobrevive à expiração
   da sessão, por não pertencer à conta. Quem já o usava antes do módulo existir continua
