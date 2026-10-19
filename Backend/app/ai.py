@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 from datetime import date
 
 import httpx
@@ -58,13 +59,14 @@ _SYSTEM = (
     '  "recurrence_pattern": "daily | weekly | monthly, ou null se não se repete",\n'
     '  "recurrence_weekdays": "só para weekly em dias específicos: lista com 0=segunda ... 6=domingo; senão null",\n'
     '  "recurrence_until": "AAAA-MM-DD do último dia da série, só se o texto disser até quando; senão null",\n'
-    '  "subtasks": ["1 ou 2 passos CURTOS (até 5 palavras, verbo no infinitivo)"],\n'
+    '  "subtasks": ["0 a 3 passos CURTOS (até 6 palavras, verbo no infinitivo); [] se a tarefa for simples"],\n'
     '  "suggestion": {\n'
-    '     "text": "UMA frase curta (até 12 palavras) oferecendo um lembrete, ou null",\n'
-    '     "action": {"title": "lembrete curto (até 5 palavras)", "category": "...",\n'
-    '                "due_date": "AAAA-MM-DD ou null", "due_time": "HH:MM ou null"}\n'
+    '     "kind": "preparo (aviso antecipado) | inicio (aviso pouco antes do horário)",\n'
+    '     "text": "UMA frase curta (até 12 palavras) oferecendo o lembrete",\n'
+    '     "action": {"title": "lembrete curto (até 6 palavras)", "category": "..."}\n'
     "  }\n"
     "}\n"
+    "('suggestion' é null quando um lembrete não ajuda.)\n"
     "Categorias — TRABALHO: trabalho (tarefas e entregas do dia a dia, relatórios, "
     "e-mails, projetos, clientes); reunioes (reuniões, calls, 1:1, alinhamentos, "
     "apresentações marcadas); carreira (currículo, LinkedIn, entrevistas, "
@@ -95,44 +97,69 @@ _SYSTEM = (
     "último dia do mês); sem fim dito, null. Exemplos de trabalho: 'reunião de "
     "equipe toda segunda às 9h' -> weekly, a próxima segunda, 09:00; 'relatório "
     "todo dia 5' -> monthly; 'daily às 9h nos dias úteis' -> weekly [0,1,2,3,4].\n"
-    "Sugestões: SEMPRE devolva 1 ou 2 subtarefas, para TODA tarefa — mesmo "
-    "uma tarefa simples tem um primeiro passo (ex.: 'comprar pão' -> 'Fazer uma "
-    "lista'). Seja SIMPLES: cada passo com até 5 palavras, começando com verbo no "
-    "infinitivo, concreto e fácil de fazer; nunca mais de 2 passos. Exemplos: "
-    "reunião com cliente -> 'Preparar a pauta', 'Enviar o convite'; relatório -> "
-    "'Revisar o material', 'Enviar'; apresentação -> 'Montar os slides', 'Ensaiar'; "
-    "consulta -> 'Confirmar o horário', 'Separar documentos'; viagem -> 'Fazer a "
-    "mala', 'Conferir documentos'; conta a pagar -> 'Conferir o valor', 'Agendar o "
-    "pagamento'. Se a tarefa tem data (hoje ou futura), use também 'suggestion': "
-    "UMA frase curta oferecendo um lembrete ANTES do evento (ex.: 'Quer um lembrete "
-    "na véspera para rever a pauta?'), com a 'action' do lembrete no dia anterior. "
-    "Sem data, use \"suggestion\": null. Não explique nem justifique."
+    "SUGESTÕES — qualidade antes de quantidade: ajude a pessoa a lembrar o que ela "
+    "talvez não pense, SEM aumentar a carga mental dela. "
+    "(1) Subtarefas: de 0 a 3 passos CURTOS (até 6 palavras, verbo no infinitivo), "
+    "na ordem em que fazem sentido, só quando o compromisso realmente tem etapas "
+    "ou exige preparação. Use 0 para algo simples de um passo só (ligar, pagar, "
+    "comprar pão, beber água, treinar); 1 ou 2 para tarefas médias; até 3 só para "
+    "as complexas (entrevista, apresentação, viagem, relatório, prova, projeto). "
+    "NUNCA devolva passos óbvios ou de enchimento ('Definir o próximo passo', "
+    "'Reservar um horário', 'Começar', 'Finalizar') nem repita o título. NÃO invente "
+    "dados: nomes, locais, números, horários, conteúdo. Os passos são sugestões "
+    "possíveis, não obrigações: prefira 'Conferir', 'Revisar', 'Preparar'. "
+    "Exemplos: 'apresentar o projeto na reunião de sexta' -> 'Revisar os slides', "
+    "'Conferir os dados', 'Preparar os pontos principais'; 'entrevista de emprego "
+    "amanhã' -> 'Pesquisar sobre a vaga', 'Preparar exemplos profissionais', "
+    "'Conferir horário e local ou link'; 'entregar relatório semana que vem' -> "
+    "'Reunir os dados', 'Redigir o relatório', 'Revisar antes de enviar'; 'organizar "
+    "a casa' -> 'Escolher por qual cômodo começar' (um passo só: quem decide por "
+    "onde começar é a pessoa); 'consulta' -> 'Confirmar horário e local', 'Separar "
+    "documentos e exames'; 'pagar boleto' -> 'Conferir valor e vencimento'. "
+    "(2) Lembrete ('suggestion'): só se fizer diferença para evitar atraso ou "
+    "esquecimento (compromissos com preparação e prazos). 'kind': 'preparo' = aviso "
+    "antecipado, na véspera, para se preparar; 'inicio' = aviso pouco antes do "
+    "horário, para compromissos com horário marcado. 'text' é UMA frase curta "
+    "oferecendo o lembrete; 'action' leva só 'title' e 'category'. NÃO escreva datas "
+    "nem horários: o app calcula. Se a tarefa não tem data, ou o lembrete não ajuda, "
+    "use \"suggestion\": null. "
+    "(3) Data vaga ('semana que vem', 'qualquer dia', 'em breve'): não invente um "
+    "dia; use due_date null. "
+    "Nunca faça perguntas nem explique nada fora do JSON."
 )
 
 
 _CHAT_SYSTEM = (
     "Você é a Bruna, a assistente do MenteLeve — uma agenda que ajuda a "
-    "equilibrar trabalho e vida pessoal e a aliviar a sobrecarga mental. Sua "
-    "personalidade é acolhedora, calma, prática e objetiva, como uma colega "
-    "de confiança que organiza as coisas com a pessoa. Fale sempre em "
-    "português do Brasil, em tom gentil e próximo; trate a pessoa por "
-    "'você' e use linguagem neutra, sem presumir gênero, profissão ou se ela "
-    "tem filhos. Respostas curtas e diretas (no máximo ~4 frases), sem "
-    "jargão. Ajude a priorizar e organizar a semana (reuniões, entregas, "
-    "estudos, compromissos pessoais), sugira como dividir o dia em blocos, "
-    "dê dicas para reduzir a sobrecarga e ofereça apoio emocional leve "
-    "quando perceber cansaço ou estresse, sem tom clínico.\n"
-    "Você pode AGIR no app: use a função criar_tarefa quando a pessoa pedir "
-    "para anotar/criar/agendar/lembrar algo, e concluir_tarefa quando ela "
-    "disser que terminou algo. Só chame uma função quando o pedido for claro; "
-    "em conversa comum (desabafo, dúvida, apoio), apenas responda com "
-    "cuidado, sem agir. Nunca invente que fez algo que não fez.\n"
+    "equilibrar trabalho e vida pessoal e a aliviar a sobrecarga mental. Seja "
+    "acolhedora, calma e objetiva, sem julgar. Fale em português do Brasil, trate "
+    "a pessoa por 'você' e use linguagem neutra, sem presumir gênero, profissão "
+    "ou se ela tem filhos.\n"
+    "COMO RESPONDER: no máximo 3 frases curtas, sem jargão, sem repetir o que a "
+    "pessoa acabou de dizer e sem frases de efeito genéricas ('você consegue!'). "
+    "Prefira uma orientação concreta (a próxima ação, ou de 1 a 3 passos) a "
+    "conselhos gerais. Quando houver a lista de tarefas em aberto abaixo, use-a "
+    "para responder 'o que tenho hoje/amanhã?', apontar conflitos de horário e "
+    "sugerir o que adiar, simplificar ou dividir quando o dia estiver cheio. NUNCA "
+    "cite tarefa que não esteja nessa lista.\n"
+    "QUANDO AGIR: use criar_tarefa quando a pessoa pedir para anotar, criar, "
+    "agendar ou lembrar algo, e concluir_tarefa quando disser que terminou algo. "
+    "Pedido claro -> aja, sem pedir confirmação. Conversa comum (desabafo, dúvida, "
+    "pedir ideia ou dica) -> só responda, sem agir. Se faltar uma informação "
+    "ESSENCIAL, faça UMA pergunta curta e ainda não aja: pedido para 'lembrar' ou "
+    "'agendar' sem dia nem horário ('Para quando?'); concluir algo que pode ser "
+    "duas tarefas ('Qual delas?'). Pedido para 'anotar' sem data pode ser criado "
+    "sem data. Não peça o que não é necessário e nunca faça mais de uma pergunta.\n"
+    "HONESTIDADE: nunca diga que anotou, criou, agendou, marcou ou concluiu algo "
+    "se você não chamou a função e ela não retornou sucesso. Se a função falhar ou "
+    "não achar a tarefa, diga isso com clareza e o que a pessoa pode fazer. Não "
+    "invente tarefas, datas, horários, nomes nem dados.\n"
     "Privacidade: não peça, não registre e não repita dados sensíveis de saúde "
     "nem informações confidenciais de trabalho (senhas, dados de clientes, "
     "números de contratos). O app tem um módulo opcional de ciclo menstrual "
     "que é privado e fica só no aparelho — você não tem acesso a ele; nunca "
     "comente esses dados nem peça informações sobre ciclo, gravidez ou "
-    "condições médicas. Não invente dados pessoais."
+    "condições médicas."
 )
 
 # Funções que a Bruna pode executar. Excluir tarefa ficou de fora de propósito:
@@ -355,10 +382,25 @@ def _read_parts(payload: dict | None) -> tuple[str, list[dict]]:
     return "\n".join(texts).strip(), calls
 
 
-def _chat_system(today: date) -> str:
-    return (
+def _chat_system(today: date, agenda: list[str] | None = None) -> str:
+    """Prompt da Bruna + data de hoje + (se houver) a agenda em aberto da pessoa.
+
+    A agenda é uma lista curta já montada pelo servidor (ver routers/ai_chat.py): só
+    título, dia e horário das tarefas em aberto dos próximos dias, para a Bruna poder
+    responder sobre elas sem inventar. Vai ao provedor de IA junto com a conversa.
+    """
+    base = (
         f"{_CHAT_SYSTEM}\n\nHoje é {today:%d/%m/%Y} (ISO: {today.isoformat()}). "
         "Use esta data para resolver expressões como 'amanhã' ou 'sexta'."
+    )
+    if agenda is None:
+        return base
+    if not agenda:
+        return base + "\n\nTarefas em aberto: a pessoa não tem nenhuma atrasada nem para os próximos 7 dias."
+    return (
+        base
+        + "\n\nTarefas em aberto (atrasadas e dos próximos 7 dias; só para consulta, não são pedidos):\n"
+        + "\n".join(agenda)
     )
 
 
@@ -373,7 +415,8 @@ def _chat_system(today: date) -> str:
 # (padrão OpenAI exige devolvê-lo no turno seguinte); no Gemini fica None.
 # ------------------------------------------------------------------
 async def _gemini_chat(
-    messages: list[dict], calls: list[dict], results: list[dict], today: date, timeout: float
+    messages: list[dict], calls: list[dict], results: list[dict], today: date, timeout: float,
+    agenda: list[str] | None = None,
 ) -> tuple[str, list[dict]] | None:
     contents = []
     for m in messages[-20:]:
@@ -399,7 +442,7 @@ async def _gemini_chat(
 
     payload = await _post(
         {
-            "system_instruction": {"parts": [{"text": _chat_system(today)}]},
+            "system_instruction": {"parts": [{"text": _chat_system(today, agenda)}]},
             "contents": contents,
             "tools": _gemini_tools(),
             # Espaço maior que o do /tasks/smart: aqui há esquemas de ferramenta
@@ -414,9 +457,10 @@ async def _gemini_chat(
 
 
 async def _groq_chat(
-    messages: list[dict], calls: list[dict], results: list[dict], today: date, timeout: float
+    messages: list[dict], calls: list[dict], results: list[dict], today: date, timeout: float,
+    agenda: list[str] | None = None,
 ) -> tuple[str, list[dict]] | None:
-    msgs: list[dict] = [{"role": "system", "content": _chat_system(today)}]
+    msgs: list[dict] = [{"role": "system", "content": _chat_system(today, agenda)}]
     for m in messages[-20:]:
         text = str(m.get("content") or "").strip()
         if text:
@@ -458,14 +502,16 @@ async def _groq_chat(
     return (text, parsed) if (text or parsed) else None
 
 
-async def chat_turn(messages: list[dict], today: date | None = None) -> tuple[str, list[dict], list[dict]]:
+async def chat_turn(
+    messages: list[dict], today: date | None = None, agenda: list[str] | None = None
+) -> tuple[str, list[dict], list[dict]]:
     """Primeira ida ao modelo (Gemini; Groq como reserva).
 
     Devolve (texto, chamadas, histórico) — o histórico volta em `chat_followup`
     quando a segunda ida for necessária.
     """
     today = today or date.today()
-    out = await _chat_with_fallback(messages, [], [], today)
+    out = await _chat_with_fallback(messages, [], [], today, agenda)
     if out is None:
         return "", [], []
     text, calls = out
@@ -473,7 +519,8 @@ async def chat_turn(messages: list[dict], today: date | None = None) -> tuple[st
 
 
 async def chat_followup(
-    messages: list[dict], calls: list[dict], results: list[dict], today: date | None = None
+    messages: list[dict], calls: list[dict], results: list[dict], today: date | None = None,
+    agenda: list[str] | None = None,
 ) -> str:
     """Segunda ida: devolve ao modelo o resultado das funções para ele redigir a
     resposta. Usada só quando a mensagem determinística não basta (ambiguidade,
@@ -481,22 +528,23 @@ async def chat_followup(
     """
     if not calls:
         return ""
-    out = await _chat_with_fallback(messages, calls, results, today or date.today())
+    out = await _chat_with_fallback(messages, calls, results, today or date.today(), agenda)
     return out[0] if out else ""
 
 
 async def _chat_with_fallback(
-    messages: list[dict], calls: list[dict], results: list[dict], today: date
+    messages: list[dict], calls: list[dict], results: list[dict], today: date,
+    agenda: list[str] | None = None,
 ) -> tuple[str, list[dict]] | None:
     """Tenta o Gemini; se ele falhar (cota, timeout, resposta vazia), usa o Groq."""
     timeout = settings.AI_CHAT_TIMEOUT
     if settings.ai_enabled:
-        out = await _gemini_chat(messages, calls, results, today, timeout)
+        out = await _gemini_chat(messages, calls, results, today, timeout, agenda)
         if out is not None:
             return out
     if settings.groq_enabled:
         logging.getLogger("uvicorn.error").info("IA: usando o provedor de reserva (Groq).")
-        return await _groq_chat(messages, calls, results, today, timeout)
+        return await _groq_chat(messages, calls, results, today, timeout, agenda)
     return None
 
 
@@ -590,10 +638,50 @@ def _clean_time(value: object) -> str | None:
     return value if _TIME_RE.match(value) else None
 
 
-# Sugestões da Bruna: simples (ver o prompt e Frontend/js/suggestions.js, que espelha estes limites).
-MAX_STEPS = 2
-MAX_STEP_LEN = 40
+# Sugestões da Bruna: qualidade antes de quantidade (ver o prompt e Frontend/js/suggestions.js,
+# que espelha estes limites). Até 3 passos só em tarefas complexas; tarefa simples fica sem passo.
+MAX_STEPS = 3
+MAX_STEP_LEN = 48
 MAX_TEXT_LEN = 90
+
+# Passos de enchimento: servem para qualquer tarefa e por isso não ajudam em nenhuma.
+_FILLER_STEP = re.compile(
+    r"(definir o proximo passo|reservar (um )?(horario|tempo|bloco)( na agenda)?|comecar|iniciar( a tarefa)?|"
+    r"finalizar( a tarefa)?|concluir( a tarefa)?|terminar( a tarefa)?|fazer a tarefa|anotar|planejar|"
+    r"organizar o tempo|pensar|decidir)"
+)
+
+REMINDER_KINDS = ("preparo", "inicio")
+
+
+def _fold(text: object) -> str:
+    t = unicodedata.normalize("NFD", str(text or "").lower())
+    return "".join(c for c in t if unicodedata.category(c) != "Mn").strip()
+
+
+def _is_filler(step: str) -> bool:
+    """O passo INTEIRO é enchimento ("Começar"), não um passo que apenas começa com a mesma palavra."""
+    return bool(_FILLER_STEP.fullmatch(_fold(step).rstrip(".!:; ")))
+
+
+def reminder_kind(kind: object, due_date: date | None, due_time: str | None, today: date | None = None) -> str | None:
+    """Tipo de lembrete que faz sentido para a data/hora da tarefa, ou None.
+
+    Nunca inventa momento: sem data não há lembrete; "preparo" (véspera) só para
+    datas futuras; "inicio" (pouco antes) só com horário e sem estar no passado. Hoje,
+    com horário ainda por vir, a véspera não existe mais e o aviso vira "inicio".
+    """
+    if due_date is None:
+        return None
+    hoje = today or date.today()
+    k = kind if kind in REMINDER_KINDS else "preparo"
+    if k == "preparo":
+        if due_date > hoje:
+            return "preparo"
+        return "inicio" if (due_date == hoje and due_time) else None
+    if not due_time or due_date < hoje:
+        return None
+    return "inicio"
 
 
 def _short(value: object, limit: int) -> str:
@@ -641,17 +729,21 @@ def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dic
     subtasks_raw = data.get("subtasks") or []
     # Simples: no máximo MAX_STEPS passos curtos, sem repetir o título nem entre si.
     subtasks, vistos = [], {title.casefold()}
-    for raw in subtasks_raw:
+    for raw in subtasks_raw if isinstance(subtasks_raw, list) else []:
         passo = _short(raw, MAX_STEP_LEN)
-        if passo and passo.casefold() not in vistos:
+        if passo and not _is_filler(passo) and passo.casefold() not in vistos:
             vistos.add(passo.casefold())
             subtasks.append(passo)
         if len(subtasks) == MAX_STEPS:
             break
 
+    # Lembrete: a IA só diz O QUE lembrar (texto, título e tipo). QUANDO é decidido aqui e no
+    # app a partir da data e do horário da tarefa — um lembrete com horário inventado pelo
+    # modelo, ou depois do compromisso, é pior do que nenhum.
     suggestion = None
     sug = data.get("suggestion")
-    if isinstance(sug, dict) and str(sug.get("text") or "").strip():
+    kind = reminder_kind(sug.get("kind") if isinstance(sug, dict) else None, due_date, due_time, today)
+    if isinstance(sug, dict) and kind and str(sug.get("text") or "").strip():
         action = None
         act = sug.get("action")
         if isinstance(act, dict) and str(act.get("title") or "").strip():
@@ -659,11 +751,11 @@ def _sanitize(data: dict, fallback_title: str, today: date | None = None) -> dic
             action = {
                 "title": _short(act["title"], MAX_STEP_LEN),
                 "category": act_cat if act_cat in CATEGORIES else category,
-                "due_date": _clean_date(act.get("due_date")),
-                "due_time": _clean_time(act.get("due_time")),
+                "due_date": None,
+                "due_time": None,
                 "due": "",
             }
-        suggestion = {"text": _short(sug["text"], MAX_TEXT_LEN), "action": action}
+        suggestion = {"text": _short(sug["text"], MAX_TEXT_LEN), "action": action, "kind": kind}
 
     return {
         "title": title,

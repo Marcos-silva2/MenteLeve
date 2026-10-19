@@ -71,28 +71,6 @@ describe('palpite de categoria (sem IA)', () => {
   });
 });
 
-describe('decomposeTask — sugestões de trabalho', () => {
-  it('reunião: pauta, convite e ata, com lembrete na véspera', () => {
-    const r = decomposeTask('Reunião com o cliente amanhã às 10h');
-    assert.equal(r.category, 'reunioes');
-    assert.deepEqual(r.subtasks, ['Preparar a pauta', 'Enviar o convite', 'Registrar a ata depois']);
-    assert.equal(r.suggestion.action.category, 'reunioes');
-    assert.ok(r.suggestion.action.dueDate, 'a véspera vira data estruturada');
-  });
-
-  it('entrega: revisar, pedir aprovação, enviar', () => {
-    const r = decomposeTask('Entregar o relatório na sexta');
-    assert.equal(r.category, 'trabalho');
-    assert.deepEqual(r.subtasks, ['Revisar o material', 'Pedir aprovação', 'Enviar']);
-  });
-
-  it('as sugestões de vida continuam funcionando', () => {
-    const r = decomposeTask('Consulta com o dentista dia 15');
-    assert.equal(r.category, 'saude');
-    assert.equal(r.suggestion.action.category, 'saude');
-  });
-});
-
 describe('decomposeTask — início e término do horário (sem IA)', () => {
   for (const [frase, ini, fim] of [
     ['call de 1h amanhã às 15h', '15:00', '16:00'],

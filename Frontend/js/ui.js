@@ -53,6 +53,7 @@ export const icons = {
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
   flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M5 21V4"/><path d="M5 4h13l-3 4.5L18 13H5"/></svg>',
   repeat: '<span aria-hidden="true">↻</span>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
 };
 
 /**
@@ -208,6 +209,8 @@ export const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: icons.home },
   { id: 'agenda', label: 'Agenda', icon: icons.calendar },
   { id: 'bruna', label: 'Bruna', icon: icons.chat },
+  // `short`: rótulo da barra de baixo (6 abas precisam caber em 320 px).
+  { id: 'knowledge', label: 'Conhecimento', short: 'Saber', icon: icons.book },
   { id: 'connections', label: 'Conexões', icon: icons.users },
   { id: 'profile', label: 'Perfil', icon: icons.user },
 ];
@@ -251,10 +254,10 @@ export function renderNav(active, onNavigate) {
   bottom.innerHTML = `
     <div class="flex items-center justify-around px-2 py-2">
       ${NAV_ITEMS.map((it) => `
-        <button data-tab="${it.id}" ${it.id === active ? 'aria-current="page"' : ''}
-          class="flex flex-col items-center gap-0.5 min-w-11 min-h-11 px-2 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
+        <button data-tab="${it.id}" aria-label="${it.label}" ${it.id === active ? 'aria-current="page"' : ''}
+          class="flex flex-col items-center gap-0.5 min-w-11 min-h-11 px-1 sm:px-2 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
           <span class="nav-pill">${it.icon}</span>
-          <span class="text-[10px] font-medium">${it.label}</span>
+          <span class="text-[10px] font-medium">${it.short || it.label}</span>
         </button>`).join('')}
     </div>`;
   $$('[data-tab]', bottom).forEach((b) =>

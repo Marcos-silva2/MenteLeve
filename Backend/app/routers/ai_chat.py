@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import unicodedata
-from datetime import date
+import re
+from datetime import date, timedelta
 from difflib import SequenceMatcher
 
 from fastapi import APIRouter, Depends
@@ -28,6 +29,21 @@ _FALLBACK = (
 
 # Abaixo disso, dois títulos não são considerados a mesma tarefa.
 _MATCH_THRESHOLD = 0.6
+
+# Agenda enviada à Bruna como contexto: só o necessário para ela responder sobre os próximos
+# dias (título, dia e horário; sem subtarefas, sem descrição, no máximo _AGENDA_MAX linhas).
+_AGENDA_DAYS = 7
+_AGENDA_MAX = 12
+_AGENDA_TITLE_MAX = 80
+
+# A Bruna narrando como feito algo que não foi feito: "anotei", "criei", "marquei"…
+_CLAIM_RE = re.compile(
+    r"\b(anotei|criei|adicionei|agendei|registrei|marquei|conclui|finalizei|deixei (anotad|marcad|agendad|registrad))"
+)
+_NAO_FEITO = (
+    "Ainda não consegui fazer isso: nenhuma tarefa foi criada ou alterada. "
+    "Me diga o que é e para quando, e eu tento de novo."
+)
 
 
 def _norm(text: str) -> str:
@@ -60,6 +76,31 @@ def _match_tasks(titulo: str, tasks: list[Task]) -> list[Task]:
     parecidos = [(r, t) for r, t in parecidos if r >= _MATCH_THRESHOLD]
     parecidos.sort(key=lambda p: p[0], reverse=True)
     return [t for _, t in parecidos[:3]]
+
+
+def agenda_context(abertas: list[Task], today: date) -> list[str]:
+    """Linhas "- 20/10 10:00 — título" das tarefas em aberto atrasadas ou dos próximos dias.
+
+    Ordenadas por dia e horário, com tarefas atrasadas marcadas; sem data não entram. Se
+    passar do limite, a última linha resume quantas ficaram de fora.
+    """
+    fim = today + timedelta(days=_AGENDA_DAYS)
+    itens = [t for t in abertas if t.parent_id is None and t.due_date is not None and t.due_date <= fim]
+    itens.sort(key=lambda t: (t.due_date, t.due_time or "99:99", t.id))
+    linhas = []
+    for t in itens[:_AGENDA_MAX]:
+        quando = f"{t.due_date:%d/%m}" + (f" {t.due_time}" if t.due_time else "")
+        atraso = " (atrasada)" if t.due_date < today else ""
+        titulo = " ".join(str(t.title).split())[:_AGENDA_TITLE_MAX]
+        linhas.append(f"- {quando}{atraso} — {titulo}")
+    if len(itens) > _AGENDA_MAX:
+        linhas.append(f"- (+{len(itens) - _AGENDA_MAX} outras tarefas)")
+    return linhas
+
+
+def claims_done(text: str) -> bool:
+    """O texto diz, na primeira pessoa e no passado, que anotou/criou/marcou algo?"""
+    return bool(_CLAIM_RE.search(_norm(text)))
 
 
 def _criar_tarefa(args: dict, user: User, db: Session, today: date) -> tuple[dict, Task | None]:
@@ -131,10 +172,11 @@ def _mensagem_pronta(results: list[dict]) -> str | None:
     que aconteceu). Devolve None quando é preciso o modelo redigir — ambiguidade,
     limite atingido, tarefa não encontrada.
     """
-    criadas = [r["titulo"] for r in results if r.get("status") in ("criada", "ja_existia")]
+    criadas = [r["titulo"] for r in results if r.get("status") == "criada"]
+    ja_estavam = [r["titulo"] for r in results if r.get("status") == "ja_existia"]
     concluidas = [r["titulo"] for r in results if r.get("status") == "concluida" and not r.get("recorrente")]
     recorrentes = [r["titulo"] for r in results if r.get("status") == "concluida" and r.get("recorrente")]
-    if not criadas and not recorrentes and not concluidas:
+    if not criadas and not ja_estavam and not recorrentes and not concluidas:
         return None
     if any(r.get("status") in ("ambiguo", "limite_atingido", "nao_encontrada") for r in results):
         return None
@@ -142,7 +184,10 @@ def _mensagem_pronta(results: list[dict]) -> str | None:
     partes = []
     if criadas:
         lista = ", ".join(f"“{t}”" for t in criadas)
-        partes.append(f"Pronto, anotei {lista} pra você 💗")
+        partes.append(f"Anotei {lista} ✨")
+    if ja_estavam:
+        lista = ", ".join(f"“{t}”" for t in ja_estavam)
+        partes.append(f"{lista} já estava na sua lista, não repeti.")
     if concluidas:
         lista = ", ".join(f"“{t}”" for t in concluidas)
         partes.append(f"Marquei {lista} como concluída ✨ Boa!")
@@ -194,19 +239,25 @@ async def chat(
     """
     history = [{"role": m.role, "content": m.content} for m in data.messages]
     today = data.today or date.today()
+    abertas = await asyncio.to_thread(crud.list_open_tasks, db, user.id)
+    agenda = agenda_context(abertas, today)
 
-    text, calls, contents = await ai.chat_turn(history, today=today)
+    text, calls, contents = await ai.chat_turn(history, today=today, agenda=agenda)
 
     if not calls:
-        return schemas.ChatOut(reply=text or _FALLBACK)
+        # Sem função chamada, nada foi feito: se o texto diz o contrário, não repassa a mentira.
+        return schemas.ChatOut(reply=_NAO_FEITO if (text and claims_done(text)) else (text or _FALLBACK))
 
     results, afetadas = await asyncio.to_thread(_execute_calls, calls, user, db, today)
 
     reply = _mensagem_pronta(results)
     if reply is None:
         # Caminho que precisa de nuance (desempate, limite): deixa o modelo redigir.
-        followup = await ai.chat_followup(contents, calls, results, today=today)
+        followup = await ai.chat_followup(contents, calls, results, today=today, agenda=agenda)
         reply = followup or text or _FALLBACK
+        deu_certo = any(r.get("status") in ("criada", "ja_existia", "concluida") for r in results)
+        if claims_done(reply) and not deu_certo:
+            reply = _NAO_FEITO
 
     return schemas.ChatOut(
         reply=reply,

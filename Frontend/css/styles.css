@@ -802,3 +802,50 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="swi
 @media (min-width: 1024px) {
   .safe-bottom { padding-bottom: 32px; } /* sem bottom bar no desktop */
 }
+
+/* ============================================================
+   Dimensionamento — telas baixas, estreitas, largas e zoom
+   ============================================================ */
+
+/* Campos com 16 px em telas de toque: abaixo disso o iOS dá zoom ao focar (e o app pode liberar o
+   zoom por pinça sem esse efeito colateral). */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
+}
+
+/* A folha de baixo (nova tarefa, menus) nunca passa da altura da tela: rola por dentro.
+   Sem isto, em celular deitado o título ficava cortado e "Mais opções" ficava inalcançável. */
+.sheet {
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Tela baixa (celular deitado, janela curta): barra de baixo compacta, menos respiro no topo. */
+@media (max-height: 520px) and (max-width: 1023px) {
+  .bottomnav { padding-top: 0; }
+  .bottomnav > div { padding-top: 2px; padding-bottom: 2px; }
+  .bottomnav [data-tab] { padding-top: 2px; padding-bottom: 2px; }
+  .bottomnav [data-tab] span.text-\[10px\] { display: none; }
+  .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px); }
+  .pt-12, .pt-14, .pt-16 { padding-top: 0.75rem !important; }
+  h1.font-serif { font-size: 1.375rem !important; line-height: 1.2 !important; }
+  .fab { bottom: 4rem !important; width: 3.5rem !important; height: 3.5rem !important; }
+}
+
+/* Celular estreito (≤ 360 px, ou zoom alto): títulos menores para não quebrar em 3 linhas. */
+@media (max-width: 360px) {
+  h1.font-serif { font-size: 1.375rem !important; line-height: 1.2 !important; }
+  .content-wrap { padding-inline: 0; }
+}
+
+/* Entre 1024 e 1279 px a barra lateral é mais fina, para sobrar largura ao conteúdo. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .sidenav { flex-basis: 216px; padding-inline: 14px; }
+}
+
+/* Monitores grandes: o conteúdo ganha um pouco mais de largura (e a lista de tarefas, um pouco mais de
+   conforto), em vez de ficar uma coluna pequena no meio de muito espaço. */
+@media (min-width: 1536px) {
+  .content-wrap { max-width: 1240px; }
+}

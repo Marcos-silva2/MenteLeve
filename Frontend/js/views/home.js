@@ -68,7 +68,7 @@ export function renderHome(app) {
       <div class="content-wrap w-full flex-1 flex flex-col lg:flex-row lg:gap-8 lg:pt-8 min-w-0 overflow-hidden">
 
         <!-- coluna principal -->
-        <section class="flex flex-col flex-1 min-w-0 w-full lg:max-w-xl overflow-hidden">
+        <section class="flex flex-col flex-1 min-w-0 w-full lg:max-w-2xl xl:max-w-xl 2xl:max-w-2xl overflow-hidden">
           <header class="px-6 lg:px-0 pt-12 lg:pt-0 pb-3">
             <div class="flex items-start justify-between">
               <h1 class="font-serif font-bold text-bordeaux-900 text-[26px] lg:text-3xl leading-tight">
@@ -94,7 +94,7 @@ export function renderHome(app) {
         </section>
 
         <!-- painel de agenda semanal (somente desktop) -->
-        <aside class="hidden lg:flex flex-col w-80 shrink-0 py-1">
+        <aside class="hidden xl:flex flex-col w-80 2xl:w-96 shrink-0 py-1">
           <div class="bg-white rounded-xl2 shadow-card border border-soft-100 p-5 sticky top-0">
             <h2 class="font-serif font-bold text-bordeaux-900 text-lg mb-1">Sua semana</h2>
             <p class="text-xs text-bordeaux-700 mb-4">Planeje com antecedência, sem surpresas.</p>

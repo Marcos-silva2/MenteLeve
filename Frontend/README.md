@@ -43,6 +43,7 @@ Frontend/
         ├── agenda.js       # calendário mensal + ciclo menstrual (local)
         ├── chat.js         # Bruna (IA)
         ├── connections.js  # espaços compartilhados (criar, entrar por código, membros)
+        ├── knowledge.js    # aba Conhecimento: artigos com fontes (conteúdo em js/knowledge.js)
         └── profile.js      # perfil / conta
 ```
 
@@ -97,13 +98,26 @@ versão do interruptor booleano migram na leitura — quem tinha desligado fica 
 
 ## Sugestões da Bruna
 
-Depois de criar uma tarefa, a Bruna sugere **até 2 passos curtos** (≤ 40 caracteres, verbo no
-infinitivo) e, se a tarefa tem data futura, **1 lembrete na véspera** (frase ≤ 90 caracteres). Vale
-para **toda** tarefa. `js/suggestions.js` (`simplifySuggestions`, puro e testado) é a única tabela:
-aplica-se ao resultado de qualquer origem — IA, heurística sem IA ou offline —, corta o que vier
-longo e, se não veio nada aproveitável, usa os passos padrão da categoria. O modal ("A Bruna
-sugere") deixa desmarcar cada item, inclusive o lembrete. Os limites são espelhados em
-`Backend/app/ai.py` (`MAX_STEPS`, `MAX_STEP_LEN`, `MAX_TEXT_LEN`) e no prompt da IA.
+Depois de criar uma tarefa, a Bruna só fala se tiver algo **útil** — `js/suggestions.js`
+(`buildSuggestions`, puro e testado, é o único lugar da lógica):
+
+- **Passos (0 a 3, curtos):** os da IA valem (sem enchimento, sem repetir, sem o que já existe como tarefa
+  no dia); se a IA não mandou nenhum e o compromisso é **reconhecido** pela base de conhecimento
+  (`REGRAS`: entrevista, apresentação, viagem, consulta, prova, relatório, proposta, reunião, conta,
+  organizar a casa…), entram os passos dessa base. **Tarefa simples fica sem passos** (ligar, comprar pão,
+  treinar). Em "organizar a casa" os ambientes vêm **desmarcados**: a pessoa escolhe por onde começar.
+- **Lembrete:** o quando é **calculado aqui** (`quandoLembrar`), nunca inventado: *preparo* = véspera, sem
+  horário; *início* = 30 min antes do horário (exige horário e que o momento não tenha passado); hoje não há
+  véspera. Sem data, sem lembrete. Um por tarefa.
+- **Avisos de contexto** (nada sai do aparelho): conflito de horário, **dia cheio** (≥ 5 tarefas ou ≥ 6 h —
+  então no máximo 1 passo e nenhum lembrete, para não aumentar a carga; sugere um dia mais livre ou dividir
+  com um espaço) e **tarefa repetida** (não empilha sugestões).
+
+O modal ("A Bruna sugere" / "A Bruna avisa", quando só há aviso) deixa marcar ou desmarcar cada item.
+As sugestões são calculadas **antes** de criar a tarefa, para ela não contar como repetida de si mesma.
+Os limites espelham `Backend/app/ai.py`. Para ensinar um compromisso novo, acrescente uma entrada em
+`REGRAS` (regex sobre o título sem acento, `cats` opcional, `exceto` para falsos positivos) e um caso em
+`tests/suggestions.test.mjs`.
 
 ## Convenções de interface
 
@@ -117,6 +131,23 @@ sugere") deixa desmarcar cada item, inclusive o lembrete. Os limites são espelh
   claro demais para um controle.
 - **Agenda**: no computador as células do mês são baixas (`lg:h-14`), dias livres da Semana ocupam
   uma linha, e a visão Dia rola sozinha até a hora atual (ou a primeira tarefa).
+
+## Dimensionamento (tamanhos de janela)
+
+O app foi verificado de **280 px a 2560 px**, em pé e deitado, sem rolagem nem corte horizontal em nenhuma
+tela. Regras que sustentam isso (`css/styles.css`, bloco "Dimensionamento"):
+
+- **Zoom por pinça liberado** (o viewport não tem mais `user-scalable=no`). Para o iOS não dar zoom
+  sozinho ao focar um campo, em telas de toque `input/textarea/select` usam 16 px (`pointer: coarse`).
+- **Folha de baixo** (`.sheet`: nova tarefa e menus) tem `max-height: 92dvh` e rola por dentro — em
+  celular deitado ela passava da tela e o título/o botão ficavam inalcançáveis.
+- **Tela baixa** (≤ 520 px de altura, abaixo de 1024 px de largura): barra de baixo compacta (rótulos
+  escondidos; cada botão tem `aria-label`), menos respiro no topo, título e botão `+` menores.
+- **≤ 360 px**: títulos menores e a linha de data/hora da nova tarefa **quebra** em vez de cortar o campo.
+- **1024–1279 px**: barra lateral de 216 px e **sem** o painel "Sua semana" (a lista de tarefas ocupa a
+  largura; antes ficava com ~360 px). O painel volta a partir de 1280 px.
+- **≥ 1536 px**: a coluna de conteúdo vai a 1240 px (antes 1080). Não há escala automática de fonte: o
+  app respeita o zoom do navegador e a escala do sistema.
 
 ## Temas de cor
 

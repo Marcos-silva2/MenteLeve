@@ -1230,7 +1230,7 @@ Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend d
 
 **Limites conhecidos** — vale ter claro:
 - A chave e o banco ficam ambos no Render. Comprometer essa conta entrega os dois.
-- A **Bruna envia o texto das tarefas para o Google (Gemini) e o Groq**. Nenhuma criptografia no banco muda isso.
+- A **Bruna envia texto para o Google (Gemini) e o Groq**: a conversa e, para poder responder sobre a agenda, o título, o dia e o horário das tarefas em aberto atrasadas ou dos próximos 7 dias (até 12, sem subtarefas). A análise de uma nova tarefa envia só o texto digitado. Nenhuma criptografia no banco muda isso.
 - **Não há limite de tentativas de login.** O custo do bcrypt (~250 ms) freia na prática, mas não é uma trava de verdade.
 - **RLS do Supabase não é usada** — e não adiantaria: o backend conecta com a role `postgres`, que ignora RLS. O isolamento entre contas está na aplicação. RLS só faria sentido se o frontend falasse direto com o Supabase, o que não acontece.
 - O `localStorage` do aparelho guarda as tarefas em texto puro (é o que faz o modo offline funcionar).
@@ -1566,12 +1566,32 @@ antigo assume.
 - Banco: tabelas `spaces` e `space_members` e a coluna `tasks.space_id` são criadas no boot (SQL
   equivalente no fim de `supabase_schema.sql`).
 
-### Sugestões simples
+### Sugestões da IA e da Bruna
 
-O prompt de `/tasks/smart` pede **sempre** 1 ou 2 passos curtos (até 5 palavras) e, com data, uma
-frase de lembrete; `_sanitize` impõe os limites (`MAX_STEPS`=2, `MAX_STEP_LEN`=40, `MAX_TEXT_LEN`=90),
-sem repetir o título nem entre si. O preenchimento quando a IA não manda nada é do frontend
-(`js/suggestions.js`), que cobre também o modo sem IA.
+**Criação de tarefa (`POST /tasks/smart`).** O prompt (`_SYSTEM` em `app/ai.py`) pede *qualidade antes
+de quantidade*: de **0 a 3** passos curtos (0 para tarefa simples; até 3 só para as complexas),
+em ordem, sem passo de enchimento ("Definir o próximo passo"), sem repetir o título e **sem inventar**
+nomes, locais, números nem horários. Para datas vagas ("semana que vem") a IA deixa `due_date` nulo.
+O lembrete (`suggestion`) diz só **o que** lembrar (`text`, `action.title`) e o **tipo**:
+`preparo` (aviso antecipado, na véspera) ou `inicio` (pouco antes do horário).
+
+`_sanitize` impõe o que o modelo não garante: `MAX_STEPS`=3, `MAX_STEP_LEN`=48, `MAX_TEXT_LEN`=90, descarta
+passos de enchimento (só se o passo **inteiro** é enchimento) e decide **se e como** há lembrete
+(`reminder_kind`): sem data não há lembrete; "preparo" só para data futura; hoje, com horário por vir,
+vira "inicio"; "inicio" exige horário. As datas do lembrete **nunca** vêm do modelo (`action.due_date`
+sai nulo): o app as calcula a partir da tarefa. O texto enviado à IA é só o pedido e a data de hoje.
+
+**Bruna (`POST /ai/chat`).** O prompt (`_CHAT_SYSTEM`) define quando agir (pedido claro → age, sem pedir
+confirmação), quando perguntar (UMA pergunta curta se faltar algo essencial, como "Para quando?" ao
+pedir para lembrar), respostas de até 3 frases e honestidade. Para responder sobre a agenda, o servidor
+anexa ao prompt as tarefas em aberto **atrasadas e dos próximos 7 dias** (`agenda_context`: só dia,
+horário e título cortado em 80 caracteres, até 12 linhas, sem subtarefas nem tarefas sem data) — inclui as de
+espaços compartilhados de que a pessoa participa, e **nunca** as de outras pessoas.
+
+**Honestidade:** se a resposta diz na 1ª pessoa que "anotei/criei/marquei/concluí" algo e nenhuma função
+teve sucesso naquela volta, o servidor troca o texto por "Ainda não consegui fazer isso: nenhuma tarefa
+foi criada ou alterada…" (`claims_done`). Pedido repetido não finge que criou de novo ("já estava na sua
+lista"). Gemini → Groq e o fallback sem IA seguem como antes.
 
 ### Duração (end_time)
 
@@ -1656,6 +1676,7 @@ Frontend/
         ├── agenda.js       # calendário mensal + ciclo menstrual (local)
         ├── chat.js         # Bruna (IA)
         ├── connections.js  # espaços compartilhados (criar, entrar por código, membros)
+        ├── knowledge.js    # aba Conhecimento: artigos com fontes (conteúdo em js/knowledge.js)
         └── profile.js      # perfil / conta
 ```
 
@@ -1710,13 +1731,26 @@ versão do interruptor booleano migram na leitura — quem tinha desligado fica 
 
 ### Sugestões da Bruna
 
-Depois de criar uma tarefa, a Bruna sugere **até 2 passos curtos** (≤ 40 caracteres, verbo no
-infinitivo) e, se a tarefa tem data futura, **1 lembrete na véspera** (frase ≤ 90 caracteres). Vale
-para **toda** tarefa. `js/suggestions.js` (`simplifySuggestions`, puro e testado) é a única tabela:
-aplica-se ao resultado de qualquer origem — IA, heurística sem IA ou offline —, corta o que vier
-longo e, se não veio nada aproveitável, usa os passos padrão da categoria. O modal ("A Bruna
-sugere") deixa desmarcar cada item, inclusive o lembrete. Os limites são espelhados em
-`Backend/app/ai.py` (`MAX_STEPS`, `MAX_STEP_LEN`, `MAX_TEXT_LEN`) e no prompt da IA.
+Depois de criar uma tarefa, a Bruna só fala se tiver algo **útil** — `js/suggestions.js`
+(`buildSuggestions`, puro e testado, é o único lugar da lógica):
+
+- **Passos (0 a 3, curtos):** os da IA valem (sem enchimento, sem repetir, sem o que já existe como tarefa
+  no dia); se a IA não mandou nenhum e o compromisso é **reconhecido** pela base de conhecimento
+  (`REGRAS`: entrevista, apresentação, viagem, consulta, prova, relatório, proposta, reunião, conta,
+  organizar a casa…), entram os passos dessa base. **Tarefa simples fica sem passos** (ligar, comprar pão,
+  treinar). Em "organizar a casa" os ambientes vêm **desmarcados**: a pessoa escolhe por onde começar.
+- **Lembrete:** o quando é **calculado aqui** (`quandoLembrar`), nunca inventado: *preparo* = véspera, sem
+  horário; *início* = 30 min antes do horário (exige horário e que o momento não tenha passado); hoje não há
+  véspera. Sem data, sem lembrete. Um por tarefa.
+- **Avisos de contexto** (nada sai do aparelho): conflito de horário, **dia cheio** (≥ 5 tarefas ou ≥ 6 h —
+  então no máximo 1 passo e nenhum lembrete, para não aumentar a carga; sugere um dia mais livre ou dividir
+  com um espaço) e **tarefa repetida** (não empilha sugestões).
+
+O modal ("A Bruna sugere" / "A Bruna avisa", quando só há aviso) deixa marcar ou desmarcar cada item.
+As sugestões são calculadas **antes** de criar a tarefa, para ela não contar como repetida de si mesma.
+Os limites espelham `Backend/app/ai.py`. Para ensinar um compromisso novo, acrescente uma entrada em
+`REGRAS` (regex sobre o título sem acento, `cats` opcional, `exceto` para falsos positivos) e um caso em
+`tests/suggestions.test.mjs`.
 
 ### Convenções de interface
 
@@ -1730,6 +1764,23 @@ sugere") deixa desmarcar cada item, inclusive o lembrete. Os limites são espelh
   claro demais para um controle.
 - **Agenda**: no computador as células do mês são baixas (`lg:h-14`), dias livres da Semana ocupam
   uma linha, e a visão Dia rola sozinha até a hora atual (ou a primeira tarefa).
+
+### Dimensionamento (tamanhos de janela)
+
+O app foi verificado de **280 px a 2560 px**, em pé e deitado, sem rolagem nem corte horizontal em nenhuma
+tela. Regras que sustentam isso (`css/styles.css`, bloco "Dimensionamento"):
+
+- **Zoom por pinça liberado** (o viewport não tem mais `user-scalable=no`). Para o iOS não dar zoom
+  sozinho ao focar um campo, em telas de toque `input/textarea/select` usam 16 px (`pointer: coarse`).
+- **Folha de baixo** (`.sheet`: nova tarefa e menus) tem `max-height: 92dvh` e rola por dentro — em
+  celular deitado ela passava da tela e o título/o botão ficavam inalcançáveis.
+- **Tela baixa** (≤ 520 px de altura, abaixo de 1024 px de largura): barra de baixo compacta (rótulos
+  escondidos; cada botão tem `aria-label`), menos respiro no topo, título e botão `+` menores.
+- **≤ 360 px**: títulos menores e a linha de data/hora da nova tarefa **quebra** em vez de cortar o campo.
+- **1024–1279 px**: barra lateral de 216 px e **sem** o painel "Sua semana" (a lista de tarefas ocupa a
+  largura; antes ficava com ~360 px). O painel volta a partir de 1280 px.
+- **≥ 1536 px**: a coluna de conteúdo vai a 1240 px (antes 1080). Não há escala automática de fonte: o
+  app respeita o zoom do navegador e a escala do sistema.
 
 ### Temas de cor
 

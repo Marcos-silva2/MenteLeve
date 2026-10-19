@@ -28,7 +28,7 @@ def test_prompts_nao_presumem_publico_nem_genero():
 
 
 def test_prompt_de_analise_tem_exemplos_de_trabalho():
-    for termo in ("reunião", "relatório", "pauta", "currículo"):
+    for termo in ("apresentar o projeto", "entrevista de emprego", "entregar relatório", "organizar a casa"):
         assert termo in ai._SYSTEM
 
 
@@ -52,7 +52,8 @@ def test_sanitize_aceita_categorias_novas(categoria):
 @pytest.mark.parametrize("antiga,atual", list(LEGACY_CATEGORIES.items()))
 def test_sanitize_converte_categoria_antiga_dita_pelo_modelo(antiga, atual):
     r = ai._sanitize(
-        {"title": "x", "category": antiga, "suggestion": {"text": "ok", "action": {"title": "y", "category": antiga}}},
+        {"title": "x", "category": antiga, "due_date": "2026-10-05",
+         "suggestion": {"text": "ok", "action": {"title": "y", "category": antiga}}},
         "x", date(2026, 10, 1),
     )
     assert r["category"] == atual

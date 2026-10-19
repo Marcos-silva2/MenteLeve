@@ -15,6 +15,7 @@ import { renderAgenda } from './views/agenda.js';
 import { renderChat, clearConversation } from './views/chat.js';
 import { renderConnections } from './views/connections.js';
 import { renderProfile } from './views/profile.js';
+import { renderKnowledge } from './views/knowledge.js';
 
 const routes = {
   onboarding: renderOnboarding,
@@ -23,6 +24,7 @@ const routes = {
   home: renderHome,
   agenda: renderAgenda,
   bruna: renderChat,
+  knowledge: renderKnowledge,
   connections: renderConnections,
   profile: renderProfile,
 };
@@ -66,7 +68,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Abas que podem ser refletidas na URL (deep-link / restaurar ao recarregar).
-const TAB_ROUTES = ['home', 'agenda', 'bruna', 'connections', 'profile'];
+const TAB_ROUTES = ['home', 'agenda', 'bruna', 'knowledge', 'connections', 'profile'];
 
 function navigate(route, params = {}) {
   const render = routes[route];

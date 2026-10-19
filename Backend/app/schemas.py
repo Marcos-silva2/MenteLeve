@@ -220,6 +220,9 @@ class AiSuggestionAction(BaseModel):
 class AiSuggestion(BaseModel):
     text: str
     action: AiSuggestionAction | None = None
+    # preparo = aviso antecipado (véspera); inicio = pouco antes do horário. As datas do
+    # lembrete são calculadas pelo app a partir da tarefa, nunca pelo modelo.
+    kind: Literal["preparo", "inicio"] | None = None
 
 
 class SmartTaskOut(BaseModel):

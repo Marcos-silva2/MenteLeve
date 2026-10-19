@@ -4,12 +4,12 @@
    ============================================================ */
 
 import { h, $, $$, icons, toast, isDesktop, esc } from '../ui.js';
-import { PRIORITIES, addTask, getSpaces } from '../store.js';
+import { PRIORITIES, addTask, getSpaces, getTasks } from '../store.js';
 import { GROUPS, categoriesOf, DEFAULT_CATEGORY } from '../categories.js';
 import { apiSmartTask, decomposeTask } from '../api.js';
 import { todayKey, resolveDue, firstOccurrence, recurrenceLabel } from '../dates.js';
 import { recurrencePicker } from './recurrencePicker.js';
-import { simplifySuggestions } from '../suggestions.js';
+import { buildSuggestions } from '../suggestions.js';
 import { playAha, playTap, playAdd } from '../sound.js';
 
 /**
@@ -73,10 +73,10 @@ export function openTaskSheet(app, onDone) {
       </div>
 
       <!-- data específica (calendário) + horário -->
-      <div class="mt-2 flex items-center gap-2">
+      <div class="mt-2 flex flex-wrap items-center gap-2">
         <span class="text-bordeaux-700 shrink-0">${icons.calendar}</span>
         <input id="task-date" type="date" min="${todayISO}"
-          class="flex-1 min-w-0 px-4 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
+          class="flex-1 min-w-[10rem] px-4 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
                  focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition text-[15px]" />
         <input id="task-time" type="time" aria-label="Horário"
           class="w-[7.5rem] shrink-0 px-3 py-2.5 rounded-2xl bg-white border border-soft-100 text-bordeaux-900
@@ -280,6 +280,7 @@ export function openTaskSheet(app, onDone) {
     try {
       result = await apiSmartTask(text);
     } catch (_) { /* tenta o fallback abaixo */ }
+    const fromAi = !!result;
     if (!result) {
       try {
         result = decomposeTask(text);
@@ -305,8 +306,15 @@ export function openTaskSheet(app, onDone) {
     // Término: escolha manual > IA. Inválido (antes do início) é descartado no store.
     const finalEndTime = (timeInput.value ? endInput.value : '') || (timeInput.value ? null : result.endTime) || null;
 
+    // Sugestões da Bruna: calculadas ANTES de criar a tarefa, para que ela não conte como
+    // "tarefa repetida" de si mesma nem como carga do próprio dia.
+    const sugestoes = buildSuggestions(
+      { ...result, title: result.title || text, category, dueDate: finalDueDate, dueTime: finalDueTime, endTime: finalEndTime },
+      { tasks: getTasks(), spaces: getSpaces(), fromAi },
+    );
+
     // Cria e persiste a tarefa principal (aguarda para reconciliar o id real).
-    // Guardamos a tarefa-mãe para fixar as sugestões da IA como subtarefas.
+    // Guardamos a tarefa-mãe para fixar as sugestões como subtarefas.
     const parent = await addTask({
       title: result.title || text,
       category,
@@ -321,13 +329,12 @@ export function openTaskSheet(app, onDone) {
     close();
     onDone && onDone();
 
-    // Sugestões da Bruna: toda tarefa recebe até 2 passos curtos (e, com data futura, 1
-    // lembrete na véspera) — o que a IA mandou, simplificado, ou o padrão da categoria.
-    const sugestoes = simplifySuggestions({
-      ...result, title: result.title || text, category, dueDate: finalDueDate, dueTime: finalDueTime,
-    });
-    if (sugestoes.subtasks.length || sugestoes.suggestion) {
-      setTimeout(() => openAiModal(app, { ...sugestoes, parentId: parent.id }, onDone), 300);
+    // A Bruna só fala quando tem algo útil: passos, um lembrete ou um aviso de contexto
+    // (conflito, dia cheio, tarefa repetida). Tarefa simples e sem aviso: só a confirmação.
+    if (sugestoes.steps.length || sugestoes.reminder || sugestoes.notes.length) {
+      setTimeout(() => openAiModal(app, {
+        ...sugestoes, category, dueDate: finalDueDate, dueTime: finalDueTime, parentId: parent.id,
+      }, onDone), 300);
     } else {
       // Sem Aha Moment não há playAha; este é o único retorno sonoro do
       // registro. Quando o modal abre, o playAha dele já cumpre esse papel.
@@ -339,37 +346,41 @@ export function openTaskSheet(app, onDone) {
   });
 }
 
-/* ---------------- Modal "Aha Moment" da IA ---------------- */
+/* ---------------- Sugestões da Bruna (modal do "Aha Moment") ---------------- */
 function openAiModal(app, result, onDone) {
   const host = document.getElementById('device');
-  const subs = result.subtasks || [];
-  const sug = result.suggestion;
+  const steps = result.steps || [];
+  const sug = result.reminder;
+  const notes = result.notes || [];
+  const temItens = steps.length > 0 || !!(sug && sug.action);
 
   const scrim = h('<div class="scrim grid place-items-center px-6"></div>');
   const card = h(`
-    <div class="modal-card relative w-full max-w-[340px] bg-white rounded-xl2 p-6 shadow-card">
+    <div class="modal-card relative w-full max-w-[340px] max-h-[90dvh] overflow-y-auto bg-white rounded-xl2 p-6 shadow-card">
       <div class="flex items-center gap-2 mb-3">
         <span class="w-9 h-9 rounded-full bg-accent text-white grid place-items-center shadow-fab">${icons.spark}</span>
-        <h3 class="font-serif font-bold text-bordeaux-900 text-lg">A Bruna sugere</h3>
+        <h3 class="font-serif font-bold text-bordeaux-900 text-lg">${temItens ? 'A Bruna sugere' : 'A Bruna avisa'}</h3>
       </div>
-      <p class="text-sm text-bordeaux-700 mb-3">Quer adicionar? Desmarque o que não servir.</p>
 
-      <div class="flex flex-col gap-2 mb-4">
-        ${subs.map((s, i) => `
+      ${notes.map((n) => `<p class="text-sm text-bordeaux-800 bg-soft-100/60 rounded-2xl px-3 py-2 mb-2" role="note">${esc(n)}</p>`).join('')}
+
+      ${temItens ? '<p class="text-sm text-bordeaux-700 mb-3">Marque o que fizer sentido para você.</p>' : ''}
+      <div class="flex flex-col gap-2 ${temItens ? 'mb-4' : ''}">
+        ${steps.map((s, i) => `
           <label class="reveal flex items-center gap-3 bg-bg rounded-2xl px-3 min-h-11 py-2 cursor-pointer" style="--i:${i}">
-            <input type="checkbox" data-sub="${encodeURIComponent(s)}" checked class="w-5 h-5 accent-accent rounded" />
-            <span class="text-sm text-bordeaux-900">${esc(s)}</span>
+            <input type="checkbox" data-sub="${encodeURIComponent(s.text)}" ${s.checked ? 'checked' : ''} class="w-5 h-5 accent-accent rounded" />
+            <span class="text-sm text-bordeaux-900">${esc(s.text)}</span>
           </label>`).join('')}
         ${sug ? `
-          <label class="reveal flex items-center gap-3 bg-soft-100/60 rounded-2xl px-3 min-h-11 py-2 cursor-pointer" style="--i:${subs.length}">
+          <label class="reveal flex items-center gap-3 bg-soft-100/60 rounded-2xl px-3 min-h-11 py-2 cursor-pointer" style="--i:${steps.length}">
             <input type="checkbox" data-sug ${sug.action ? 'checked' : 'disabled'} class="w-5 h-5 accent-accent rounded" />
             <span class="text-sm text-bordeaux-800">${esc(sug.text)}</span>
           </label>` : ''}
       </div>
 
-      <div class="flex flex-col gap-2">
-        <button id="ai-accept" class="btn btn-primary w-full py-3">Adicionar</button>
-        <button id="ai-decline" class="btn btn-secondary w-full">Agora não</button>
+      <div class="flex flex-col gap-2 ${temItens ? '' : 'mt-3'}">
+        ${temItens ? '<button id="ai-accept" class="btn btn-primary w-full py-3">Adicionar</button>' : ''}
+        <button id="ai-decline" class="btn btn-secondary w-full">${temItens ? 'Agora não' : 'Entendi'}</button>
       </div>
     </div>
   `);
@@ -377,8 +388,8 @@ function openAiModal(app, result, onDone) {
   scrim.appendChild(card);
   host.appendChild(scrim);
   // O som do Aha Moment acompanha a revelação dos passos, não a abertura do
-  // modal: é a decomposição que vale a recompensa.
-  playAha();
+  // modal: é a decomposição que vale a recompensa. Só avisos: sem som festivo.
+  if (temItens) playAha();
 
   function close() {
     scrim.style.animation = 'fadeOut .2s ease both';
@@ -386,16 +397,17 @@ function openAiModal(app, result, onDone) {
   }
 
   $('#ai-decline', card).addEventListener('click', close);
-  $('#ai-accept', card).addEventListener('click', async () => {
-    const btn = $('#ai-accept', card);
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
+  const aceitar = $('#ai-accept', card);
+  if (!aceitar) return;
+  aceitar.addEventListener('click', async () => {
+    aceitar.disabled = true;
+    aceitar.setAttribute('aria-busy', 'true');
 
     // Ids do que foi criado agora: a Home usa para revelar essas linhas uma a
     // uma, em vez de fazê-las aparecer todas de vez no meio da lista.
     const criadas = [];
 
-    // adiciona as subtarefas marcadas, FIXADAS como filhas da tarefa-mãe
+    // adiciona os passos marcados, FIXADOS como filhos da tarefa-mãe
     // (herdam a data da mãe, para caírem no mesmo dia do calendário)
     for (const cb of $$('[data-sub]:checked', card)) {
       const nova = await addTask({
@@ -407,8 +419,8 @@ function openAiModal(app, result, onDone) {
       });
       criadas.push(nova.id);
     }
-    // adiciona a sugestão preventiva (também como subtarefa da tarefa-mãe).
-    // Ela tem data própria — é o lembrete ANTES/DEPOIS do evento.
+    // o lembrete (também como subtarefa da mãe) tem data própria, já calculada:
+    // véspera (preparo) ou pouco antes do horário (início)
     const querLembrete = $('[data-sug]', card);
     if (sug && sug.action && querLembrete && querLembrete.checked) {
       const nova = await addTask({

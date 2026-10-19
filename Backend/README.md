@@ -243,12 +243,32 @@ antigo assume.
 - Banco: tabelas `spaces` e `space_members` e a coluna `tasks.space_id` são criadas no boot (SQL
   equivalente no fim de `supabase_schema.sql`).
 
-## Sugestões simples
+## Sugestões da IA e da Bruna
 
-O prompt de `/tasks/smart` pede **sempre** 1 ou 2 passos curtos (até 5 palavras) e, com data, uma
-frase de lembrete; `_sanitize` impõe os limites (`MAX_STEPS`=2, `MAX_STEP_LEN`=40, `MAX_TEXT_LEN`=90),
-sem repetir o título nem entre si. O preenchimento quando a IA não manda nada é do frontend
-(`js/suggestions.js`), que cobre também o modo sem IA.
+**Criação de tarefa (`POST /tasks/smart`).** O prompt (`_SYSTEM` em `app/ai.py`) pede *qualidade antes
+de quantidade*: de **0 a 3** passos curtos (0 para tarefa simples; até 3 só para as complexas),
+em ordem, sem passo de enchimento ("Definir o próximo passo"), sem repetir o título e **sem inventar**
+nomes, locais, números nem horários. Para datas vagas ("semana que vem") a IA deixa `due_date` nulo.
+O lembrete (`suggestion`) diz só **o que** lembrar (`text`, `action.title`) e o **tipo**:
+`preparo` (aviso antecipado, na véspera) ou `inicio` (pouco antes do horário).
+
+`_sanitize` impõe o que o modelo não garante: `MAX_STEPS`=3, `MAX_STEP_LEN`=48, `MAX_TEXT_LEN`=90, descarta
+passos de enchimento (só se o passo **inteiro** é enchimento) e decide **se e como** há lembrete
+(`reminder_kind`): sem data não há lembrete; "preparo" só para data futura; hoje, com horário por vir,
+vira "inicio"; "inicio" exige horário. As datas do lembrete **nunca** vêm do modelo (`action.due_date`
+sai nulo): o app as calcula a partir da tarefa. O texto enviado à IA é só o pedido e a data de hoje.
+
+**Bruna (`POST /ai/chat`).** O prompt (`_CHAT_SYSTEM`) define quando agir (pedido claro → age, sem pedir
+confirmação), quando perguntar (UMA pergunta curta se faltar algo essencial, como "Para quando?" ao
+pedir para lembrar), respostas de até 3 frases e honestidade. Para responder sobre a agenda, o servidor
+anexa ao prompt as tarefas em aberto **atrasadas e dos próximos 7 dias** (`agenda_context`: só dia,
+horário e título cortado em 80 caracteres, até 12 linhas, sem subtarefas nem tarefas sem data) — inclui as de
+espaços compartilhados de que a pessoa participa, e **nunca** as de outras pessoas.
+
+**Honestidade:** se a resposta diz na 1ª pessoa que "anotei/criei/marquei/concluí" algo e nenhuma função
+teve sucesso naquela volta, o servidor troca o texto por "Ainda não consegui fazer isso: nenhuma tarefa
+foi criada ou alterada…" (`claims_done`). Pedido repetido não finge que criou de novo ("já estava na sua
+lista"). Gemini → Groq e o fallback sem IA seguem como antes.
 
 ## Duração (end_time)
 

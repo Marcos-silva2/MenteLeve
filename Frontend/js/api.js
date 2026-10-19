@@ -7,7 +7,7 @@
    ============================================================ */
 
 import {
-  todayKey, resolveDue, resolveTime, addDaysKey,
+  todayKey, resolveDue, resolveTime,
   cleanPattern, detectRecurrence, firstOccurrence, cleanWeekdays, detectWeekdays, detectUntil, detectEndTime,
 } from './dates.js';
 import { normalizeCategory, guessCategory } from './categories.js';
@@ -356,6 +356,7 @@ export async function apiSmartTask(text) {
       suggestion: r.suggestion
         ? {
             text: r.suggestion.text,
+            kind: r.suggestion.kind === 'inicio' ? 'inicio' : 'preparo',
             action: act
               ? {
                   title: act.title,
@@ -473,71 +474,14 @@ export async function apiPushUnsubscribe(endpoint) {
 // a /tasks/smart e remove-se esta heurística.
 // ============================================================
 export function decomposeTask(text) {
-  const lower = text.toLowerCase();
   const due = extractDue(text);
   const category = guessCategory(text);
   const title = capitalize(text.trim());
 
-  let subtasks = [];
-  let suggestion = null;
-
-  if (/(festa|anivers[aá]rio|comemora)/.test(lower)) {
-    subtasks = ['Encomendar o bolo', 'Comprar o presente', 'Mandar os convites'];
-    suggestion = {
-      text: 'Identifiquei uma festa. Quer que eu crie um lembrete 1 dia antes para conferir tudo?',
-      action: { title: 'Conferir preparativos da festa', category, due: 'Véspera' },
-    };
-  } else if (/(vacina|consulta|pediatra|m[eé]dic|dentista|exame)/.test(lower)) {
-    subtasks = ['Confirmar horário', 'Levar carteirinha/documentos'];
-    suggestion = {
-      text: 'Identifiquei uma consulta. Deseja um lembrete no dia anterior para comprar o antitérmico?',
-      action: { title: 'Comprar antitérmico', category: 'saude', due: 'Véspera' },
-    };
-  } else if (/(comprar|mercado|presente|encomendar)/.test(lower)) {
-    subtasks = ['Fazer a lista', 'Definir orçamento'];
-    suggestion = {
-      text: 'Quer que eu te lembre de levar as sacolas reutilizáveis?',
-      action: { title: 'Levar sacolas reutilizáveis', category, due: due || 'Hoje' },
-    };
-  } else if (/(apresenta[cç][aã]o|apresentar|slides)/.test(lower)) {
-    subtasks = ['Montar os slides', 'Ensaiar a apresentação'];
-    suggestion = {
-      text: 'Quer um lembrete na véspera para ensaiar com calma?',
-      action: { title: 'Ensaiar a apresentação', category: 'reunioes', due: 'Véspera' },
-    };
-  } else if (/(reuni[aã]o|\bcall\b|1:1|alinhamento|videochamada)/.test(lower)) {
-    subtasks = ['Preparar a pauta', 'Enviar o convite', 'Registrar a ata depois'];
-    suggestion = {
-      text: 'Quer um lembrete na véspera para revisar a pauta?',
-      action: { title: 'Revisar a pauta da reunião', category: 'reunioes', due: 'Véspera' },
-    };
-  } else if (/(relat[oó]rio|entrega|entregar|proposta|projeto|prazo)/.test(lower)) {
-    subtasks = ['Revisar o material', 'Pedir aprovação', 'Enviar'];
-    suggestion = {
-      text: 'Quer reservar um bloco na véspera para a revisão final?',
-      action: { title: 'Revisão final antes da entrega', category: 'trabalho', due: 'Véspera' },
-    };
-  } else if (/(entrevista|curr[ií]culo|linkedin)/.test(lower)) {
-    subtasks = ['Revisar o currículo', 'Pesquisar sobre a empresa'];
-    suggestion = {
-      text: 'Quer um lembrete na véspera para se preparar?',
-      action: { title: 'Preparar-se para a entrevista', category: 'carreira', due: 'Véspera' },
-    };
-  } else if (/(\bprovas?\b|estudar|simulado|certifica)/.test(lower)) {
-    subtasks = ['Separar o material', 'Revisar os pontos principais'];
-    suggestion = {
-      text: 'Quer um lembrete na véspera para uma revisão rápida?',
-      action: { title: 'Revisão rápida antes da prova', category: 'estudos', due: 'Véspera' },
-    };
-  } else if (/(trabalho)/.test(lower)) {
-    subtasks = ['Definir o próximo passo', 'Reservar um bloco de tempo'];
-  } else if (/(pagar|conta|boleto|fatura|imposto)/.test(lower)) {
-    subtasks = ['Verificar valor', 'Agendar pagamento'];
-    suggestion = {
-      text: 'Quer ativar um lembrete recorrente todo mês para essa conta?',
-      action: { title: 'Lembrete mensal da conta', category: 'financas', due: 'Mensal' },
-    };
-  }
+  // Passos e lembretes não nascem aqui: vêm de suggestions.js (buildSuggestions), que também
+  // serve à resposta da IA. Esta heurística só interpreta o texto (categoria, data, hora, repetição).
+  const subtasks = [];
+  const suggestion = null;
 
   // Converte os rótulos da heurística em data estruturada — é isso que faz a
   // tarefa aparecer no calendário mesmo quando o app está offline.
@@ -546,18 +490,6 @@ export function decomposeTask(text) {
     dueDate: resolveDue(label, today),
     dueTime: resolveTime(label),
   });
-  if (suggestion && suggestion.action) {
-    const a = suggestion.action;
-    // "Véspera" é relativa à data da tarefa-mãe, não a hoje.
-    const base = a.due === 'Véspera' ? resolveDue(due, today) : null;
-    suggestion.action = {
-      ...a,
-      ...(base
-        ? { dueDate: addDaysKey(base, -1), dueTime: null }
-        : structure(a.due)),
-    };
-  }
-
   // Recorrência por regra (sem IA).
   const recurrenceWeekdays = detectWeekdays(text);
   const recurrencePattern = recurrenceWeekdays ? 'weekly' : detectRecurrence(text);

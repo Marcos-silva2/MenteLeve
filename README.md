@@ -196,7 +196,7 @@ Autenticação: cadastro/login por e-mail + senha (hash **bcrypt**); o backend d
 
 **Limites conhecidos** — vale ter claro:
 - A chave e o banco ficam ambos no Render. Comprometer essa conta entrega os dois.
-- A **Bruna envia o texto das tarefas para o Google (Gemini) e o Groq**. Nenhuma criptografia no banco muda isso.
+- A **Bruna envia texto para o Google (Gemini) e o Groq**: a conversa e, para poder responder sobre a agenda, o título, o dia e o horário das tarefas em aberto atrasadas ou dos próximos 7 dias (até 12, sem subtarefas). A análise de uma nova tarefa envia só o texto digitado. Nenhuma criptografia no banco muda isso.
 - **Não há limite de tentativas de login.** O custo do bcrypt (~250 ms) freia na prática, mas não é uma trava de verdade.
 - **RLS do Supabase não é usada** — e não adiantaria: o backend conecta com a role `postgres`, que ignora RLS. O isolamento entre contas está na aplicação. RLS só faria sentido se o frontend falasse direto com o Supabase, o que não acontece.
 - O `localStorage` do aparelho guarda as tarefas em texto puro (é o que faz o modo offline funcionar).
