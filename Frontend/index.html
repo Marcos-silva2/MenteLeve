@@ -64,6 +64,7 @@
               300: 'rgb(var(--rgb-soft-300) / <alpha-value>)',
               200: 'rgb(var(--rgb-soft-200) / <alpha-value>)',
               100: 'rgb(var(--rgb-soft-100) / <alpha-value>)',
+              50: 'rgb(var(--rgb-soft-50) / <alpha-value>)',
             },
             // Texto secundário: em todos os temas dá ≥ 4,5:1 (WCAG AA) sobre o
             // fundo e sobre o branco. `soft-300` fica para decoração, não leitura.
@@ -90,18 +91,19 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <!-- Shell adaptativo:
-       Mobile  → conteúdo full-screen + bottom bar
-       Desktop → sidebar lateral fixa (Night Bordeaux) + área de conteúdo -->
+  <!-- Shell adaptativo — a mesma barra lateral em todas as telas:
+       Mobile  → gaveta que abre pelo botão de menu (canto superior esquerdo)
+       Desktop → fixa à esquerda, recolhível para só os ícones -->
   <div id="root" class="root">
-    <!-- Navegação lateral (desktop) -->
-    <aside id="sidenav" class="sidenav"></aside>
+    <aside id="sidenav" class="sidenav" aria-label="Menu principal"></aside>
+    <div id="nav-scrim" class="nav-scrim" aria-hidden="true"></div>
 
     <!-- Área principal (recebe overlays: sheet/modal/toast/FAB) -->
     <div id="device" class="frame">
+      <button id="nav-open" class="nav-open-btn" type="button" aria-label="Abrir menu" aria-controls="sidenav" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="w-6 h-6" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
       <main id="app" class="app-screen"></main>
-      <!-- Navegação inferior (mobile) -->
-      <nav id="bottomnav" class="bottomnav"></nav>
     </div>
   </div>
 

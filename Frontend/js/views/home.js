@@ -1,6 +1,6 @@
 /* ============================================================
    Home / Dashboard "Minha Mente" (Tela 3)
-   Mobile : lista vertical (checklist) + bottom bar
+   Mobile : lista vertical (checklist) + menu lateral em gaveta
    Desktop: lista principal + painel de agenda semanal (aside)
    ============================================================ */
 
@@ -108,7 +108,7 @@ export function renderHome(app) {
 
       <!-- FAB -->
       <button id="fab" aria-label="Adicionar nova tarefa"
-        class="fab absolute right-5 bottom-24 lg:bottom-10 w-16 h-16 rounded-full bg-accent text-white grid place-items-center shadow-fab fab-pulse active:scale-95 transition-transform z-30
+        class="fab absolute right-5 bottom-6 lg:bottom-10 w-16 h-16 rounded-full bg-accent text-white grid place-items-center shadow-fab fab-pulse active:scale-95 transition-transform z-30
                focus-visible:ring-4 focus-visible:ring-accent/30 outline-none">
         ${icons.plus}
       </button>

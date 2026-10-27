@@ -32,7 +32,9 @@ Frontend/
     ├── categories.js       # categorias (Trabalho / Pessoal), mapeamento das antigas, grupo escolhido
     ├── theme.js            # temas de cor: lista, persistência e aplicação
     ├── sound.js            # feedback sonoro sintetizado (Web Audio)
-    ├── ui.js               # helpers: DOM, ícones SVG, toast, navbar
+    ├── kanban.js           # modelo dos quadros Kanban (funções puras + localStorage por conta)
+    ├── knowledge.js        # artigos da aba Conhecimento (texto + fontes)
+    ├── ui.js               # helpers: DOM, ícones SVG, toast, barra lateral
     ├── components/
     │   └── taskSheet.js    # Bottom Sheet de nova tarefa + modal "Aha Moment" da IA
     └── views/
@@ -41,6 +43,7 @@ Frontend/
         ├── register.js     # criar conta
         ├── home.js         # dashboard "Minha Mente"
         ├── agenda.js       # calendário mensal + ciclo menstrual (local)
+        ├── kanban.js       # quadros estilo Trello: listas, cartões, arrastar e soltar
         ├── chat.js         # Bruna (IA)
         ├── connections.js  # espaços compartilhados (criar, entrar por código, membros)
         ├── knowledge.js    # aba Conhecimento: artigos com fontes (conteúdo em js/knowledge.js)
@@ -119,6 +122,33 @@ Os limites espelham `Backend/app/ai.py`. Para ensinar um compromisso novo, acres
 `REGRAS` (regex sobre o título sem acento, `cats` opcional, `exceto` para falsos positivos) e um caso em
 `tests/suggestions.test.mjs`.
 
+## Navegação (barra lateral)
+
+A mesma barra lateral no celular e no computador (`ui.js::renderNav`): fundo claro, ícone num círculo
+branco, item ativo numa pílula escura com a seta ›.
+
+- **Computador (≥ 1024 px):** fixa à esquerda (248 px; 216 px entre 1024 e 1279). O botão ‹ recolhe para
+  só os ícones (76 px) e a escolha fica salva (`menteleve.navCollapsed`).
+- **Celular/tablet:** gaveta aberta pelo botão de menu no canto superior esquerdo (por isso os títulos das
+  telas começam em `pt-12`). Fecha com ‹, Esc, tocando no fundo ou escolhendo uma aba; enquanto aberta o
+  Tab fica preso nela e, ao fechar, o foco volta ao botão de menu. Não há mais barra embaixo: o botão `+`
+  fica no canto inferior.
+
+## Kanban
+
+Quadros no estilo Trello, **salvos só no aparelho** (`localStorage`, separado por conta:
+`menteleve.kanban.v1:<conta>`). Modelo puro e testado em `js/kanban.js`; tela em `views/kanban.js`.
+
+- Quadro novo já vem com **A fazer / Fazendo / Feito**; listas podem ser criadas, renomeadas (clique no
+  nome), movidas (menu ⋯) e excluídas.
+- Cartões: título, **etiquetas** (6 cores fixas), **prazo** (selo atrasado / hoje / em breve),
+  **descrição**, **checklist** com progresso, mover de lista e **Adicionar à agenda** (vira tarefa de
+  Trabalho com o prazo do cartão). O texto salva enquanto se digita.
+- **Arrastar e soltar** com Pointer Events: o mouse arrasta após 6 px; no toque é preciso **segurar ~0,3 s**
+  (um deslize rápido continua rolando). Perto das bordas o quadro e a lista rolam sozinhos. Pelo teclado,
+  o campo "na lista" do cartão faz o mesmo.
+- Filtro por texto e por etiqueta (o arraste fica desligado enquanto há filtro, para a posição não mentir).
+
 ## Convenções de interface
 
 - **Formulário de nova tarefa** (`components/taskSheet.js`): o essencial fica à vista (texto, **Onde**,
@@ -141,8 +171,8 @@ tela. Regras que sustentam isso (`css/styles.css`, bloco "Dimensionamento"):
   sozinho ao focar um campo, em telas de toque `input/textarea/select` usam 16 px (`pointer: coarse`).
 - **Folha de baixo** (`.sheet`: nova tarefa e menus) tem `max-height: 92dvh` e rola por dentro — em
   celular deitado ela passava da tela e o título/o botão ficavam inalcançáveis.
-- **Tela baixa** (≤ 520 px de altura, abaixo de 1024 px de largura): barra de baixo compacta (rótulos
-  escondidos; cada botão tem `aria-label`), menos respiro no topo, título e botão `+` menores.
+- **Tela baixa** (≤ 520 px de altura, abaixo de 1024 px de largura): menos respiro no topo (sem
+  cobrir o botão de menu), título e botão `+` menores, itens da barra lateral mais baixos.
 - **≤ 360 px**: títulos menores e a linha de data/hora da nova tarefa **quebra** em vez de cortar o campo.
 - **1024–1279 px**: barra lateral de 216 px e **sem** o painel "Sua semana" (a lista de tarefas ocupa a
   largura; antes ficava com ~360 px). O painel volta a partir de 1280 px.

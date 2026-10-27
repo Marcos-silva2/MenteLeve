@@ -16,6 +16,7 @@ import { renderChat, clearConversation } from './views/chat.js';
 import { renderConnections } from './views/connections.js';
 import { renderProfile } from './views/profile.js';
 import { renderKnowledge } from './views/knowledge.js';
+import { renderKanban } from './views/kanban.js';
 
 const routes = {
   onboarding: renderOnboarding,
@@ -23,6 +24,7 @@ const routes = {
   register: renderRegister,
   home: renderHome,
   agenda: renderAgenda,
+  kanban: renderKanban,
   bruna: renderChat,
   knowledge: renderKnowledge,
   connections: renderConnections,
@@ -68,7 +70,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Abas que podem ser refletidas na URL (deep-link / restaurar ao recarregar).
-const TAB_ROUTES = ['home', 'agenda', 'bruna', 'knowledge', 'connections', 'profile'];
+const TAB_ROUTES = ['home', 'agenda', 'kanban', 'bruna', 'knowledge', 'connections', 'profile'];
 
 function navigate(route, params = {}) {
   const render = routes[route];
@@ -86,7 +88,7 @@ function navigate(route, params = {}) {
   // a classe para que re-renders internos (toggle, etc.) não re-animem.
   setTimeout(() => view.classList.remove('view-enter'), 650);
 
-  // Navegação persistente do shell (sidebar desktop / bottom bar mobile).
+  // Navegação persistente do shell (barra lateral: fixa no desktop, gaveta no mobile).
   // Telas de fluxo (onboarding/login) não exibem navegação.
   if (TAB_ROUTES.includes(route)) {
     renderNav(route, navigate);

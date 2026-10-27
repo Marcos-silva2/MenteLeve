@@ -53,6 +53,7 @@ export const icons = {
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
   flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M5 21V4"/><path d="M5 4h13l-3 4.5L18 13H5"/></svg>',
   repeat: '<span aria-hidden="true">↻</span>',
+  kanban: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7.5 7.5v7M12 7.5v4M16.5 7.5v9"/></svg>',
   book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
 };
 
@@ -208,61 +209,112 @@ export function confirmDialog({ title, message = '', confirmLabel = 'Confirmar',
 export const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: icons.home },
   { id: 'agenda', label: 'Agenda', icon: icons.calendar },
+  { id: 'kanban', label: 'Kanban', icon: icons.kanban },
   { id: 'bruna', label: 'Bruna', icon: icons.chat },
-  // `short`: rótulo da barra de baixo (6 abas precisam caber em 320 px).
-  { id: 'knowledge', label: 'Conhecimento', short: 'Saber', icon: icons.book },
+  { id: 'knowledge', label: 'Conhecimento', icon: icons.book },
   { id: 'connections', label: 'Conexões', icon: icons.users },
   { id: 'profile', label: 'Perfil', icon: icons.user },
 ];
 
+const NAV_COLLAPSED_KEY = 'menteleve.navCollapsed';
+const isNavCollapsed = () => { try { return localStorage.getItem(NAV_COLLAPSED_KEY) === '1'; } catch (_) { return false; } };
+
+/** Abre/fecha a gaveta (mobile). No desktop a barra é fixa e isto não tem efeito visual. */
+function setDrawer(open, { focus = true } = {}) {
+  const root = document.getElementById('root');
+  const btn = document.getElementById('nav-open');
+  const estava = root.classList.contains('nav-open');
+  root.classList.toggle('nav-open', open);
+  if (btn) btn.setAttribute('aria-expanded', String(open));
+  if (!focus || open === estava) return;
+  if (open) {
+    const atual = document.querySelector('#sidenav [aria-current="page"]') || document.querySelector('#sidenav [data-tab]');
+    // espera a gaveta ficar visível (visibility) para o foco pegar
+    requestAnimationFrame(() => atual && atual.focus());
+  } else if (btn && !isDesktop()) {
+    btn.focus();
+  }
+}
+
+let _navBound = false;
+/** Liga uma vez só: botão de menu, fundo escurecido, Esc e a passagem mobile ↔ desktop. */
+function bindNavShell() {
+  if (_navBound) return;
+  _navBound = true;
+  const btn = document.getElementById('nav-open');
+  const scrim = document.getElementById('nav-scrim');
+  if (btn) btn.addEventListener('click', () => { playTap(); setDrawer(true); });
+  if (scrim) scrim.addEventListener('click', () => setDrawer(false));
+  document.addEventListener('keydown', (e) => {
+    const root = document.getElementById('root');
+    if (!root.classList.contains('nav-open') || isDesktop()) return;
+    if (e.key === 'Escape') { e.preventDefault(); setDrawer(false); return; }
+    // Gaveta aberta é modal: o Tab circula dentro dela.
+    if (e.key === 'Tab') {
+      const f = $$('#sidenav button');
+      if (!f.length) return;
+      const [a, z] = [f[0], f[f.length - 1]];
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+      else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+      else if (!document.getElementById('sidenav').contains(document.activeElement)) { e.preventDefault(); a.focus(); }
+    }
+  });
+  // Virou desktop com a gaveta aberta: fecha (a barra já está fixa ali).
+  window.matchMedia('(min-width: 1024px)').addEventListener('change', (m) => { if (m.matches) setDrawer(false, { focus: false }); });
+  document.getElementById('root').classList.toggle('nav-collapsed', isNavCollapsed());
+}
+
 /**
- * Renderiza a navegação persistente do shell:
- *  - Desktop → sidebar lateral fixa (#sidenav), Night Bordeaux
- *  - Mobile  → bottom bar (#bottomnav)
+ * Renderiza a barra lateral do shell (a mesma no celular e no computador):
+ *  - Desktop (≥1024px) → fixa à esquerda; o botão ‹ recolhe para só os ícones (lembrado).
+ *  - Mobile → gaveta aberta pelo botão de menu; ‹, Esc, o fundo ou escolher uma aba fecham.
  * Quando `active` é null, esconde a navegação (telas de fluxo).
  */
 export function renderNav(active, onNavigate) {
   const side = document.getElementById('sidenav');
-  const bottom = document.getElementById('bottomnav');
   const root = document.getElementById('root');
+  bindNavShell();
 
   if (!active) {
     side.innerHTML = '';
-    bottom.innerHTML = '';
+    setDrawer(false, { focus: false });
     root.classList.add('is-fullbleed');
     return;
   }
   root.classList.remove('is-fullbleed');
 
-  // ---- Sidebar (desktop) ----
+  const recolhida = root.classList.contains('nav-collapsed');
   side.innerHTML = `
-    <div class="flex items-center gap-2 px-2 mb-8">
-      <span class="js-logo grid place-items-center w-10 h-10 rounded-xl bg-white shadow-fab text-bordeaux-900">
-        ${logoMark('h-6 w-auto')}
+    <div class="snav-top">
+      <span class="snav-brand">
+        <span class="js-logo grid place-items-center w-9 h-9 rounded-xl bg-white shadow-sm text-bordeaux-900 shrink-0">${logoMark('h-6 w-auto')}</span>
+        <span class="snav-brand-name font-serif font-bold text-lg text-bordeaux-900">MenteLeve</span>
       </span>
-      <span class="font-serif font-bold text-xl text-white">MenteLeve</span>
+      <button type="button" class="snav-collapse" data-collapse
+        aria-label="${isDesktop() ? (recolhida ? 'Expandir menu' : 'Recolher menu') : 'Fechar menu'}"
+        ${isDesktop() ? `aria-expanded="${!recolhida}"` : ''}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>
+      </button>
     </div>
-    <nav class="flex flex-col gap-1">
+    <nav class="flex flex-col gap-1.5" aria-label="Seções">
       ${NAV_ITEMS.map((it) => navSideItem(it, active)).join('')}
     </nav>`;
 
   $$('[data-tab]', side).forEach((b) =>
-    b.addEventListener('click', () => { playTap(); onNavigate(b.dataset.tab); })
+    b.addEventListener('click', () => {
+      playTap();
+      setDrawer(false, { focus: false });
+      onNavigate(b.dataset.tab);
+    })
   );
-
-  // ---- Bottom bar (mobile) ----
-  bottom.innerHTML = `
-    <div class="flex items-center justify-around px-2 py-2">
-      ${NAV_ITEMS.map((it) => `
-        <button data-tab="${it.id}" aria-label="${it.label}" ${it.id === active ? 'aria-current="page"' : ''}
-          class="flex flex-col items-center gap-0.5 min-w-11 min-h-11 px-1 sm:px-2 py-1 transition-colors ${active === it.id ? 'is-active text-bordeaux-900' : 'text-muted'}">
-          <span class="nav-pill">${it.icon}</span>
-          <span class="text-[10px] font-medium">${it.short || it.label}</span>
-        </button>`).join('')}
-    </div>`;
-  $$('[data-tab]', bottom).forEach((b) =>
-    b.addEventListener('click', () => { playTap(); onNavigate(b.dataset.tab); })
-  );
+  $('[data-collapse]', side).addEventListener('click', () => {
+    if (!isDesktop()) { setDrawer(false); return; }
+    const agora = !root.classList.contains('nav-collapsed');
+    root.classList.toggle('nav-collapsed', agora);
+    try { localStorage.setItem(NAV_COLLAPSED_KEY, agora ? '1' : '0'); } catch (_) { /* só não lembra */ }
+    renderNav(active, onNavigate);
+    $('[data-collapse]', side).focus();
+  });
 }
 
 /**
@@ -286,10 +338,11 @@ export function pulseBrandLogo(ms = 1600) {
 function navSideItem(it, active) {
   const on = it.id === active;
   return `
-    <button data-tab="${it.id}" ${on ? 'aria-current="page"' : ''}
-      class="flex items-center gap-3 px-4 min-h-11 py-3 rounded-full text-sm font-medium transition
-             ${on ? 'bg-soft-100 text-bordeaux-900 font-semibold' : 'text-soft-100 hover:bg-white/10'}">
-      ${it.icon}<span>${it.label}</span>
+    <button data-tab="${it.id}" ${on ? 'aria-current="page"' : ''} title="${it.label}"
+      class="snav-item ${on ? 'is-active' : ''}">
+      <span class="snav-ico" aria-hidden="true">${it.icon}</span>
+      <span class="snav-label">${it.label}</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="snav-chev w-4 h-4" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
     </button>`;
 }
 

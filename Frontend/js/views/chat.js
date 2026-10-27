@@ -62,7 +62,7 @@ export function renderChat(app) {
 
         <div id="messages" class="flex-1 overflow-y-auto px-5 lg:px-0 py-4 flex flex-col gap-3"></div>
 
-        <div class="shrink-0 px-5 lg:px-0 pt-2 pb-24 lg:pb-6">
+        <div class="shrink-0 px-5 lg:px-0 pt-2 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] lg:pb-6">
           <div id="suggestions" class="flex flex-wrap gap-2 mb-2"></div>
           <form id="chat-form" class="flex items-end gap-2">
             <textarea id="chat-input" rows="1" maxlength="2000"

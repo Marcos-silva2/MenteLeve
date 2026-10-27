@@ -89,7 +89,7 @@ export function renderAgenda(app) {
       </div>
 
       <button id="fab"
-        class="fab absolute right-5 bottom-24 lg:bottom-10 w-16 h-16 rounded-full bg-accent text-white grid place-items-center shadow-fab fab-pulse active:scale-95 transition-transform z-30">
+        class="fab absolute right-5 bottom-6 lg:bottom-10 w-16 h-16 rounded-full bg-accent text-white grid place-items-center shadow-fab fab-pulse active:scale-95 transition-transform z-30">
         ${icons.plus}
       </button>
     </div>
